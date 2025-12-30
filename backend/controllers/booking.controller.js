@@ -91,15 +91,17 @@ const startService = async (req, res) => {
 };
 
 /* ───────────────── COMPLETE SERVICE ───────────────── */
-completeService = async (req, res) => {
+const completeService = async (req, res) => {
   try {
     const providerId = req.user.id;
-    const { bookingId } = req.body;
+    const { bookingId, otp } = req.body;
 
     const booking = await Booking.findOne({
       where: { id: bookingId, providerId },
     });
-
+    if (booking.completionOtp !== otp) {
+      return res.status(400).json({ message: "Invalid OTP" });
+    }
     if (!booking || booking.status !== "on_the_way") {
       return res.status(400).json({ message: "Invalid booking state" });
     }
@@ -112,6 +114,30 @@ completeService = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
+// exports.verifyCompletionOtp = async (req, res) => {
+//   const { bookingId, otp } = req.body;
+
+//   const booking = await Booking.findByPk(bookingId);
+
+//   if (!booking) {
+//     return res.status(404).json({ message: "Booking not found" });
+//   }
+
+//   if (booking.status === "completed") {
+//     return res.status(400).json({ message: "Booking already completed" });
+//   }
+
+//   if (booking.completionOtp !== otp) {
+//     return res.status(400).json({ message: "Invalid OTP" });
+//   }
+
+//   booking.status = "completed";
+//   booking.otpVerified = true;
+
+//   await booking.save();
+
+//   res.json({ message: "Service completed successfully" });
+// };
 
 /* ───────────────── CANCEL BOOKING (USER) ───────────────── */
 cancelBooking = async (req, res) => {

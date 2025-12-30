@@ -11,6 +11,8 @@ import Banner from "./pages/banner/all-banner";
 import RazorpayConfig from "./pages/razorpay/RazorpayConfig";
 import Settings from "./pages/settings/setting";
 import SectionManager from "./pages/sectionmanage/sectionManage";
+import ServiceRequest from "./pages/serviceRequest/serviceRequest";
+import AdminServiceRequestsPage from "./pages/serviceRequest/serviceRequest";
 
 function App() {
   return (
@@ -36,6 +38,11 @@ function App() {
               path="/section-management"
               exact
               element={<SectionManager />}
+            />
+            <Route
+              path="/service-request"
+              exact
+              element={<AdminServiceRequestsPage />}
             />
             <Route
               path="/booking/allbookings/:id"

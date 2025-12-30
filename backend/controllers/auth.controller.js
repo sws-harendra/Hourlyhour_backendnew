@@ -1,6 +1,13 @@
 const { generateOTP } = require("../helpers/otp_generator");
 const jwt = require("jsonwebtoken");
-const { Otp, User, UserService, Address } = require("../models");
+const {
+  Otp,
+  User,
+  UserService,
+  Address,
+  Service,
+  Category,
+} = require("../models");
 const { Op } = require("sequelize");
 const { ValidationError } = require("sequelize");
 const path = require("path");
@@ -29,7 +36,7 @@ const sendOtp = async (req, res) => {
       type: "login", // or register
       expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes expiry
     });
-    const sent = await sendOtptoPhone(phone, otp);
+    // const sent = await sendOtptoPhone(phone, otp);
 
     console.log(otp);
     res.json({ success: true, message: "OTP sent successfully" });
@@ -618,6 +625,72 @@ const updateProviderLocation = async (req, res) => {
     res.status(500).json({ error: "Failed to update location" });
   }
 };
+const getMyServices = async (req, res) => {
+  try {
+    // Get all UserService entries for this user
+    const userServices = await UserService.findAll({
+      where: { userId: req.user.id },
+      attributes: ["serviceId"], // Only get service IDs
+    });
+    // console.log(userServices);
+    // Extract just the service IDs
+    const serviceIds = userServices.map((us) => us.serviceId);
+    console.log(serviceIds);
+
+    // Now fetch the actual services
+    const services = await Service.findAll({
+      where: { id: serviceIds },
+      include: [
+        {
+          model: Category,
+          as: "category",
+        },
+      ],
+    });
+    // console.log(services);
+
+    return res.status(200).json({
+      success: true,
+      services: services,
+      serviceIds: serviceIds, // Optional: for debugging
+    });
+  } catch (error) {
+    console.error("Error:", error);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+const updateMyServices = async (req, res) => {
+  try {
+    const { services } = req.body; // array of serviceIds
+
+    if (!Array.isArray(services)) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Invalid services payload" });
+    }
+
+    const user = await User.findByPk(req.user.id);
+
+    if (!user) {
+      return res
+        .status(404)
+        .json({ success: false, message: "User not found" });
+    }
+
+    await user.setServices(services);
+
+    return res.json({
+      success: true,
+      message: "Services updated successfully",
+    });
+  } catch (error) {
+    console.error("Update My Services Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
 
 module.exports = {
   sendOtp,
@@ -635,4 +708,6 @@ module.exports = {
   updateUserAddress,
   deleteUserAddress,
   updateProviderLocation,
+  getMyServices,
+  updateMyServices,
 };

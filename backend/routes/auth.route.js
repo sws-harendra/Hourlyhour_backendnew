@@ -54,5 +54,7 @@ router.delete(
   authcontroller.deleteUserAddress
 );
 router.put("/location", authenticated, authcontroller.updateProviderLocation);
+router.get("/me/services", authenticated, authcontroller.getMyServices);
+router.put("/me/services", authenticated, authcontroller.updateMyServices);
 
 module.exports = router;

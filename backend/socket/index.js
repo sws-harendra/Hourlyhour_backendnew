@@ -140,14 +140,24 @@ const initSocket = (server, allowedOrigins) => {
     socket.on("provider-location", (data) => {
       const { orderId, lat, lng } = data;
 
-      // Send to admin / customer room
-      io.emit("provider-location-update", {
-        orderId,
-        lat,
-        lng,
+      socket.on("provider-location", async (data) => {
+        const { orderId, lat, lng } = data;
+
+        // 🔎 Find booking → get userId
+        const booking = await Booking.findByPk(orderId);
+        if (!booking) return;
+
+        const userSocketId = onlineUsers.get(booking.userId.toString());
+
+        if (userSocketId) {
+          io.to(userSocketId).emit("provider-location-update", {
+            lat,
+            lng,
+            orderId,
+          });
+        }
       });
     });
-
     /* ───────── DISCONNECT ───────── */
     socket.on("disconnect", () => {
       if (socket.providerId) {

@@ -63,6 +63,11 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: true,
     },
+    /** ✅ NEW FIELDS */
+    completionOtp: {
+      type: DataTypes.STRING(4),
+      allowNull: true,
+    },
   });
 
   Booking.associate = (models) => {

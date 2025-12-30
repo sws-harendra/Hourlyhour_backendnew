@@ -16,6 +16,8 @@ import {
   Settings2,
   Hammer,
   SeparatorVertical,
+  Server,
+  Key,
 } from "lucide-react";
 
 const menuItems = [
@@ -49,7 +51,7 @@ const menuItems = [
   },
   {
     name: "Razorpay Config",
-    icon: PanelsRightBottomIcon,
+    icon: Key,
     path: "/razorpay-config",
     children: [{ name: "Razorpay Config", path: "/razorpay-config" }],
   },
@@ -70,6 +72,13 @@ const menuItems = [
     icon: Settings2,
     path: "/section-management",
     children: [{ name: "Section Management", path: "/section-management" }],
+  },
+
+  {
+    name: "Service Request",
+    icon: Server,
+    path: "/service-request",
+    children: [{ name: "Service Request", path: "/service-request" }],
   },
   // { name: "Tickets", icon: Users, path: "/tickets" },
 ];

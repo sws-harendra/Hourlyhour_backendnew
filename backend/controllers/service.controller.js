@@ -11,6 +11,7 @@ const {
   emitToAllProviders,
   emitToNearbyOnlineProviders,
 } = require("../socket");
+const { generateOTP } = require("../helpers/otp_generator");
 
 const addService = async (req, res) => {
   try {
@@ -328,7 +329,7 @@ const bookService = async (req, res) => {
       latitude = address.latitude;
       longitude = address.longitude;
     }
-
+    const completionOtp = generateOTP();
     const booking = await Booking.create({
       userId,
       serviceId,
@@ -340,6 +341,7 @@ const bookService = async (req, res) => {
       status: "pending",
       latitude,
       longitude,
+      completionOtp,
     });
 
     // emitToAllProviders("new-order", {

@@ -43,6 +43,7 @@ app.use("/api/payment-cred", require("./routes/razorpay.route"));
 app.use("/api/settings", require("./routes/setting.route"));
 app.use("/api/section", require("./routes/section.route"));
 app.use("/api/dashboard", require("./routes/dashboard.route"));
+app.use("/api/serviceRequest", require("./routes/servicerequest.route"));
 
 /* ===== INIT SOCKET ===== */
 initSocket(server, allowedOrigins);
