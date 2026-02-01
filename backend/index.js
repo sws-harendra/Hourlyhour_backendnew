@@ -12,7 +12,11 @@ const app = express();
 const server = http.createServer(app);
 
 const port = process.env.PORT || 8008;
-const allowedOrigins = ["http://localhost:5172", process.env.CLIENT_URL];
+const allowedOrigins = [
+  "http://localhost:5172",
+  "http://localhost:5173",
+  process.env.CLIENT_URL,
+].filter(Boolean);
 
 // Middleware
 app.use(
@@ -44,6 +48,7 @@ app.use("/api/settings", require("./routes/setting.route"));
 app.use("/api/section", require("./routes/section.route"));
 app.use("/api/dashboard", require("./routes/dashboard.route"));
 app.use("/api/serviceRequest", require("./routes/servicerequest.route"));
+app.use("/api/coupon", require("./routes/coupon.route"));
 
 /* ===== INIT SOCKET ===== */
 initSocket(server, allowedOrigins);

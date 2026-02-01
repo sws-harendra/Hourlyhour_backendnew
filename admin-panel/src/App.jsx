@@ -13,6 +13,7 @@ import Settings from "./pages/settings/setting";
 import SectionManager from "./pages/sectionmanage/sectionManage";
 import ServiceRequest from "./pages/serviceRequest/serviceRequest";
 import AdminServiceRequestsPage from "./pages/serviceRequest/serviceRequest";
+import Coupons from "./pages/coupons/all-coupons";
 
 function App() {
   return (
@@ -44,6 +45,7 @@ function App() {
               exact
               element={<AdminServiceRequestsPage />}
             />
+            <Route path="/coupons" exact element={<Coupons />} />
             <Route
               path="/booking/allbookings/:id"
               exact

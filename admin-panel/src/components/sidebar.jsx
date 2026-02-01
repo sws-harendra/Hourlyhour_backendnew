@@ -18,6 +18,7 @@ import {
   SeparatorVertical,
   Server,
   Key,
+  Tag,
 } from "lucide-react";
 
 const menuItems = [
@@ -79,6 +80,12 @@ const menuItems = [
     icon: Server,
     path: "/service-request",
     children: [{ name: "Service Request", path: "/service-request" }],
+  },
+  {
+    name: "Coupons",
+    icon: Tag,
+    path: "/coupons",
+    children: [{ name: "Coupons", path: "/coupons" }],
   },
   // { name: "Tickets", icon: Users, path: "/tickets" },
 ];
