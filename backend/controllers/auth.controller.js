@@ -130,7 +130,7 @@ const verifyOtp = async (req, res) => {
       process.env.JWT_SECRET,
       {
         expiresIn: "7d",
-      }
+      },
     );
 
     return res.json({
@@ -414,7 +414,7 @@ const completeProfile = async (req, res) => {
       services.map((serviceId) => ({
         userId,
         serviceId,
-      }))
+      })),
     );
 
     return res.json({
@@ -691,7 +691,55 @@ const updateMyServices = async (req, res) => {
     });
   }
 };
+const adminLogin = async (req, res) => {
+  const { email, password } = req.body;
+  if (
+    email != process.env.ADMIN_EMAIL ||
+    password != process.env.ADMIN_PASSWORD
+  ) {
+    return res.status(401).json({
+      success: false,
+      message: "Sorry, wrong credentials",
+    });
+  }
 
+  const token = jwt.sign(
+    {
+      id: "adminId",
+      userType: "admin",
+    },
+    process.env.JWT_SECRET,
+    { expiresIn: "7d" },
+  );
+
+  return res.status(200).json({
+    success: true,
+    token,
+    userType: "admin",
+    message: "Admin login successful",
+  });
+};
+const addminnme = (req, res) => {
+  const token = req.headers.authorization?.split(" ")[1];
+
+  if (!token) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
+
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    return res.json({
+      success: true,
+      user: decoded,
+    });
+  } catch (err) {
+    return res.status(401).json({
+      success: false,
+      message: "Token expired or invalid",
+    });
+  }
+};
 module.exports = {
   sendOtp,
   verifyOtp,
@@ -710,4 +758,6 @@ module.exports = {
   updateProviderLocation,
   getMyServices,
   updateMyServices,
+  adminLogin,
+  addminnme,
 };

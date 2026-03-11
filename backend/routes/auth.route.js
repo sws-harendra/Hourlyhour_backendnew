@@ -12,28 +12,28 @@ router.post("/complete-profile", authenticated, authcontroller.completeProfile);
 router.get(
   "/all-users",
   //  authenticated,
-  authcontroller.allusers
+  authcontroller.allusers,
 ); // Create
 
 router.delete("/users/:id", authcontroller.deleteUser); // Delete user
 router.get(
   "/all-service-provider",
   //   authenticated,
-  authcontroller.allServiceProvider
+  authcontroller.allServiceProvider,
 ); // Create
 
 router.put(
   "/edit-profile",
   upload.single("profilePicture"),
   authenticated,
-  authcontroller.editProfile
+  authcontroller.editProfile,
 );
 
 router.put(
   "/admin/user/:id",
   upload.single("profilePicture"),
   // authenticated,
-  authcontroller.updateUserByAdmin
+  authcontroller.updateUserByAdmin,
 );
 // Users management
 router.post("/users", authcontroller.createUser);
@@ -45,16 +45,18 @@ router.post("/provider/wallet-add", authenticated, authcontroller.addToWallet);
 router.put(
   "/update-user-addresses",
   authenticated,
-  authcontroller.updateUserAddress
+  authcontroller.updateUserAddress,
 );
 
 router.delete(
   "/delete-user-address/:id",
   authenticated,
-  authcontroller.deleteUserAddress
+  authcontroller.deleteUserAddress,
 );
+
 router.put("/location", authenticated, authcontroller.updateProviderLocation);
 router.get("/me/services", authenticated, authcontroller.getMyServices);
 router.put("/me/services", authenticated, authcontroller.updateMyServices);
-
+router.post("/admin-login", authcontroller.adminLogin); // Create
+router.get("/admin-me", authcontroller.addminnme);
 module.exports = router;

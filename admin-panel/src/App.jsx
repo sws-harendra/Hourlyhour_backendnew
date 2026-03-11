@@ -11,50 +11,42 @@ import Banner from "./pages/banner/all-banner";
 import RazorpayConfig from "./pages/razorpay/RazorpayConfig";
 import Settings from "./pages/settings/setting";
 import SectionManager from "./pages/sectionmanage/sectionManage";
-import ServiceRequest from "./pages/serviceRequest/serviceRequest";
 import AdminServiceRequestsPage from "./pages/serviceRequest/serviceRequest";
+import Login from "./pages/auth/login";
+import ProtectedRoute from "./protectedRoute";
 
 function App() {
   return (
-    <>
-      {/* Define Routes */}
-      <BrowserRouter>
-        <Layout>
-          <Routes>
-            <Route path="/" exact element={<Home />} />
-            <Route path="/category" exact element={<Category />} />
-            <Route path="/service" exact element={<Service />} />
-            <Route path="/users" exact element={<Users />} />
-            <Route
-              path="/service-providers"
-              exact
-              element={<ServiceProviders />}
-            />
-            <Route path="/bookings" exact element={<AllBooking />} />{" "}
-            <Route path="/banner" exact element={<Banner />} />
-            <Route path="/settings" exact element={<Settings />} />
-            <Route path="/razorpay-config" exact element={<RazorpayConfig />} />
-            <Route
-              path="/section-management"
-              exact
-              element={<SectionManager />}
-            />
-            <Route
-              path="/service-request"
-              exact
-              element={<AdminServiceRequestsPage />}
-            />
-            <Route
-              path="/booking/allbookings/:id"
-              exact
-              element={<BookingDetail />}
-            />
-            {/* <Route path="/about" element={<About />} />
-        <Route path="/contact" element={<Contact />} />  */}
-          </Routes>{" "}
-        </Layout>
-      </BrowserRouter>
-    </>
+    <BrowserRouter>
+      <Routes>
+
+        {/* PUBLIC ROUTE */}
+        <Route path="/login" element={<Login />} />
+
+        {/* PROTECTED ROUTES */}
+        <Route
+          element={
+            <ProtectedRoute>
+              <Layout />
+            </ProtectedRoute>
+          }
+        >
+          <Route path="/" element={<Home />} />
+          <Route path="/category" element={<Category />} />
+          <Route path="/service" element={<Service />} />
+          <Route path="/users" element={<Users />} />
+          <Route path="/service-providers" element={<ServiceProviders />} />
+          <Route path="/bookings" element={<AllBooking />} />
+          <Route path="/banner" element={<Banner />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/razorpay-config" element={<RazorpayConfig />} />
+          <Route path="/section-management" element={<SectionManager />} />
+          <Route path="/service-request" element={<AdminServiceRequestsPage />} />
+          <Route path="/booking/allbookings/:id" element={<BookingDetail />} />
+        </Route>
+
+      </Routes>
+    </BrowserRouter>
   );
 }
 

@@ -1,6 +1,11 @@
 import api from "./api";
 
 export const UserService = {
+  adminme: async () => {
+    const { data } = await api.get("/auth/admin-me");
+    return data;
+  },
+
   getAll: async (params) => {
     const { data } = await api.get("/auth/all-users", { params });
     return data;
