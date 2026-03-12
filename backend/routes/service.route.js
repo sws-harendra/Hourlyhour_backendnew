@@ -2,7 +2,10 @@ const express = require("express");
 const router = express.Router();
 
 const service = require("../controllers/service.controller");
-const { authenticated } = require("../middlewares/auth.middleware");
+const {
+  authenticated,
+  adminAuthenticated,
+} = require("../middlewares/auth.middleware");
 const { upload } = require("../helpers/multer");
 
 router.post(
@@ -13,7 +16,7 @@ router.post(
   ]),
 
   //  authenticated,
-  service.addService
+  service.addService,
 ); // update service
 router.put(
   "/edit-service/:id",
@@ -22,27 +25,27 @@ router.put(
     { name: "images", maxCount: 10 },
   ]),
   // authenticated,
-  service.updateService
+  service.updateService,
 );
 
 // delete service
 router.delete(
   "/delete-service/:id",
   // authenticated,
-  service.deleteService
+  service.deleteService,
 );
 
 router.get(
   "/category/:id/services",
   authenticated,
-  service.getServicesByCategory
+  service.getServicesByCategory,
 );
 
 router.get("/service/:id", authenticated, service.getServiceDetail);
 router.get(
   "/all-services",
   // authenticated,
-  service.getAllServices
+  service.getAllServices,
 );
 
 router.get("/popular-services", service.popularService);
@@ -56,4 +59,14 @@ router.get("/my-bookings", authenticated, service.mybookings);
 router.post("/cancel-booking", authenticated, service.cancelBooking);
 router.put("/booking/:id/status", service.statusUpdate);
 
+// rate list
+
+router.get("/rate-list", adminAuthenticated, service.getRates);
+router.post("/add-rate-list", adminAuthenticated, service.createRate);
+router.get("/rate-list/:id", adminAuthenticated, service.getRateById);
+
+router.put("/rate-list/:id", adminAuthenticated, service.updateRate);
+
+router.delete("/rate-list/:id", adminAuthenticated, service.deleteRate);
+router.get("/rate-list/service/:serviceId", service.getRatesByService);
 module.exports = router;

@@ -5,6 +5,7 @@ const {
   User,
   ServiceRelation,
   Address,
+  ServiceRate,
 } = require("../models");
 const { Op } = require("sequelize");
 const {
@@ -40,7 +41,7 @@ const addService = async (req, res) => {
     let images = [];
     if (req.files?.images?.length > 0) {
       images = req.files.images.map(
-        (file) => `${process.env.BACKEND_URL}/uploads/${file.filename}`
+        (file) => `${process.env.BACKEND_URL}/uploads/${file.filename}`,
       );
     }
 
@@ -123,7 +124,7 @@ const updateService = async (req, res) => {
     // 🔁 multiple images
     if (req.files?.images?.length > 0) {
       updatedData.images = req.files.images.map(
-        (file) => `${process.env.BACKEND_URL}/uploads/${file.filename}`
+        (file) => `${process.env.BACKEND_URL}/uploads/${file.filename}`,
       );
     }
 
@@ -611,6 +612,161 @@ const popularService = async (req, res) => {
     });
   }
 };
+
+const getRateList = async (req, res) => {
+  try {
+    const rates = await ServiceRate.findAll({
+      where: { status: "active" },
+      attributes: ["id", "title", "price"],
+      order: [["id", "ASC"]],
+    });
+
+    res.json({
+      success: true,
+      data: rates,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch rate list",
+    });
+  }
+};
+
+const createRate = async (req, res) => {
+  try {
+    const { serviceId, title, price } = req.body;
+
+    const rate = await ServiceRate.create({
+      serviceId,
+      title,
+      price,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Rate created successfully",
+      data: rate,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/*
+GET ALL RATES
+*/
+const getRates = async (req, res) => {
+  try {
+    const rates = await ServiceRate.findAll({
+      order: [["id", "DESC"]],
+    });
+
+    res.json({
+      success: true,
+      data: rates,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/*
+GET SINGLE RATE
+*/
+const getRateById = async (req, res) => {
+  try {
+    const rate = await ServiceRate.findByPk(req.params.id);
+
+    if (!rate) {
+      return res.status(404).json({
+        success: false,
+        message: "Rate not found",
+      });
+    }
+
+    res.json({
+      success: true,
+      data: rate,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/*
+UPDATE RATE
+*/
+const updateRate = async (req, res) => {
+  try {
+    const { title, price, status } = req.body;
+
+    const rate = await ServiceRate.findByPk(req.params.id);
+
+    if (!rate) {
+      return res.status(404).json({
+        success: false,
+        message: "Rate not found",
+      });
+    }
+
+    await rate.update({
+      title,
+      price,
+      status,
+    });
+
+    res.json({
+      success: true,
+      message: "Rate updated successfully",
+      data: rate,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+const getRatesByService = async (req, res) => {
+  try {
+    const { serviceId } = req.params;
+
+    const rates = await ServiceRate.findAll({
+      where: { serviceId },
+      order: [["id", "DESC"]],
+    });
+
+    res.json({
+      success: true,
+      data: rates,
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+/*
+DELETE RATE
+*/
+const deleteRate = async (req, res) => {
+  try {
+    const rate = await ServiceRate.findByPk(req.params.id);
+
+    if (!rate) {
+      return res.status(404).json({
+        success: false,
+        message: "Rate not found",
+      });
+    }
+
+    await rate.destroy();
+
+    res.json({
+      success: true,
+      message: "Rate deleted successfully",
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // Route
 module.exports = {
   getServicesByCategory,
@@ -627,4 +783,11 @@ module.exports = {
   popularService,
   updateService,
   deleteService,
+
+  createRate,
+  updateRate,
+  getRateById,
+  deleteRate,
+  getRates,
+  getRatesByService,
 };

@@ -14,6 +14,7 @@ import SectionManager from "./pages/sectionmanage/sectionManage";
 import AdminServiceRequestsPage from "./pages/serviceRequest/serviceRequest";
 import Login from "./pages/auth/login";
 import ProtectedRoute from "./protectedRoute";
+import ServiceRates from "./pages/service/serviceRates";
 
 function App() {
   return (
@@ -34,6 +35,8 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/category" element={<Category />} />
           <Route path="/service" element={<Service />} />
+                    <Route path="/services/:id/rates" element={<ServiceRates />} />
+
           <Route path="/users" element={<Users />} />
           <Route path="/service-providers" element={<ServiceProviders />} />
           <Route path="/bookings" element={<AllBooking />} />

@@ -193,12 +193,26 @@ const getUserBookings = async (req, res) => {
 
 /* ───────────────── PROVIDER BOOKINGS ───────────────── */
 const getProviderBookings = async (req, res) => {
-  const bookings = await Booking.findAll({
-    where: { providerId: req.user.id },
-    order: [["createdAt", "DESC"]],
-  });
-
-  res.json({ bookings });
+  try {
+    const bookings = await Booking.findAll({
+      where: { providerId: req.user.id },
+      order: [["createdAt", "DESC"]],
+      include: [
+        {
+          model: User,
+          as: "user",
+        },
+        {
+          model: Service,
+          as: "service",
+        },
+      ],
+    });
+    res.json({ bookings });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to fetch bookings" });
+  }
 };
 
 const allPendingBookings = async (req, res) => {

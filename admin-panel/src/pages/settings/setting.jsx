@@ -7,13 +7,14 @@ import {
   AlertCircle,
   IndianRupee,
   Percent,
+  User,
 } from "lucide-react";
 import AppSettingService from "../../services/setting.service";
 
 export default function AppSetting() {
   const [form, setForm] = useState({
     adminCommissionPercent: "",
-    minimumBalance: "",
+    minimumBalance: "",driverAssignType:""
   });
 
   const [loading, setLoading] = useState(false);
@@ -32,6 +33,7 @@ export default function AppSetting() {
         setForm({
           adminCommissionPercent: res.data.data.adminCommissionPercent ?? "",
           minimumBalance: res.data.data.minimumBalance ?? "",
+          driverAssignType: res.data.data.driverAssignType??""
         });
       }
     } catch (err) {
@@ -57,6 +59,7 @@ export default function AppSetting() {
       await AppSettingService.save({
         adminCommissionPercent: Number(form.adminCommissionPercent),
         minimumBalance: Number(form.minimumBalance),
+        driverAssignType: form.driverAssignType
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
@@ -199,7 +202,29 @@ export default function AppSetting() {
               Minimum balance users must maintain in their accounts
             </p>
           </div>
+         <div className="space-y-2">
+          
+            {/* Driver Assign Type */}
+<div className="space-y-2">
+  <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+    Driver Assign Type
+  </label>
 
+  <select
+    name="driverAssignType"
+    value={form.driverAssignType}
+    onChange={handleChange}
+    className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none"
+  >
+    <option value="manual">Manual</option>
+    <option value="auto">Automatic</option>
+  </select>
+
+  <p className="text-xs text-gray-500 ml-1">
+    Select how drivers will be assigned to rides
+  </p>
+</div>
+          </div>
           {/* Action Buttons */}
           <div className="flex items-center gap-3 pt-4 border-t border-gray-200">
             <button

@@ -18,9 +18,14 @@ exports.getSetting = async (req, res) => {
  */
 exports.saveSetting = async (req, res) => {
   try {
-    const { adminCommissionPercent, minimumBalance } = req.body;
+    const { adminCommissionPercent, minimumBalance, driverAssignType } =
+      req.body;
 
-    if (adminCommissionPercent == null || minimumBalance == null) {
+    if (
+      adminCommissionPercent == null ||
+      minimumBalance == null ||
+      driverAssignType == null
+    ) {
       return res.status(400).json({ message: "All fields are required" });
     }
 
@@ -28,6 +33,7 @@ exports.saveSetting = async (req, res) => {
       id: 1,
       adminCommissionPercent,
       minimumBalance,
+      assignType: driverAssignType,
     });
 
     res.json({

@@ -28,4 +28,22 @@ export const ServiceService = {
   popularServices: async (data) => {
     return await api.get("/service/popular-services", data);
   },
+  getByService(serviceId) {
+    return api.get(`/service/rate-list/service/${serviceId}`);
+  },
+
+  // CREATE RATE
+  addRate: async (data) => {
+    return await api.post("/service/add-rate-list", data);
+  },
+
+  // UPDATE RATE
+  updateRate: async (id, data) => {
+    return await api.put(`/service/rate-list/${id}`, data);
+  },
+
+  // DELETE RATE
+  deleteRate: async (id) => {
+    return await api.delete(`/service/rate-list/${id}`);
+  },
 };

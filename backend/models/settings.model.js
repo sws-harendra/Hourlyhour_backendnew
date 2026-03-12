@@ -19,11 +19,16 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: 0,
       },
+      assignType: {
+        type: DataTypes.STRING,
+        allowNull: false,
+        defaultValue: "auto",
+      },
     },
     {
       tableName: "app_settings",
       timestamps: true,
-    }
+    },
   );
 
   return AppSetting;

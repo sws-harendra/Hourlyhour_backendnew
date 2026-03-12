@@ -5,6 +5,7 @@ import {
   ChevronLeft,
   ChevronRight,
   IndianRupee,
+  List,
   Plus,
   Search,
   SlidersHorizontal,
@@ -13,8 +14,8 @@ import {
 } from "lucide-react";
 import ServiceForm from "./serviceAdd";
 import { Pencil, Trash2, MoreVertical } from "lucide-react";
-
-export default function Services() {
+import { useNavigate } from "react-router-dom";
+export default function Services() {const navigate = useNavigate();
   const [services, setServices] = useState([]);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
@@ -300,6 +301,14 @@ export default function Services() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center gap-3">
+                          <button
+                              onClick={() => navigate(`/services/${srv.id}/rates`)}
+
+                            className="p-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-600"
+                            title="Service Rate List"
+                          >
+                            <List className="w-4 h-4" />
+                          </button>
                           {/* Edit */}
                           <button
                             onClick={() => {

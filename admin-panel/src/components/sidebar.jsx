@@ -99,7 +99,7 @@ export default function Sidebar() {
             <LayoutDashboard size={22} className="text-white" />
           </div>
           <div>
-            <h1 className="text-xl font-bold tracking-tight">HourlyHero</h1>
+            <h1 className="text-xl font-bold tracking-tight">RepairSathi</h1>
             <p className="text-xs text-slate-400">Admin Dashboard</p>
           </div>
         </div>
