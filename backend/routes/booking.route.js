@@ -19,5 +19,8 @@ router.post("/complete", authenticated, booking.completeService);
 
 // Provider: my assigned bookings
 router.get("/assigned", authenticated, booking.getProviderBookings);
+router.post("/add-addon", authenticated, booking.addAddon);
+router.get("/:id/addons", authenticated, booking.getBookingAddons);
 
+router.post("/approve-addons", authenticated, booking.approveAddons);
 module.exports = router;

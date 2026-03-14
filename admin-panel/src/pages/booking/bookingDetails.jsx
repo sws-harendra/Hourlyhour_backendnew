@@ -209,7 +209,75 @@ export default function BookingDetail() {
                 </div>
               </div>
             </div>
+{/* Addons */}
+{booking.addons && booking.addons.length > 0 && (
+  <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+    <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+      <h2 className="text-lg font-semibold text-gray-900">
+        Added Services (Addons)
+      </h2>
+    </div>
 
+    <div className="p-6 space-y-4">
+      {booking.addons.map((addon) => (
+        <div
+          key={addon.id}
+          className="flex items-center justify-between p-4 border border-gray-100 rounded-lg bg-gray-50"
+        >
+          <div>
+            <div className="font-semibold text-gray-900">
+              {addon.title}
+            </div>
+{/* 
+            <div className="text-sm text-gray-500">
+              Qty: {addon.quantity}
+            </div> */}
+
+            <div className="text-xs text-gray-400 mt-1">
+              Status: {addon.status}
+            </div>
+          </div>
+
+          <div className="text-right">
+            <div className="text-lg font-bold text-blue-600">
+              ₹{addon.price * addon.quantity}
+            </div>
+            <div className="text-xs text-gray-500">
+              ₹{addon.price} 
+            </div>
+          </div>
+        </div>
+      ))}
+
+      {/* Total */}
+     {/* Pricing Breakdown */}
+<div className="pt-4 border-t border-gray-200 space-y-2">
+
+  <div className="flex justify-between text-sm text-gray-600">
+    <span>Base Service</span>
+    <span>₹{booking.basePriceAtBooking}</span>
+  </div>
+
+  <div className="flex justify-between text-sm text-gray-600">
+    <span>Addons</span>
+    <span>
+      ₹
+      {booking.addons.reduce(
+        (sum, a) => sum + a.price * a.quantity,
+        0
+      )}
+    </span>
+  </div>
+
+  <div className="flex justify-between pt-2 border-t border-gray-200 text-lg font-bold text-gray-900">
+    <span>Final Amount</span>
+    <span className="text-blue-600">₹{booking.priceAtBooking}</span>
+  </div>
+
+</div>
+    </div>
+  </div>
+)}
             {/* Schedule & Location */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">

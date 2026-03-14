@@ -1,4 +1,11 @@
-const { Booking, sequelize, User, Service } = require("../models");
+const {
+  Booking,
+  sequelize,
+  User,
+  Service,
+  ServiceRate,
+  BookingAddon,
+} = require("../models");
 const { emitToAllProviders, emitToProvider } = require("../socket");
 const Sequelize = require("sequelize");
 const acceptBooking = async (req, res) => {
@@ -181,6 +188,16 @@ const getUserBookings = async (req, res) => {
           as: "service",
           attributes: ["id", "title", "shortDescription", "price", "mainImage"],
         },
+        {
+          model: BookingAddon,
+          as: "addons",
+          include: [
+            {
+              model: ServiceRate,
+              as: "rate",
+            },
+          ],
+        },
       ],
     });
 
@@ -205,6 +222,16 @@ const getProviderBookings = async (req, res) => {
         {
           model: Service,
           as: "service",
+        },
+        {
+          model: BookingAddon,
+          as: "addons",
+          include: [
+            {
+              model: ServiceRate,
+              as: "rate",
+            },
+          ],
         },
       ],
     });
@@ -287,6 +314,175 @@ const allPendingBookings = async (req, res) => {
   }
 };
 
+const addAddon = async (req, res) => {
+  const transaction = await sequelize.transaction();
+
+  try {
+    const { bookingId, items } = req.body;
+
+    if (!bookingId) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: "Booking ID required",
+      });
+    }
+
+    const booking = await Booking.findByPk(bookingId, { transaction });
+
+    if (!booking) {
+      await transaction.rollback();
+      return res.status(404).json({
+        success: false,
+        message: "Booking not found",
+      });
+    }
+
+    /* 🔹 REMOVE OLD ADDONS */
+    await BookingAddon.destroy({
+      where: { bookingId },
+      transaction,
+    });
+
+    const addonItems = [];
+
+    /* 🔹 ADD NEW ADDONS */
+    if (items && items.length > 0) {
+      for (const item of items) {
+        const rate = await ServiceRate.findByPk(item.rateId, { transaction });
+
+        if (!rate) continue;
+
+        addonItems.push({
+          bookingId,
+          rateId: rate.id,
+          title: rate.title,
+          price: rate.price,
+          quantity: item.quantity || 1,
+        });
+      }
+
+      await BookingAddon.bulkCreate(
+        addonItems.map((item) => ({
+          ...item,
+          status: "pending",
+        })),
+        { transaction },
+      );
+    }
+
+    /* 🔹 RECALCULATE TOTAL */
+    const addons = await BookingAddon.findAll({
+      where: { bookingId },
+      transaction,
+    });
+
+    let addonTotal = 0;
+
+    for (const addon of addons) {
+      addonTotal += addon.price * addon.quantity;
+    }
+
+    /* 🔹 GET ORIGINAL SERVICE PRICE */
+    const service = await Service.findByPk(booking.serviceId, { transaction });
+
+    const serviceBasePrice = service?.price || 0;
+
+    /* 🔹 FINAL PRICE */
+    // booking.priceAtBooking = serviceBasePrice + addonTotal;
+
+    // await booking.save({ transaction });
+
+    await transaction.commit();
+
+    res.json({
+      success: true,
+      message: "Addons updated successfully",
+      bookingTotal: booking.priceAtBooking,
+      addons: addons,
+    });
+  } catch (err) {
+    await transaction.rollback();
+
+    console.error("Addon update error:", err);
+
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+};
+
+const getBookingAddons = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const addons = await BookingAddon.findAll({
+      where: { bookingId: id },
+      include: [
+        {
+          model: ServiceRate,
+          as: "rate",
+          attributes: ["id", "title", "price"],
+        },
+      ],
+    });
+    const formatted = addons.map((a) => ({
+      rateId: a.rateId,
+      quantity: a.quantity,
+      title: a.rate?.title,
+      price: a.rate?.price,
+      status: a.status, // <-- add this
+    }));
+    console.log(formatted, id);
+    res.json({
+      success: true,
+      data: formatted,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch booking addons",
+    });
+  }
+};
+const approveAddons = async (req, res) => {
+  const { bookingId, approve } = req.body;
+
+  const addons = await BookingAddon.findAll({
+    where: { bookingId, status: "pending" },
+  });
+
+  if (approve) {
+    for (const addon of addons) {
+      addon.status = "approved";
+      await addon.save();
+    }
+
+    const booking = await Booking.findByPk(bookingId);
+
+    let total = booking.basePriceAtBooking;
+
+    const approvedAddons = await BookingAddon.findAll({
+      where: { bookingId, status: "approved" },
+    });
+
+    for (const a of approvedAddons) {
+      total += a.price * a.quantity;
+    }
+
+    booking.priceAtBooking = total;
+    await booking.save();
+  } else {
+    for (const addon of addons) {
+      addon.status = "rejected";
+      await addon.save();
+    }
+  }
+
+  res.json({ success: true });
+};
 module.exports = {
   acceptBooking,
   startService,
@@ -295,4 +491,7 @@ module.exports = {
   getUserBookings,
   cancelBooking,
   allPendingBookings,
+  addAddon,
+  getBookingAddons,
+  approveAddons,
 };

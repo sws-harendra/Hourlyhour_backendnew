@@ -6,6 +6,7 @@ const {
   ServiceRelation,
   Address,
   ServiceRate,
+  BookingAddon,
 } = require("../models");
 const { Op } = require("sequelize");
 const {
@@ -339,6 +340,7 @@ const bookService = async (req, res) => {
       location: finalLocation,
       specialNote: specialNote || "",
       priceAtBooking: service.price,
+      basePriceAtBooking: service.price,
       status: "pending",
       latitude,
       longitude,
@@ -502,6 +504,16 @@ const bookingDetail = async (req, res) => {
       include: [
         { model: User, as: "user", attributes: ["id", "name", "email"] },
         { model: Service, as: "service", attributes: ["id", "title", "price"] },
+        {
+          model: BookingAddon,
+          as: "addons",
+          include: [
+            {
+              model: ServiceRate,
+              as: "rate",
+            },
+          ],
+        },
       ],
     });
 

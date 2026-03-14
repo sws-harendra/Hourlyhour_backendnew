@@ -50,7 +50,7 @@ module.exports = (sequelize, DataTypes) => {
         "confirmed",
         "on_the_way",
         "completed",
-        "cancelled"
+        "cancelled",
       ),
       defaultValue: "pending",
     },
@@ -68,6 +68,10 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING(4),
       allowNull: true,
     },
+    basePriceAtBooking: {
+      type: DataTypes.FLOAT,
+      allowNull: false,
+    },
   });
 
   Booking.associate = (models) => {
@@ -83,6 +87,10 @@ module.exports = (sequelize, DataTypes) => {
     Booking.belongsTo(models.Service, {
       foreignKey: "serviceId",
       as: "service",
+    });
+    Booking.hasMany(models.BookingAddon, {
+      foreignKey: "bookingId",
+      as: "addons",
     });
   };
 
