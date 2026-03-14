@@ -8,19 +8,14 @@ const {
 } = require("../models");
 const { emitToAllProviders, emitToProvider } = require("../socket");
 const Sequelize = require("sequelize");
+
 const acceptBooking = async (req, res) => {
   const transaction = await sequelize.transaction();
-  console.log("✅ Accept booking initiated", req.body);
+
   try {
-    const providerId = req.user.id; // authenticated provider
+    const providerId = req.user.id;
     const { bookingId } = req.body;
 
-    if (!bookingId) {
-      await transaction.rollback();
-      return res.status(400).json({ message: "Booking ID is required" });
-    }
-
-    /* ───── Lock booking row (prevents double accept) ───── */
     const booking = await Booking.findOne({
       where: { id: bookingId },
       transaction,
@@ -32,44 +27,48 @@ const acceptBooking = async (req, res) => {
       return res.status(404).json({ message: "Booking not found" });
     }
 
-    /* ❌ Already accepted or cancelled */
     if (booking.status !== "pending") {
       await transaction.rollback();
       return res.status(409).json({
         message: "Booking already processed",
-        status: booking.status,
       });
     }
 
-    /* ✅ Accept booking */
-    booking.status = "confirmed"; // matches your ENUM
-    booking.providerId = providerId;
+    const groupId = booking.groupId;
 
-    await booking.save({ transaction });
+    /* 🔹 Accept all bookings in group */
+    await Booking.update(
+      {
+        status: "confirmed",
+        providerId,
+      },
+      {
+        where: { groupId },
+        transaction,
+      },
+    );
 
     await transaction.commit();
 
-    /* 🔔 Notify ALL other providers (clear popup) */
     emitToAllProviders("order-taken", {
-      orderId: booking.id,
+      groupId,
       acceptedBy: providerId,
     });
 
-    /* 🔔 Notify accepted provider */
     emitToProvider(providerId, "order-accepted", {
-      orderId: booking.id,
-      booking,
+      groupId,
     });
 
-    return res.json({
+    res.json({
       message: "Booking accepted successfully",
-      booking,
+      groupId,
     });
   } catch (error) {
     await transaction.rollback();
-    console.error("❌ Accept booking error:", error);
 
-    return res.status(500).json({
+    console.error("Accept booking error:", error);
+
+    res.status(500).json({
       message: "Internal server error",
     });
   }
@@ -147,27 +146,33 @@ const completeService = async (req, res) => {
 // };
 
 /* ───────────────── CANCEL BOOKING (USER) ───────────────── */
-cancelBooking = async (req, res) => {
+const cancelBooking = async (req, res) => {
   try {
-    const userId = req.user.id;
     const { bookingId } = req.body;
+    const userId = req.user.id;
 
     const booking = await Booking.findOne({
       where: { id: bookingId, userId },
     });
 
-    if (!booking || booking.status !== "pending") {
-      return res.status(400).json({ message: "Cannot cancel booking" });
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
     }
 
-    booking.status = "cancelled";
-    await booking.save();
+    await Booking.update(
+      { status: "cancelled" },
+      { where: { groupId: booking.groupId } },
+    );
 
-    emitToAllProviders("order-cancelled", { orderId: booking.id });
+    emitToAllProviders("order-cancelled", {
+      groupId: booking.groupId,
+    });
 
-    res.json({ message: "Booking cancelled" });
-  } catch {
-    res.status(500).json({ message: "Internal server error" });
+    res.json({
+      message: "Booking cancelled successfully",
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
   }
 };
 
@@ -246,15 +251,13 @@ const allPendingBookings = async (req, res) => {
   try {
     const providerId = req.user.id;
 
-    // 🔥 Fetch provider lat/lng
+    // Get provider location
     const provider = await User.findByPk(providerId, {
       attributes: ["latitude", "longitude"],
     });
 
     if (!provider?.latitude || !provider?.longitude) {
-      return res.status(400).json({
-        error: "Provider location not set",
-      });
+      return res.status(400).json({ error: "Provider location not set" });
     }
 
     const { latitude, longitude } = provider;
@@ -271,28 +274,20 @@ const allPendingBookings = async (req, res) => {
       )
     `);
 
-    const bookings = await Booking.findAll({
+    /* STEP 1: Find groups where provider can do at least one service */
+
+    const eligible = await Booking.findAll({
       where: {
         status: "pending",
         latitude: { [Sequelize.Op.ne]: null },
         longitude: { [Sequelize.Op.ne]: null },
-        [Sequelize.Op.and]: Sequelize.where(distanceFormula, "<=", 20),
       },
-      attributes: {
-        include: [[distanceFormula, "distance_km"]],
-      },
-      order: [[Sequelize.literal("distance_km"), "ASC"]],
+      attributes: ["groupId"],
       include: [
-        {
-          model: User,
-          as: "user",
-          attributes: ["id", "name", "phone"],
-        },
         {
           model: Service,
           as: "service",
           required: true,
-          attributes: ["id", "title", "price", "mainImage"],
           include: [
             {
               model: User,
@@ -303,6 +298,43 @@ const allPendingBookings = async (req, res) => {
               required: true,
             },
           ],
+        },
+      ],
+    });
+
+    const groupIds = [...new Set(eligible.map((b) => b.groupId))];
+
+    if (groupIds.length === 0) {
+      return res.json({ bookings: [] });
+    }
+
+    /* STEP 2: Fetch full bookings for those groups */
+
+    const bookings = await Booking.findAll({
+      where: {
+        status: "pending",
+        groupId: groupIds,
+        latitude: { [Sequelize.Op.ne]: null },
+        longitude: { [Sequelize.Op.ne]: null },
+        [Sequelize.Op.and]: Sequelize.where(distanceFormula, "<=", 20),
+      },
+      attributes: {
+        include: [[distanceFormula, "distance_km"]],
+      },
+      order: [
+        [Sequelize.literal("distance_km"), "ASC"],
+        ["groupId", "ASC"],
+      ],
+      include: [
+        {
+          model: User,
+          as: "user",
+          attributes: ["id", "name", "phone"],
+        },
+        {
+          model: Service,
+          as: "service",
+          attributes: ["id", "title", "price", "mainImage"],
         },
       ],
     });

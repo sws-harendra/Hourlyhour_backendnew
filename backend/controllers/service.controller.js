@@ -14,6 +14,7 @@ const {
   emitToNearbyOnlineProviders,
 } = require("../socket");
 const { generateOTP } = require("../helpers/otp_generator");
+const { v4: uuidv4 } = require("uuid");
 
 const addService = async (req, res) => {
   try {
@@ -301,78 +302,95 @@ const getAllServices = async (req, res) => {
 const bookService = async (req, res) => {
   try {
     const {
-      serviceId,
+      serviceIds,
       bookingDate,
       bookingTime,
       location,
       specialNote,
       addressId,
     } = req.body;
+
     const userId = req.user.id;
 
-    const service = await Service.findByPk(serviceId);
-    if (!service) return res.status(404).json({ message: "Service not found" });
+    if (!serviceIds || serviceIds.length === 0) {
+      return res.status(400).json({ message: "No services selected" });
+    }
 
     let finalLocation = location;
     let latitude = null;
     let longitude = null;
 
-    // Copy address if selected
     if (addressId) {
       const address = await Address.findOne({
         where: { id: addressId, userId },
       });
-      if (!address)
+
+      if (!address) {
         return res.status(404).json({ message: "Address not found" });
+      }
 
       finalLocation = `${address.address1}, ${address.city}, ${
         address.state || ""
       }, ${address.zipCode || ""}`;
+
       latitude = address.latitude;
       longitude = address.longitude;
     }
-    const completionOtp = generateOTP();
-    const booking = await Booking.create({
-      userId,
-      serviceId,
+
+    /* 🔹 Generate groupId */
+    const groupId = uuidv4();
+
+    const bookings = [];
+
+    for (const serviceId of serviceIds) {
+      const service = await Service.findByPk(serviceId);
+
+      if (!service) continue;
+
+      const completionOtp = generateOTP();
+
+      const booking = await Booking.create({
+        userId,
+        serviceId,
+        bookingDate,
+        bookingTime,
+        location: finalLocation,
+        specialNote: specialNote || "",
+        priceAtBooking: service.price,
+        basePriceAtBooking: service.price,
+        status: "pending",
+        latitude,
+        longitude,
+        completionOtp,
+        groupId,
+      });
+
+      bookings.push(booking);
+    }
+
+    /* 🔔 Send one notification to providers */
+    await emitToNearbyOnlineProviders(latitude, longitude, "new-order", {
+      groupId,
       bookingDate,
       bookingTime,
       location: finalLocation,
-      specialNote: specialNote || "",
-      priceAtBooking: service.price,
-      basePriceAtBooking: service.price,
-      status: "pending",
-      latitude,
-      longitude,
-      completionOtp,
+      services: bookings.map((b) => ({
+        id: b.id,
+        serviceId: b.serviceId,
+        price: b.priceAtBooking,
+      })),
     });
 
-    // emitToAllProviders("new-order", {
-    //   id: booking.id,
-    //   serviceId: service.id,
-    //   serviceName: service.name,
-    //   bookingDate,
-    //   bookingTime,
-    //   location: booking.location,
-    //   price: booking.priceAtBooking,
-    // });
-    await emitToNearbyOnlineProviders(latitude, longitude, "new-order", {
-      id: booking.id,
-      serviceId: service.id,
-      serviceName: service.name,
-      bookingDate,
-      bookingTime,
-      location: booking.location,
-      price: booking.priceAtBooking,
+    res.status(201).json({
+      message: "Services booked successfully",
+      groupId,
+      bookings,
     });
-
-    res.status(201).json({ message: "Service booked successfully", booking });
   } catch (error) {
     console.error("Booking error:", error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
-
 // ----------------------------------------------------------
 // 2️⃣ ALL BOOKINGS (ADMIN)
 // ----------------------------------------------------------
@@ -545,34 +563,26 @@ const assignProvider = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
-
 const statusUpdate = async (req, res) => {
   try {
     const { id } = req.params;
     const { status } = req.body;
 
-    // Validate allowed ENUM
-    const allowed = [
-      "pending",
-      "confirmed",
-      "on_the_way",
-      "completed",
-      "cancelled",
-    ];
+    const booking = await Booking.findByPk(id);
 
-    if (!allowed.includes(status)) {
-      return res.status(400).json({ error: "Invalid booking status" });
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
     }
 
-    await Booking.update({ status }, { where: { id } });
+    await Booking.update({ status }, { where: { groupId: booking.groupId } });
 
-    const updated = await Booking.findByPk(id, {
+    const updated = await Booking.findAll({
+      where: { groupId: booking.groupId },
       include: ["user", "provider", "service"],
     });
 
     res.json(updated);
   } catch (err) {
-    console.log("Status update error:", err);
     res.status(500).json({ error: "Server error" });
   }
 };
@@ -778,7 +788,41 @@ const deleteRate = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+// controllers/service.controller.js
 
+const getRelatedServices = async (req, res) => {
+  try {
+    const { serviceId } = req.params;
+
+    const service = await Service.findByPk(serviceId);
+
+    if (!service) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Service not found" });
+    }
+
+    const relatedServices = await Service.findAll({
+      where: {
+        categoryId: service.categoryId,
+        id: {
+          [Op.ne]: serviceId, // exclude current service
+        },
+        status: "active",
+      },
+      limit: 6,
+      order: [["createdAt", "DESC"]],
+    });
+
+    return res.json({
+      success: true,
+      data: relatedServices,
+    });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
 // Route
 module.exports = {
   getServicesByCategory,
@@ -795,7 +839,7 @@ module.exports = {
   popularService,
   updateService,
   deleteService,
-
+  getRelatedServices,
   createRate,
   updateRate,
   getRateById,

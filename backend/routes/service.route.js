@@ -40,6 +40,7 @@ router.get(
   authenticated,
   service.getServicesByCategory,
 );
+router.get("/services/:serviceId/related", service.getRelatedServices);
 
 router.get("/service/:id", authenticated, service.getServiceDetail);
 router.get(
