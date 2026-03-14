@@ -18,15 +18,24 @@ exports.getSetting = async (req, res) => {
  */
 exports.saveSetting = async (req, res) => {
   try {
-    const { adminCommissionPercent, minimumBalance, driverAssignType } =
-      req.body;
+    const {
+      adminCommissionPercent,
+      minimumBalance,
+      driverAssignType,
+      platformfee,
+      tax,
+    } = req.body;
 
     if (
       adminCommissionPercent == null ||
       minimumBalance == null ||
-      driverAssignType == null
+      driverAssignType == null ||
+      platformfee == null ||
+      tax == null
     ) {
-      return res.status(400).json({ message: "All fields are required" });
+      return res.status(400).json({
+        message: "All fields are required",
+      });
     }
 
     const [setting] = await AppSetting.upsert({
@@ -34,6 +43,8 @@ exports.saveSetting = async (req, res) => {
       adminCommissionPercent,
       minimumBalance,
       assignType: driverAssignType,
+      platformfee,
+      tax,
     });
 
     res.json({
@@ -41,7 +52,9 @@ exports.saveSetting = async (req, res) => {
       data: setting,
     });
   } catch (err) {
-    res.status(500).json({ message: err.message });
+    res.status(500).json({
+      message: err.message,
+    });
   }
 };
 

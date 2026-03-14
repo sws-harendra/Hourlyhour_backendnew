@@ -24,6 +24,17 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: "auto",
       },
+      platformfee: {
+        type: DataTypes.FLOAT,
+        allowNull: false,
+        defaultValue: 0,
+      },
+
+      tax: {
+        type: DataTypes.FLOAT,
+        allowNull: false,
+        defaultValue: 0,
+      },
     },
     {
       tableName: "app_settings",

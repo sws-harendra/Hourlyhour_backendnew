@@ -14,7 +14,9 @@ import AppSettingService from "../../services/setting.service";
 export default function AppSetting() {
   const [form, setForm] = useState({
     adminCommissionPercent: "",
-    minimumBalance: "",driverAssignType:""
+    minimumBalance: "",driverAssignType:"",
+    platformfee: "",
+    tax: ""
   });
 
   const [loading, setLoading] = useState(false);
@@ -59,7 +61,9 @@ export default function AppSetting() {
       await AppSettingService.save({
         adminCommissionPercent: Number(form.adminCommissionPercent),
         minimumBalance: Number(form.minimumBalance),
-        driverAssignType: form.driverAssignType
+        driverAssignType: form.driverAssignType,
+        platformfee: Number(form.platformfee),
+        tax: Number(form.tax),
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
@@ -175,7 +179,56 @@ export default function AppSetting() {
               Percentage of commission charged on transactions
             </p>
           </div>
-
+<div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+              <IndianRupee className="w-4 h-4 text-gray-500" />
+              Platform Fee
+            </label>
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">
+                ₹
+              </span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                name="platformfee"
+                value={form.platformfee}
+                onChange={handleChange}
+                className="w-full border border-gray-300 rounded-lg pl-10 pr-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none"
+                placeholder="e.g., 20"
+                required
+              />
+            </div>
+            <p className="text-xs text-gray-500 ml-1">
+              Any platform fee that will be added to final amount of order.
+            </p>
+          </div>
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+              <IndianRupee className="w-4 h-4 text-gray-500" />
+              Tax Percentage
+            </label>
+            <div className="relative">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">
+                %
+              </span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                name="tax"
+                value={form.tax}
+                onChange={handleChange}
+                className="w-full border border-gray-300 rounded-lg pl-10 pr-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none"
+                placeholder="e.g., 5"
+                required
+              />
+            </div>
+            <p className="text-xs text-gray-500 ml-1">
+              Any platform fee that will be added to final amount of order.
+            </p>
+          </div>
           {/* Minimum Balance */}
           <div className="space-y-2">
             <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
