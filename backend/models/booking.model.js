@@ -72,6 +72,10 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.FLOAT,
       allowNull: false,
     },
+    groupId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
   });
 
   Booking.associate = (models) => {

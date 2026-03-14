@@ -35,7 +35,10 @@ export default function AppSetting() {
         setForm({
           adminCommissionPercent: res.data.data.adminCommissionPercent ?? "",
           minimumBalance: res.data.data.minimumBalance ?? "",
-          driverAssignType: res.data.data.driverAssignType??""
+          driverAssignType: res.data.data.driverAssignType??"",
+          tax: res.data.data.tax??"",
+          platformfee: res.data.data.platformfee ?? ""
+
         });
       }
     } catch (err) {
