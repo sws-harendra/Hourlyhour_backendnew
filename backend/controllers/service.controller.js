@@ -339,15 +339,13 @@ const bookService = async (req, res) => {
 
     /* 🔹 Generate groupId */
     const groupId = uuidv4();
-
+    const completionOtp = generateOTP();
     const bookings = [];
 
     for (const serviceId of serviceIds) {
       const service = await Service.findByPk(serviceId);
 
       if (!service) continue;
-
-      const completionOtp = generateOTP();
 
       const booking = await Booking.create({
         userId,

@@ -33,25 +33,25 @@ const initSocket = (server, allowedOrigins) => {
 
     /* ───────── CONFIRM ORDER ───────── */
     // socket.js
-    socket.on("confirm-order", async ({ orderId }) => {
+    socket.on("confirm-order", async ({ groupId }) => {
       const transaction = await sequelize.transaction();
-
+      console.log(groupId);
       try {
         if (!socket.providerId) {
-          socket.emit("order-unavailable", { orderId });
+          socket.emit("order-unavailable", { groupId });
           return;
         }
 
         /** 1️⃣ Lock booking */
         const booking = await Booking.findOne({
-          where: { id: orderId },
+          where: { groupId },
           transaction,
           lock: transaction.LOCK.UPDATE,
         });
 
         if (!booking || booking.status !== "pending") {
           await transaction.rollback();
-          socket.emit("order-unavailable", { orderId });
+          socket.emit("order-unavailable", { groupId });
           return;
         }
 
@@ -64,7 +64,7 @@ const initSocket = (server, allowedOrigins) => {
 
         if (!provider) {
           await transaction.rollback();
-          socket.emit("order-unavailable", { orderId });
+          socket.emit("order-unavailable", { groupId });
           return;
         }
         console.log(
@@ -72,7 +72,7 @@ const initSocket = (server, allowedOrigins) => {
           booking?.status,
           socket.providerId,
           "Provider Wallet:",
-          provider?.wallet
+          provider?.wallet,
         );
 
         /** 3️⃣ Get App Settings (single row) */
@@ -108,21 +108,28 @@ const initSocket = (server, allowedOrigins) => {
         await provider.save({ transaction });
 
         /** 7️⃣ Accept booking */
-        booking.status = "confirmed";
-        booking.providerId = socket.providerId;
-        await booking.save({ transaction });
-
+        await Booking.update(
+          {
+            status: "confirmed",
+            providerId: socket.providerId,
+          },
+          {
+            where: { groupId: booking.groupId },
+            transaction,
+          },
+        );
         /** 8️⃣ Commit */
         await transaction.commit();
 
         /** 9️⃣ Notify others */
         socket.broadcast.emit("order-taken", {
-          orderId,
+          groupId: booking.groupId,
+
           acceptedBy: socket.providerId,
         });
 
         socket.emit("order-accepted", {
-          orderId,
+          groupId: booking.groupId,
           deducted: commissionAmount,
           walletLeft: provider.wallet,
         });
@@ -184,7 +191,7 @@ const emitToNearbyOnlineProviders = async (
   latitude,
   longitude,
   event,
-  payload
+  payload,
 ) => {
   if (!latitude || !longitude) return;
 
@@ -197,7 +204,7 @@ const emitToNearbyOnlineProviders = async (
   const nearbyProviders = await getNearbyOnlineProviders(
     latitude,
     longitude,
-    onlineProviderIds
+    onlineProviderIds,
   );
 
   // 3️⃣ Emit socket

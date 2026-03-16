@@ -105,18 +105,41 @@ const completeService = async (req, res) => {
     const booking = await Booking.findOne({
       where: { id: bookingId, providerId },
     });
-    if (booking.completionOtp !== otp) {
-      return res.status(400).json({ message: "Invalid OTP" });
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
     }
-    if (!booking || booking.status !== "on_the_way") {
+
+    if (booking.status !== "on_the_way") {
       return res.status(400).json({ message: "Invalid booking state" });
     }
 
-    booking.status = "completed";
-    await booking.save();
+    if (booking.completionOtp !== otp) {
+      return res.status(400).json({ message: "Invalid OTP" });
+    }
 
-    res.json({ message: "Service completed", booking });
-  } catch {
+    const groupId = booking.groupId;
+
+    /* 🔹 COMPLETE ALL BOOKINGS IN GROUP */
+    await Booking.update(
+      { status: "completed" },
+      {
+        where: {
+          groupId,
+          providerId,
+        },
+      },
+    );
+
+    res.json({
+      success: true,
+
+      message: "Service completed successfully",
+      groupId,
+    });
+  } catch (error) {
+    console.error("Complete service error:", error);
+
     res.status(500).json({ message: "Internal server error" });
   }
 };
