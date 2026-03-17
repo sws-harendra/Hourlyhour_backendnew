@@ -280,6 +280,12 @@ const getAllServices = async (req, res) => {
           as: "category", // make sure this matches your model alias
           attributes: ["id", "name", "image"],
         },
+        {
+          model: Service,
+          as: "relatedServices",
+          attributes: ["id", "title", "price", "mainimage"],
+          through: { attributes: [] }, // hide junction table
+        },
       ],
     });
 
@@ -792,29 +798,27 @@ const getRelatedServices = async (req, res) => {
   try {
     const { serviceId } = req.params;
 
-    const service = await Service.findByPk(serviceId);
+    const service = await Service.findByPk(serviceId, {
+      include: [
+        {
+          model: Service,
+          as: "relatedServices",
+          attributes: ["id", "title", "price", "mainimage"],
+          through: { attributes: [] },
+        },
+      ],
+    });
 
     if (!service) {
-      return res
-        .status(404)
-        .json({ success: false, message: "Service not found" });
+      return res.status(404).json({
+        success: false,
+        message: "Service not found",
+      });
     }
-
-    const relatedServices = await Service.findAll({
-      where: {
-        categoryId: service.categoryId,
-        id: {
-          [Op.ne]: serviceId, // exclude current service
-        },
-        status: "active",
-      },
-      limit: 6,
-      order: [["createdAt", "DESC"]],
-    });
 
     return res.json({
       success: true,
-      data: relatedServices,
+      data: service.relatedServices, // ✅ THIS IS IMPORTANT
     });
   } catch (error) {
     console.error(error);

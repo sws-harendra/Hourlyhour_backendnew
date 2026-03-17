@@ -25,16 +25,18 @@ export default function ServiceForm({ open, onClose, data, reload }) {
   const [mainImageFile, setMainImageFile] = useState(null);
   const [galleryFiles, setGalleryFiles] = useState([]);
 
-  useEffect(() => {
-    if (data) {
-      setForm({
-        ...data,
-        categoryId: data.categoryId || "",
-        images: data.images || [],
-      });
-    }
-  }, [data]);
-  const loadServices = async () => {
+useEffect(() => {
+  if (data) {
+    setForm({
+      ...data,
+      categoryId: data.categoryId || "",
+      images: data.images || [],
+      relatedServiceIds: data.relatedServices
+        ? data.relatedServices.map((s) => String(s.id)) // 👈 FIX
+        : [],
+    });
+  }
+}, [data]);  const loadServices = async () => {
     const res = await ServiceService.getAllServices({
       page: 1,
       limit: 100, // important for dropdown
