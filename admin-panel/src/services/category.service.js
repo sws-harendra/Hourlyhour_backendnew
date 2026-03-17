@@ -19,6 +19,6 @@ export const CategoryService = {
 
   // GET ALL
   getAllCategories: async () => {
-    return await api.get("/category/get-all-categories");
+    return await api.get("/category/get-all-categories?limit=1000");
   },
 };
