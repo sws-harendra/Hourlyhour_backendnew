@@ -23,7 +23,7 @@ app.use(
       else callback(new Error("Not allowed by CORS"));
     },
     credentials: true,
-  })
+  }),
 );
 
 app.use(express.json());
@@ -44,7 +44,7 @@ app.use("/api/settings", require("./routes/setting.route"));
 app.use("/api/section", require("./routes/section.route"));
 app.use("/api/dashboard", require("./routes/dashboard.route"));
 app.use("/api/serviceRequest", require("./routes/servicerequest.route"));
-
+app.use("/api/invoice", require("./routes/invoice.route"));
 /* ===== INIT SOCKET ===== */
 initSocket(server, allowedOrigins);
 
