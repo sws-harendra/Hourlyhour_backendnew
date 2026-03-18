@@ -1,108 +1,178 @@
-const PDFDocument = require("pdfkit");
+const puppeteer = require("puppeteer");
 const fs = require("fs");
 const path = require("path");
+const handlebars = require("handlebars");
+const { toWords } = require("number-to-words");
 
+// ================= HELPERS =================
+handlebars.registerHelper("inc", (v) => parseInt(v) + 1);
+handlebars.registerHelper("eq", (a, b) => a === b);
+handlebars.registerHelper("numberToWords", (num) => {
+  if (!num) return "Zero";
+  return toWords(Math.floor(num));
+});
+
+// ================= MAIN FUNCTION =================
 const generateInvoicePdf = async (bookings, isCombined = false) => {
-  return new Promise((resolve, reject) => {
-    try {
-      const fileName = isCombined
-        ? `invoice_group_${bookings[0].groupId}.pdf`
-        : `invoice_${bookings[0].id}.pdf`;
+  let browser;
 
-      const filePath = path.join(__dirname, "../uploads/", fileName);
+  try {
+    // ✅ STEP 1: CLEAN SEQUELIZE DATA
+    const cleanBookings = bookings.map((b) =>
+      b.get ? b.get({ plain: true }) : b,
+    );
 
-      const doc = new PDFDocument({ margin: 40 });
+    const user = cleanBookings[0]?.user || {};
+    const provider = cleanBookings[0]?.provider || {};
 
-      doc.pipe(fs.createWriteStream(filePath));
+    // ================= TEMPLATE =================
+    const templatePath = path.join(__dirname, "../templates/invoice.hbs");
+    const htmlTemplate = fs.readFileSync(templatePath, "utf8");
+    const compiled = handlebars.compile(htmlTemplate);
 
-      // ================= HEADER =================
-      doc.fontSize(22).text("INVOICE", { align: "left" });
-      doc.moveDown(0.5);
+    // ================= LOGO =================
+    const logoPath = path.join(__dirname, "..", "public", "logo.png");
+    let logoSrc = "";
+    if (fs.existsSync(logoPath)) {
+      const b64 = fs.readFileSync(logoPath).toString("base64");
+      logoSrc = `data:image/png;base64,${b64}`;
+    }
 
-      if (isCombined) {
-        doc.fontSize(12).text(`Group ID: ${bookings[0].groupId}`);
-        doc.text(`Total Services: ${bookings.length}`);
-      } else {
-        doc.fontSize(12).text(`Booking ID: ${bookings[0].id}`);
-      }
+    // ================= CALCULATIONS =================
+    let subtotal = 0;
 
-      doc.moveDown();
+    const description = [];
+    const hsnArr = [];
+    const amountArr = [];
 
-      // ================= SERVICES =================
-      let grandTotal = 0;
+    const services = cleanBookings.map((b, i) => {
+      const base = Number(b.basePriceAtBooking) || 0;
+      let addonTotal = 0;
 
-      bookings.forEach((b, index) => {
-        const service = b.service || {};
-        const addons = b.addons || [];
+      const addons = (b.addons || []).map((a) => {
+        const price = Number(a?.rate?.price || a?.price) || 0;
 
-        let basePrice = b.basePriceAtBooking || 0;
-        let total = basePrice;
-
-        doc.fontSize(14).text(`${index + 1}. ${service.title || "Service"}`, {
-          underline: true,
-        });
-
-        doc.fontSize(12).text(`Base Price: Rs ${basePrice}`);
-
-        // ADDONS
-        if (addons.length > 0) {
-          doc.moveDown(0.5);
-          doc.text("Addons:");
-
-          addons.forEach((a) => {
-            const rate = a.rate || {};
-            const price = rate.price || 0;
-            const status = a.status;
-
-            let statusText = "Pending";
-
-            if (status === "approved") {
-              statusText = "Approved";
-              total += price;
-            } else if (status === "rejected") {
-              statusText = "Rejected";
-            }
-
-            doc.text(`- ${rate.title} : Rs ${price} (${statusText})`);
-          });
+        if (a.status === "approved") {
+          addonTotal += price;
         }
 
-        doc.moveDown(0.5);
-        doc.text(`Service Total: Rs ${total}`, { bold: true });
-
-        doc.moveDown();
-        grandTotal += total;
+        return {
+          title: a?.rate?.title || a?.title || "Addon",
+          price,
+          status: a?.status || "pending",
+        };
       });
 
-      // ================= PROVIDER =================
-      const provider = bookings[0].provider || {};
+      const total = base + addonTotal;
+      subtotal += total;
 
-      doc.moveDown();
-      doc.fontSize(14).text("Provider Details", { underline: true });
-      doc.fontSize(12).text(`Name: ${provider.name}`);
-      doc.text(`Phone: ${provider.phone}`);
-      doc.text(`Location: ${bookings[0].location}`);
+      return {
+        index: i + 1,
+        title: b?.service?.title || "Service",
+        basePrice: base,
+        addons,
+        total,
+        // hsn: "9987",
+      };
+    });
 
-      // ================= TOTAL =================
-      doc.moveDown();
-      doc.fontSize(16).text(`Grand Total: Rs ${grandTotal}`, {
-        align: "right",
+    // ================= FLATTEN FOR TABLE =================
+    services.forEach((s) => {
+      // service row
+      description.push(s.title);
+      // hsnArr.push(s.hsn);
+      amountArr.push(s.basePrice.toFixed(2));
+
+      // addon rows
+      s.addons.forEach((a) => {
+        if (a.status === "approved") {
+          description.push(`${a.title} (Addon)`);
+          // hsnArr.push(s.hsn);
+          amountArr.push(a.price.toFixed(2));
+        }
       });
+    });
 
-      doc.end();
+    // ================= TOTALS =================
+    const gst = 18;
+    const gstAmount = (subtotal * gst) / 100;
+    const discount = 0;
 
-      doc.on("finish", () => {
-        resolve({
-          filePath,
-          fileName,
-        });
-      });
-    } catch (err) {
-      reject(err);
-    }
-  });
+    const grandTotal = subtotal + gstAmount - discount;
+    const totalReceived = 0;
+    const dueAmount = grandTotal - totalReceived;
+
+    // ================= FINAL DATA =================
+    const data = {
+      client: {
+        invoice_no: isCombined ? cleanBookings[0].groupId : cleanBookings[0].g,
+
+        created_at: new Date().toLocaleDateString(),
+
+        name: user?.name || "-",
+        email: user?.email || "-",
+        number: user?.phone || "-",
+        address: cleanBookings[0]?.location || "-",
+
+        company_name: "Repair Sathi",
+
+        description,
+        // hsn: hsnArr,
+        amount: amountArr,
+
+        logoSrc,
+
+        gst,
+        discount,
+
+        total_amount: subtotal.toFixed(2),
+        gst_amount: gstAmount.toFixed(2),
+        grand_total: grandTotal.toFixed(2),
+        total_received: totalReceived.toFixed(2),
+        due_amount: dueAmount.toFixed(2),
+
+        receive_amount: [],
+        payment_date: [],
+        mode_of_payment: [],
+
+        grand_total_number: Math.floor(grandTotal),
+      },
+    };
+
+    // ================= HTML → PDF =================
+    const html = compiled(data);
+
+    browser = await puppeteer.launch({
+      headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    });
+
+    const page = await browser.newPage();
+
+    await page.setContent(html, { waitUntil: "domcontentloaded" });
+
+    const fileName = `${data.client.invoice_no}-${Date.now()}.pdf`;
+    const filePath = path.join(__dirname, "../uploads/", fileName);
+
+    await page.pdf({
+      path: filePath,
+      format: "A4",
+      printBackground: true,
+      margin: {
+        top: "20mm",
+        bottom: "20mm",
+        left: "10mm",
+        right: "10mm",
+      },
+    });
+
+    await browser.close();
+
+    return { filePath, fileName };
+  } catch (err) {
+    if (browser) await browser.close();
+    throw err;
+  }
 };
 
-module.exports = {
-  generateInvoicePdf,
-};
+module.exports = { generateInvoicePdf };

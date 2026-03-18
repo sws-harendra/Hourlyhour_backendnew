@@ -1,5 +1,6 @@
 // Improved AllBooking UI with cleaner design, fewer icons, reduced clutter
 import { useEffect, useState } from "react";
+import React from "react";
 import { BookingService } from "../../services/booking.service";
 import {
   Search,
@@ -11,8 +12,11 @@ import {
   Trash,
 } from "lucide-react";
 import { Link } from "react-router-dom";
-
+import { handleDownload } from "../../utils/filedownload";
+import { useNavigate } from "react-router-dom";
 export default function AllBooking() {
+
+const navigate = useNavigate();
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -24,7 +28,13 @@ export default function AllBooking() {
 
   const [sortBy, setSortBy] = useState("id");
   const [order, setOrder] = useState("DESC");
-
+const groupedBookings = Object.values(
+  bookings.reduce((acc, b) => {
+    if (!acc[b.groupId]) acc[b.groupId] = [];
+    acc[b.groupId].push(b);
+    return acc;
+  }, {})
+);
   const load = async () => {
     setLoading(true);
     const res = await BookingService.getAll({
@@ -45,7 +55,27 @@ export default function AllBooking() {
     };
     fetchCategories();
   }, [search, status, page, sortBy, order]);
+const downloadGroupInvoice = async (group) => {
+  try {
+    const groupId = group[0].groupId;
 
+    const res = await BookingService.downloadGroupInvoice(groupId);
+
+    handleDownload(res, `group-invoice-${groupId}.pdf`);
+  } catch (err) {
+    console.error(err);
+    alert("Failed to download group invoice");
+  }
+};const downloadSingleInvoice = async (bookingId) => {
+  try {
+    const res = await BookingService.downloadSingleInvoice(bookingId);
+
+    handleDownload(res, `invoice-${bookingId}.pdf`);
+  } catch (err) {
+    console.error(err);
+    alert("Failed to download invoice");
+  }
+};
   return (
     <div className="min-h-screen bg-slate-50 p-8">
       {/* Header */}
@@ -109,8 +139,7 @@ export default function AllBooking() {
       {/* Booking Table */}
       <div className="bg-white rounded-2xl shadow border border-slate-200 overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-slate-100">
+<table className="w-full border-separate border-spacing-y-3">            <thead className="bg-slate-100">
               <tr>
                 {[
                   "ID",
@@ -133,77 +162,106 @@ export default function AllBooking() {
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-slate-100">
-              {loading ? (
-                [...Array(10)].map((_, i) => (
-                  <tr key={i}>
-                    {[...Array(8)].map((__, j) => (
-                      <td key={j} className="px-6 py-4">
-                        <div className="h-4 bg-slate-200 rounded animate-pulse"></div>
-                      </td>
-                    ))}
-                  </tr>
-                ))
-              ) : bookings.length === 0 ? (
-                <tr>
-                  <td
-                    colSpan="8"
-                    className="py-10 text-center text-slate-500 font-medium"
-                  >
-                    No bookings found
-                  </td>
-                </tr>
-              ) : (
-                bookings.map((b) => (
-                  <tr key={b.id} className="hover:bg-blue-50 transition">
-                    <td className="px-6 py-4 font-bold text-blue-600">
-                      #{b.id}
-                    </td>
-                    <td className="px-6 py-4 font-medium text-slate-700">
-                      {b.user?.name || "Unknown"}
-                    </td>
-                    <td className="px-6 py-4 font-medium text-slate-700">
-                      {b.service?.title}
-                    </td>
-                    <td className="px-6 py-4 text-slate-700">
-                      {b.bookingDate}
-                    </td>
-                    <td className="px-6 py-4 text-slate-700">
-                      {new Date(b.bookingTime).toLocaleTimeString()}
-                    </td>
-                    <td className="px-6 py-4 text-slate-700">{b.location}</td>
-                    <td className="px-6 py-4 font-semibold text-slate-800">
-                      ₹{b.priceAtBooking}
-                    </td>
-                    <td className="px-6 py-4">
-                      <span
-                        className={`px-3 py-1 text-xs font-semibold rounded-full ${
-                          {
-                            pending: "bg-yellow-100 text-yellow-700",
-                            confirmed: "bg-blue-100 text-blue-700",
-                            on_the_way: "bg-purple-100 text-purple-700",
-                            completed: "bg-green-100 text-green-700",
-                            cancelled: "bg-red-100 text-red-700",
-                          }[b.status]
-                        }`}
-                      >
-                        {b.status}
-                      </span>
-                    </td>{" "}
-                    <td className="px-6 py-4 text-sm text-gray-600">
-                      <div className="inline-flex gap-4">
-                        <Link to={`/booking/allbookings/${b.id}`}>
-                          {" "}
-                          <Eye color="black" />
-                        </Link>
+ <tbody className="divide-y divide-slate-100">
+  {loading ? (
+    [...Array(10)].map((_, i) => (
+      <tr key={i}>
+        {[...Array(9)].map((__, j) => (
+          <td key={j} className="px-6 py-4">
+            <div className="h-4 bg-slate-200 rounded animate-pulse"></div>
+          </td>
+        ))}
+      </tr>
+    ))
+  ) : bookings.length === 0 ? (
+    <tr>
+      <td colSpan="9" className="text-center py-10 text-slate-500">
+        No bookings found
+      </td>
+    </tr>
+  ) : (
+    groupedBookings.map((group) => {
+  const isGrouped = group.length > 1;
+  const total = group.reduce((sum, b) => sum + (b.priceAtBooking || 0), 0);
 
-                        <Trash color="red" />
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
+  return [
+    // ✅ SPACE BEFORE SINGLE BOOKING (KEY PART)
+!isGrouped && (
+  <tr key={`space-${group[0].id}`}>
+    <td colSpan="9" className="h-4 bg-slate-100 border-0"></td>
+  </tr>
+),
+
+    // ✅ GROUP HEADER
+    isGrouped && (
+      <tr key={`group-${group[0].groupId}`} className=" bg-blue-100">
+        <td colSpan="9" className="px-6  py-4">
+          <div className="flex justify-between items-center">
+            <span className="font-semibold text-blue-700">
+              Group #{group[0].groupId} ({group.length})
+            </span>
+              
+            
+            <div   onClick={() => navigate(`/booking/group/${group[0].groupId}`)}
+ className="flex items-center gap-4"><button className="bg-blue-100 border border-blue-400 px-3 py-1 rounded text-blue-700">
+                View Combined
+              </button>
+              <span className="bg-blue-100 px-3 py-1 rounded text-blue-700">
+                ₹{total}
+              </span>
+
+              <button
+                onClick={() => downloadGroupInvoice(group)}
+                className="bg-blue-600 text-white px-3 py-1 rounded"
+              >
+                Download
+              </button>
+            </div>
+          </div>
+        </td>
+      </tr>
+    ),
+
+    // ✅ ROWS
+    ...group.map((b) => (
+      <tr
+  key={b.id}
+  className={isGrouped ? "bg-blue-50" : "bg-white shadow-sm"}
+>
+        <td className="px-6 py-4 text-blue-600 font-semibold">
+          #{b.id}
+        </td>
+        <td className="px-6 py-4">{b.user?.name || "Unknown"}</td>
+        <td className="px-6 py-4">{b.service?.title}</td>
+        <td className="px-6 py-4">{b.bookingDate}</td>
+        <td className="px-6 py-4">
+          {new Date(b.bookingTime).toLocaleTimeString()}
+        </td>
+        <td className="px-6 py-4">{b.location}</td>
+        <td className="px-6 py-4 font-semibold">
+          ₹{b.priceAtBooking}
+        </td>
+        <td className="px-6 py-4">{b.status}</td>
+
+        <td className="px-6 py-4 flex gap-3">
+          <Link to={`/booking/allbookings/${b.id}`}>
+            <Eye size={18} />
+          </Link>
+
+          {!isGrouped && (
+            <button onClick={() => downloadSingleInvoice(b.id)}>
+              ⬇️
+            </button>
+          )}
+
+          <Trash size={18} />
+        </td>
+      </tr>
+    )),
+  ];
+})
+  )}
+</tbody>
           </table>
         </div>
 

@@ -45,7 +45,8 @@ function App() {
           <Route path="/razorpay-config" element={<RazorpayConfig />} />
           <Route path="/section-management" element={<SectionManager />} />
           <Route path="/service-request" element={<AdminServiceRequestsPage />} />
-          <Route path="/booking/allbookings/:id" element={<BookingDetail />} />
+          <Route path="/booking/allbookings/:id" element={<BookingDetail />} />          <Route path="/booking/group/:groupId" element={<CombinedBookingDetail />} />
+
         </Route>
 
       </Routes>

@@ -16,4 +16,17 @@ export const BookingService = {
   updateStatus: async (id, status) => {
     return await api.put(`/service/booking/${id}/status`, { status });
   },
+  downloadSingleInvoice: async (bookingId) => {
+    const response = await api.get(`/invoice/admin/${bookingId}`, {
+      responseType: "blob",
+    });
+    return response;
+  },
+
+  downloadGroupInvoice: async (groupId) => {
+    const response = await api.get(`/invoice/admin/group/${groupId}`, {
+      responseType: "blob",
+    });
+    return response;
+  },
 };

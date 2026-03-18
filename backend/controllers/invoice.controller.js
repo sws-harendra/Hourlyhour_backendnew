@@ -1,4 +1,4 @@
-const { Booking } = require("../models");
+const { Booking, Service, User, BookingAddon, Rate } = require("../models");
 const { generateInvoicePdf } = require("../utils/invoiceGenerate");
 
 const getInvoice = async (req, res) => {
@@ -6,9 +6,33 @@ const getInvoice = async (req, res) => {
     const { bookingId } = req.params;
 
     const booking = await Booking.findByPk(bookingId, {
-      include: ["service", "provider", "addons"],
+      attributes: ["id", "groupId", "basePriceAtBooking", "location"],
+      include: [
+        {
+          association: "service",
+          attributes: ["title"],
+        },
+        {
+          association: "provider",
+          attributes: ["name", "phone"],
+        },
+        {
+          association: "user", // ✅ ADD THIS
+          attributes: ["name", "phone", "email"],
+        },
+        {
+          association: "addons",
+          attributes: ["price", "status", "title"],
+          include: [
+            {
+              association: "rate",
+              attributes: ["title", "price"],
+            },
+          ],
+        },
+      ],
     });
-
+    console.log(booking);
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
     }
@@ -17,7 +41,7 @@ const getInvoice = async (req, res) => {
 
     return res.download(filePath);
   } catch (err) {
-    console.error(err);
+    console.error("Single invoice error:", err);
     res.status(500).json({ message: "Error generating invoice" });
   }
 };
@@ -28,8 +52,33 @@ const getCombinedInvoice = async (req, res) => {
 
     const bookings = await Booking.findAll({
       where: { groupId },
-      include: ["service", "provider", "addons"],
+      attributes: ["id", "groupId", "basePriceAtBooking", "location"],
+      include: [
+        {
+          association: "service",
+          attributes: ["title"],
+        },
+        {
+          association: "provider",
+          attributes: ["name", "phone"],
+        },
+        {
+          association: "user", // ✅ ADD THIS
+          attributes: ["name", "phone", "email"],
+        },
+        {
+          association: "addons",
+          attributes: ["price", "status", "title"],
+          include: [
+            {
+              association: "rate", // ✅ THIS IS KEY
+              attributes: ["title", "price"],
+            },
+          ],
+        },
+      ],
     });
+    console.log(bookings);
 
     if (!bookings.length) {
       return res.status(404).json({ message: "No bookings found" });
@@ -39,7 +88,7 @@ const getCombinedInvoice = async (req, res) => {
 
     return res.download(filePath);
   } catch (err) {
-    console.error(err);
+    console.error("Group invoice error:", err);
     res.status(500).json({ message: "Error generating invoice" });
   }
 };

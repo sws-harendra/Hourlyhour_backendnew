@@ -344,7 +344,10 @@ const bookService = async (req, res) => {
     }
 
     /* 🔹 Generate groupId */
-    const groupId = uuidv4();
+    const groupId =
+      "RPSATHI-" +
+      Date.now().toString().slice(-3) +
+      Math.floor(1000 + Math.random() * 9000);
     const completionOtp = generateOTP();
     const bookings = [];
 
