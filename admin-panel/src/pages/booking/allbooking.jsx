@@ -202,8 +202,8 @@ const downloadGroupInvoice = async (group) => {
             </span>
               
             
-            <div   onClick={() => navigate(`/booking/group/${group[0].groupId}`)}
- className="flex items-center gap-4"><button className="bg-blue-100 border border-blue-400 px-3 py-1 rounded text-blue-700">
+            <div   
+ className="flex items-center gap-4"><button  onClick={() => navigate(`/booking/group/${group[0].groupId}`)} className="bg-blue-100 border border-blue-400 px-3 py-1 rounded text-blue-700">
                 View Combined
               </button>
               <span className="bg-blue-100 px-3 py-1 rounded text-blue-700">

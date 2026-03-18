@@ -15,12 +15,12 @@ import AdminServiceRequestsPage from "./pages/serviceRequest/serviceRequest";
 import Login from "./pages/auth/login";
 import ProtectedRoute from "./protectedRoute";
 import ServiceRates from "./pages/service/serviceRates";
+import CombinedBookingDetail from "./pages/booking/combinedbooking";
 
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-
         {/* PUBLIC ROUTE */}
         <Route path="/login" element={<Login />} />
 
@@ -35,8 +35,7 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/category" element={<Category />} />
           <Route path="/service" element={<Service />} />
-                    <Route path="/services/:id/rates" element={<ServiceRates />} />
-
+          <Route path="/services/:id/rates" element={<ServiceRates />} />
           <Route path="/users" element={<Users />} />
           <Route path="/service-providers" element={<ServiceProviders />} />
           <Route path="/bookings" element={<AllBooking />} />
@@ -44,11 +43,16 @@ function App() {
           <Route path="/settings" element={<Settings />} />
           <Route path="/razorpay-config" element={<RazorpayConfig />} />
           <Route path="/section-management" element={<SectionManager />} />
-          <Route path="/service-request" element={<AdminServiceRequestsPage />} />
-          <Route path="/booking/allbookings/:id" element={<BookingDetail />} />          <Route path="/booking/group/:groupId" element={<CombinedBookingDetail />} />
-
+          <Route
+            path="/service-request"
+            element={<AdminServiceRequestsPage />}
+          />
+          <Route path="/booking/allbookings/:id" element={<BookingDetail />} />{" "}
+          <Route
+            path="/booking/group/:groupId"
+            element={<CombinedBookingDetail />}
+          />
         </Route>
-
       </Routes>
     </BrowserRouter>
   );

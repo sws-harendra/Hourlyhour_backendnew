@@ -29,4 +29,14 @@ export const BookingService = {
     });
     return response;
   },
+  getGroupBookings(groupId) {
+    return api.get(`/service/booking/group/${groupId}`);
+  },
+
+  assignProviderToGroup(groupId, providerId) {
+    return api.put(`/service/booking/group/${groupId}/assign`, { providerId });
+  },
+  updateGroupStatus(groupId, status) {
+    return api.put(`/service/booking/group/${groupId}/status`, { status });
+  },
 };

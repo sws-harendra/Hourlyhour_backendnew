@@ -70,4 +70,13 @@ router.put("/rate-list/:id", adminAuthenticated, service.updateRate);
 
 router.delete("/rate-list/:id", adminAuthenticated, service.deleteRate);
 router.get("/rate-list/service/:serviceId", service.getRatesByService);
+router.get("/rate-list/service/:serviceId", service.getRatesByService);
+router.get("/rate-list/service/:serviceId", service.getRatesByService);
+// GROUP BOOKINGS
+router.get("/booking/group/:groupId", service.getGroupBookings);
+
+// ✅ Assign provider to entire group
+router.put("/booking/group/:groupId/assign", service.assignProviderToGroup);
+router.put("/booking/group/:groupId/status", service.updateGroupStatus);
+// ✅ Update status for entire group
 module.exports = router;

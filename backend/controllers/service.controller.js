@@ -570,6 +570,19 @@ const assignProvider = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+const assignProviderToGroup = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { providerId } = req.body;
+
+    await Booking.update({ providerId }, { where: { groupId } });
+
+    res.json({ message: "Assigned to all" });
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
+  }
+};
 const statusUpdate = async (req, res) => {
   try {
     const { id } = req.params;
@@ -593,7 +606,30 @@ const statusUpdate = async (req, res) => {
     res.status(500).json({ error: "Server error" });
   }
 };
+const updateGroupStatus = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+    const { status } = req.body;
 
+    const bookings = await Booking.findAll({ where: { groupId } });
+
+    if (!bookings.length) {
+      return res.status(404).json({ message: "Group not found" });
+    }
+
+    await Booking.update({ status }, { where: { groupId } });
+
+    const updated = await Booking.findAll({
+      where: { groupId },
+      include: ["user", "provider", "service"],
+    });
+
+    res.json(updated);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Server error" });
+  }
+};
 const getServiceDetail = async (req, res) => {
   try {
     const id = req.params.id;
@@ -828,6 +864,20 @@ const getRelatedServices = async (req, res) => {
     res.status(500).json({ success: false, message: "Server error" });
   }
 };
+const getGroupBookings = async (req, res) => {
+  try {
+    const { groupId } = req.params;
+
+    const bookings = await Booking.findAll({
+      where: { groupId },
+      include: ["user", "provider", "service", "addons"],
+    });
+
+    res.json(bookings);
+  } catch (err) {
+    res.status(500).json({ error: "Server error" });
+  }
+};
 // Route
 module.exports = {
   getServicesByCategory,
@@ -851,4 +901,7 @@ module.exports = {
   deleteRate,
   getRates,
   getRatesByService,
+  assignProviderToGroup,
+  getGroupBookings,
+  updateGroupStatus,
 };
