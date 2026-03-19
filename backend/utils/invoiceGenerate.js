@@ -6,18 +6,21 @@ const { toWords } = require("number-to-words");
 
 // ================= HELPERS =================
 handlebars.registerHelper("inc", (v) => parseInt(v) + 1);
-handlebars.registerHelper("eq", (a, b) => a === b);
 handlebars.registerHelper("numberToWords", (num) => {
   if (!num) return "Zero";
   return toWords(Math.floor(num));
 });
 
 // ================= MAIN FUNCTION =================
-const generateInvoicePdf = async (bookings, isCombined = false) => {
+const generateInvoicePdf = async (
+  bookings,
+  isCombined = false,
+  taxPercent = 0,
+) => {
   let browser;
 
   try {
-    // ✅ STEP 1: CLEAN SEQUELIZE DATA
+    // ✅ CLEAN DATA
     const cleanBookings = bookings.map((b) =>
       b.get ? b.get({ plain: true }) : b,
     );
@@ -38,63 +41,54 @@ const generateInvoicePdf = async (bookings, isCombined = false) => {
       logoSrc = `data:image/png;base64,${b64}`;
     }
 
-    // ================= CALCULATIONS =================
+    // ================= ITEMS =================
     let subtotal = 0;
+    const items = [];
 
-    const description = [];
-    const hsnArr = [];
-    const amountArr = [];
-
-    const services = cleanBookings.map((b, i) => {
+    cleanBookings.forEach((b) => {
       const base = Number(b.basePriceAtBooking) || 0;
       let addonTotal = 0;
 
-      const addons = (b.addons || []).map((a) => {
+      const serviceTitle = b?.service?.title || "Service";
+      const rateType = b?.service?.rateType || "fixed";
+      const providerName = b?.provider?.name || "-";
+      const providerPhone = b?.provider?.phone || "-";
+
+      // SERVICE
+      items.push({
+        index: items.length + 1,
+        name: serviceTitle,
+        rateType,
+        provider: providerName,
+        providerPhone,
+        qty: 1,
+        amount: base.toFixed(2),
+      });
+
+      // ADDONS
+      (b.addons || []).forEach((a) => {
         const price = Number(a?.rate?.price || a?.price) || 0;
 
         if (a.status === "approved") {
           addonTotal += price;
-        }
 
-        return {
-          title: a?.rate?.title || a?.title || "Addon",
-          price,
-          status: a?.status || "pending",
-        };
-      });
-
-      const total = base + addonTotal;
-      subtotal += total;
-
-      return {
-        index: i + 1,
-        title: b?.service?.title || "Service",
-        basePrice: base,
-        addons,
-        total,
-        // hsn: "9987",
-      };
-    });
-
-    // ================= FLATTEN FOR TABLE =================
-    services.forEach((s) => {
-      // service row
-      description.push(s.title);
-      // hsnArr.push(s.hsn);
-      amountArr.push(s.basePrice.toFixed(2));
-
-      // addon rows
-      s.addons.forEach((a) => {
-        if (a.status === "approved") {
-          description.push(`${a.title} (Addon)`);
-          // hsnArr.push(s.hsn);
-          amountArr.push(a.price.toFixed(2));
+          items.push({
+            index: items.length + 1,
+            name: `${a?.rate?.title || a?.title || "Addon"} (Addon)`,
+            rateType: "extra",
+            provider: providerName,
+            providerPhone,
+            qty: 1,
+            amount: price.toFixed(2),
+          });
         }
       });
+
+      subtotal += base + addonTotal;
     });
 
     // ================= TOTALS =================
-    const gst = 18;
+    const gst = Number(taxPercent) || 0;
     const gstAmount = (subtotal * gst) / 100;
     const discount = 0;
 
@@ -105,7 +99,7 @@ const generateInvoicePdf = async (bookings, isCombined = false) => {
     // ================= FINAL DATA =================
     const data = {
       client: {
-        invoice_no: isCombined ? cleanBookings[0].groupId : cleanBookings[0].g,
+        invoice_no: isCombined ? cleanBookings[0].groupId : cleanBookings[0].id,
 
         created_at: new Date().toLocaleDateString(),
 
@@ -114,11 +108,12 @@ const generateInvoicePdf = async (bookings, isCombined = false) => {
         number: user?.phone || "-",
         address: cleanBookings[0]?.location || "-",
 
+        provider_name: provider?.name || "-",
+        provider_phone: provider?.phone || "-",
+
         company_name: "Repair Sathi",
 
-        description,
-        // hsn: hsnArr,
-        amount: amountArr,
+        items,
 
         logoSrc,
 
@@ -131,15 +126,11 @@ const generateInvoicePdf = async (bookings, isCombined = false) => {
         total_received: totalReceived.toFixed(2),
         due_amount: dueAmount.toFixed(2),
 
-        receive_amount: [],
-        payment_date: [],
-        mode_of_payment: [],
-
         grand_total_number: Math.floor(grandTotal),
       },
     };
 
-    // ================= HTML → PDF =================
+    // ================= GENERATE PDF =================
     const html = compiled(data);
 
     browser = await puppeteer.launch({
@@ -148,7 +139,6 @@ const generateInvoicePdf = async (bookings, isCombined = false) => {
     });
 
     const page = await browser.newPage();
-
     await page.setContent(html, { waitUntil: "domcontentloaded" });
 
     const fileName = `${data.client.invoice_no}-${Date.now()}.pdf`;

@@ -156,22 +156,27 @@
         </colgroup>
         <thead style="background-color: #0d47a1; color: #fff;">
           <tr>
-            <th>Serial No.</th>
-            <th class="description">Description</th>
-            <th style="text-align: left;">Rate Type</th>
+            <th>S No.</th>
+            <th class="description">Description</th>          
+
+            <th style="text-align: left;">Rate Type</th>  <th style="text-align: left;">Quantity</th>
             <th style="text-align: right;">Amount</th>
           </tr>
         </thead>
-        <tbody>
-          {{#each client.description}}
-          <tr>
-            <td>{{inc @index}}</td>
-            <td class="description">{{this}}</td>
-            <td style="text-align: left;">{{lookup ../client.hsn @index}}</td>
-            <td class="amount">{{lookup ../client.amount @index}}</td>
-          </tr>
-          {{/each}}
-        </tbody>
+     <tbody>
+  {{#each client.items}}
+  <tr>
+    <td>{{this.index}}</td>
+    <td class="description">
+      {{this.name}}<br />
+      <small> {{this.provider}} ({{this.providerPhone}})</small>
+    </td>
+    <td style="text-align:left">{{this.rateType}}</td>
+    <td style="text-align:left">{{this.qty}}</td>
+    <td style="text-align:right">{{this.amount}}</td>
+  </tr>
+  {{/each}}
+</tbody>
       </table>
 
       <!-- Received Amount -->
@@ -223,14 +228,14 @@
                 <td>Grand Total:</td>
                 <td style="text-align: right;">{{client.grand_total}}</td>
               </tr>
-              <tr>
+              {{!-- <tr>
                 <td>Total Received:</td>
                 <td style="text-align: right;">{{client.total_received}}</td>
               </tr>
               <tr style="font-weight: bold; background: #f8f8f8;">
                 <td>Due Amount:</td>
                 <td style="text-align: right;">{{client.due_amount}}</td>
-              </tr>
+              </tr> --}}
             </table>
           </td>
         </tr>

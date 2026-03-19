@@ -1,10 +1,18 @@
-const { Booking, Service, User, BookingAddon, Rate } = require("../models");
+const {
+  Booking,
+  Service,
+  User,
+  BookingAddon,
+  Rate,
+  AppSetting,
+} = require("../models");
 const { generateInvoicePdf } = require("../utils/invoiceGenerate");
 
 const getInvoice = async (req, res) => {
   try {
     const { bookingId } = req.params;
-
+    const settings = await AppSetting.findByPk(1);
+    const taxPercent = settings?.tax || 0;
     const booking = await Booking.findByPk(bookingId, {
       attributes: ["id", "groupId", "basePriceAtBooking", "location"],
       include: [
@@ -37,7 +45,7 @@ const getInvoice = async (req, res) => {
       return res.status(404).json({ message: "Booking not found" });
     }
 
-    const { filePath } = await generateInvoicePdf([booking], false);
+    const { filePath } = await generateInvoicePdf([booking], false, taxPercent);
 
     return res.download(filePath);
   } catch (err) {
@@ -49,7 +57,8 @@ const getInvoice = async (req, res) => {
 const getCombinedInvoice = async (req, res) => {
   try {
     const { groupId } = req.params;
-
+    const settings = await AppSetting.findByPk(1);
+    const taxPercent = settings?.tax || 0;
     const bookings = await Booking.findAll({
       where: { groupId },
       attributes: ["id", "groupId", "basePriceAtBooking", "location"],
@@ -84,7 +93,7 @@ const getCombinedInvoice = async (req, res) => {
       return res.status(404).json({ message: "No bookings found" });
     }
 
-    const { filePath } = await generateInvoicePdf(bookings, true);
+    const { filePath } = await generateInvoicePdf(bookings, true, taxPercent);
 
     return res.download(filePath);
   } catch (err) {
