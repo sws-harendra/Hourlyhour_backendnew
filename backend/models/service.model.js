@@ -67,6 +67,10 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
       defaultValue: [],
     },
+    rateListHeading: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    },
 
     categoryId: {
       type: DataTypes.INTEGER,

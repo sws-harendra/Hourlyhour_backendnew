@@ -70,8 +70,8 @@ router.put("/rate-list/:id", adminAuthenticated, service.updateRate);
 
 router.delete("/rate-list/:id", adminAuthenticated, service.deleteRate);
 router.get("/rate-list/service/:serviceId", service.getRatesByService);
-router.get("/rate-list/service/:serviceId", service.getRatesByService);
-router.get("/rate-list/service/:serviceId", service.getRatesByService);
+// router.get("/rate-list/service/:serviceId", service.getRatesByService);
+// router.get("/rate-list/service/:serviceId", service.getRatesByService);
 // GROUP BOOKINGS
 router.get("/booking/group/:groupId", service.getGroupBookings);
 

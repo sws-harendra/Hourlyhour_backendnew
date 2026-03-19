@@ -6,6 +6,7 @@ const {
   ServiceRelation,
   Address,
   ServiceRate,
+  Setting,
   BookingAddon,
 } = require("../models");
 const { Op } = require("sequelize");
@@ -28,6 +29,7 @@ const addService = async (req, res) => {
       duration,
       isMostBooked,
       relatedServiceIds, // <-- array
+      rateListHeading,
     } = req.body;
 
     const category = await Category.findByPk(categoryId);
@@ -58,6 +60,7 @@ const addService = async (req, res) => {
       isMostBooked: isMostBooked === "true" || isMostBooked === true,
       mainimage,
       images,
+      rateListHeading,
     });
 
     // 🔁 related services
@@ -98,6 +101,7 @@ const updateService = async (req, res) => {
       duration,
       isMostBooked,
       relatedServiceIds,
+      rateListHeading,
     } = req.body;
 
     // check category if changed
@@ -116,6 +120,7 @@ const updateService = async (req, res) => {
       rateType,
       duration,
       isMostBooked: isMostBooked === "true" || isMostBooked === true,
+      rateListHeading,
     };
 
     // 🔁 main image
@@ -342,6 +347,8 @@ const bookService = async (req, res) => {
       latitude = address.latitude;
       longitude = address.longitude;
     }
+    const setting = await Setting.findOne(); // adjust if needed
+    const taxPercent = setting?.tax || 0;
 
     /* 🔹 Generate groupId */
     const groupId =
@@ -794,6 +801,19 @@ const getRatesByService = async (req, res) => {
   try {
     const { serviceId } = req.params;
 
+    // 🔹 get service (for heading)
+    const service = await Service.findByPk(serviceId, {
+      attributes: ["id", "rateListHeading"],
+    });
+
+    if (!service) {
+      return res.status(404).json({
+        success: false,
+        message: "Service not found",
+      });
+    }
+
+    // 🔹 get rates
     const rates = await ServiceRate.findAll({
       where: { serviceId },
       order: [["id", "DESC"]],
@@ -801,10 +821,15 @@ const getRatesByService = async (req, res) => {
 
     res.json({
       success: true,
+
+      heading: service.rateListHeading,
       data: rates,
     });
   } catch (error) {
-    res.status(500).json({ success: false, message: error.message });
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
   }
 };
 /*

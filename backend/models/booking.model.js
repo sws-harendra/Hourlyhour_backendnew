@@ -76,6 +76,10 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING,
       allowNull: true,
     },
+    // taxPercentageAtBooking: {
+    //   type: DataTypes.FLOAT,
+    //   allowNull: false,
+    // },
   });
 
   Booking.associate = (models) => {

@@ -19,7 +19,8 @@ export default function ServiceForm({ open, onClose, data, reload }) {
     isMostBooked: false,
     relatedServiceIds: [],
     mainimage: "",
-    images: [],
+    images: [],  rateListHeading: "", // ✅ ADD THIS
+
   });
 
   const [mainImageFile, setMainImageFile] = useState(null);
@@ -90,7 +91,7 @@ useEffect(() => {
       "relatedServiceIds",
       JSON.stringify(form.relatedServiceIds)
     );
-
+    formData.append("rateListHeading", form.rateListHeading)
     // main image
     if (mainImageFile) {
       formData.append("mainimage", mainImageFile);
@@ -171,7 +172,16 @@ useEffect(() => {
               rows="2"
             />
           </div>
-
+<div className="col-span-2">
+  <label className="font-medium">Rate List Heading</label>
+  <input
+    name="rateListHeading"
+    value={form.rateListHeading}
+    onChange={handleChange}
+    className="w-full mt-1 p-3 border rounded-xl"
+    placeholder="Heading for rate List sections"
+  />
+</div>
           {/* Full Description */}
           <div className="col-span-2">
             <label className="font-medium">Full Description</label>
