@@ -14,6 +14,7 @@ import {
 import { Link } from "react-router-dom";
 import { handleDownload } from "../../utils/filedownload";
 import { useNavigate } from "react-router-dom";
+import { PriceUtils } from "./priceUtil";
 export default function AllBooking() {
 
 const navigate = useNavigate();
@@ -182,9 +183,10 @@ const downloadGroupInvoice = async (group) => {
   ) : (
     groupedBookings.map((group) => {
   const isGrouped = group.length > 1;
-  const total = group.reduce((sum, b) => sum + (b.priceAtBooking || 0), 0);
-
-  return [
+  console.table(group)
+const total = group
+  .reduce((sum, b) => sum + Number(PriceUtils.calculateBookingTotal(b)), 0)
+  .toFixed(2);  return [
     // ✅ SPACE BEFORE SINGLE BOOKING (KEY PART)
 !isGrouped && (
   <tr key={`space-${group[0].id}`}>
@@ -206,9 +208,9 @@ const downloadGroupInvoice = async (group) => {
  className="flex items-center gap-4"><button  onClick={() => navigate(`/booking/group/${group[0].groupId}`)} className="bg-blue-100 border border-blue-400 px-3 py-1 rounded text-blue-700">
                 View Combined
               </button>
-              <span className="bg-blue-100 px-3 py-1 rounded text-blue-700">
-                ₹{total}
-              </span>
+           <span className="bg-blue-100 px-3 py-1 rounded text-blue-700 font-semibold">
+          ₹{total} {/* ✅ Group total with tax */}
+        </span>
 
               <button
                 onClick={() => downloadGroupInvoice(group)}
@@ -235,12 +237,11 @@ const downloadGroupInvoice = async (group) => {
         <td className="px-6 py-4">{b.service?.title}</td>
         <td className="px-6 py-4">{b.bookingDate}</td>
         <td className="px-6 py-4">
-          {new Date(b.bookingTime).toLocaleTimeString()}
+          {b.bookingTime}
         </td>
         <td className="px-6 py-4">{b.location}</td>
         <td className="px-6 py-4 font-semibold">
-          ₹{b.priceAtBooking}
-        </td>
+₹{PriceUtils.calculateBookingTotal(b)}        </td>
         <td className="px-6 py-4">{b.status}</td>
 
         <td className="px-6 py-4 flex gap-3">

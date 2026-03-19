@@ -28,6 +28,7 @@ export default function ServiceForm({ open, onClose, data, reload }) {
 
 useEffect(() => {
   if (data) {
+    console.table(data.relatedServices)
     setForm({
       ...data,
       categoryId: data.categoryId || "",
