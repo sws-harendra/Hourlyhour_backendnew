@@ -182,7 +182,7 @@ export default function AppSetting() {
               Percentage of commission charged on transactions
             </p>
           </div>
-<div className="space-y-2">
+{/* <div className="space-y-2">
             <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
               <IndianRupee className="w-4 h-4 text-gray-500" />
               Platform Fee
@@ -206,7 +206,7 @@ export default function AppSetting() {
             <p className="text-xs text-gray-500 ml-1">
               Any platform fee that will be added to final amount of order.
             </p>
-          </div>
+          </div> */}
           <div className="space-y-2">
             <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
               <IndianRupee className="w-4 h-4 text-gray-500" />

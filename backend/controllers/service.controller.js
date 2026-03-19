@@ -6,7 +6,7 @@ const {
   ServiceRelation,
   Address,
   ServiceRate,
-  Setting,
+  AppSetting,
   BookingAddon,
 } = require("../models");
 const { Op } = require("sequelize");
@@ -347,7 +347,7 @@ const bookService = async (req, res) => {
       latitude = address.latitude;
       longitude = address.longitude;
     }
-    const setting = await Setting.findOne(); // adjust if needed
+    const setting = await AppSetting.findOne(); // adjust if needed
     const taxPercent = setting?.tax || 0;
 
     /* 🔹 Generate groupId */
@@ -372,6 +372,7 @@ const bookService = async (req, res) => {
         specialNote: specialNote || "",
         priceAtBooking: service.price,
         basePriceAtBooking: service.price,
+        taxPercentageAtBooking: taxPercent,
         status: "pending",
         latitude,
         longitude,
