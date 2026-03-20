@@ -149,7 +149,7 @@ const downloadGroupInvoice = async (group) => {
                   "Date",
                   "Time",
                   "Location",
-                  "Price",
+                  "Amount",
                   "Status",
                   "Actions",
                 ].map((h) => (

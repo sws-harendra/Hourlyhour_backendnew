@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { UserService } from "../../services/user.service";
 import { BookingService } from "../../services/booking.service";
+import { PriceUtils } from "./priceUtil";
 
 export default function BookingDetail() {
   const { id } = useParams();
@@ -200,7 +201,7 @@ export default function BookingDetail() {
                   </div>
                   <div className="ml-4 text-right">
                     <div className="text-2xl font-bold text-blue-600">
-                      ₹{booking.service?.price}
+                      ₹{PriceUtils.calculateBookingTotal(booking)}
                     </div>
                     <div className="text-xs text-gray-500 mt-1">
                       Total Amount
@@ -209,75 +210,80 @@ export default function BookingDetail() {
                 </div>
               </div>
             </div>
-{/* Addons */}
-{booking.addons && booking.addons.length > 0 && (
-  <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-    <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-      <h2 className="text-lg font-semibold text-gray-900">
-        Added Services (Addons)
-      </h2>
-    </div>
+{/* Pricing Details */}
+<div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-6">
+  <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+    <h2 className="text-lg font-semibold text-gray-900">
+      Pricing Details
+    </h2>
+  </div>
 
-    <div className="p-6 space-y-4">
-      {booking.addons.map((addon) => (
-        <div
-          key={addon.id}
-          className="flex items-center justify-between p-4 border border-gray-100 rounded-lg bg-gray-50"
-        >
-          <div>
-            <div className="font-semibold text-gray-900">
-              {addon.title}
-            </div>
-{/* 
-            <div className="text-sm text-gray-500">
-              Qty: {addon.quantity}
-            </div> */}
-
-            <div className="text-xs text-gray-400 mt-1">
-              Status: {addon.status}
-            </div>
+  <div className="p-6 space-y-4">
+    {booking.addons && booking.addons.length > 0 && booking.addons.map((addon) => {
+      const addonPrice = Number(addon.rate?.price || addon.price || 0);
+      return (
+      <div
+        key={addon.id}
+        className="flex items-center justify-between p-4 border border-gray-100 rounded-lg bg-gray-50"
+      >
+        <div>
+          <div className="font-semibold text-gray-900">
+            {addon.title || addon.service?.title || "Addon"}
           </div>
 
-          <div className="text-right">
-            <div className="text-lg font-bold text-blue-600">
-              ₹{addon.price * addon.quantity}
-            </div>
-            <div className="text-xs text-gray-500">
-              ₹{addon.price} 
-            </div>
+          <div className="text-sm text-gray-500 mt-1">
+            Qty: {addon.quantity}
+          </div>
+
+          <div className="text-xs text-gray-400 mt-1">
+            Status: {addon.status}
           </div>
         </div>
-      ))}
 
-      {/* Total */}
-     {/* Pricing Breakdown */}
-<div className="pt-4 border-t border-gray-200 space-y-2">
+        <div className="text-right">
+          <div className="text-lg font-bold text-blue-600">
+            ₹{addonPrice * addon.quantity}
+          </div>
+          <div className="text-xs text-gray-500">
+            ₹{addonPrice} / unit
+          </div>
+        </div>
+      </div>
+    )})}
 
-  <div className="flex justify-between text-sm text-gray-600">
-    <span>Base Service</span>
-    <span>₹{booking.basePriceAtBooking}</span>
-  </div>
+    {/* Pricing Breakdown */}
+    <div className="pt-4 border-t border-gray-200 space-y-2">
+      <div className="flex justify-between text-sm text-gray-600">
+        <span>Base Service</span>
+        <span>₹{booking.basePriceAtBooking}</span>
+      </div>
 
-  <div className="flex justify-between text-sm text-gray-600">
-    <span>Addons</span>
-    <span>
-      ₹
-      {booking.addons.reduce(
-        (sum, a) => sum + a.price * a.quantity,
-        0
+      {booking.addons && booking.addons.length > 0 && (
+        <div className="flex justify-between text-sm text-gray-600">
+          <span>Addons (Approved)</span>
+          <span>
+            ₹
+            {booking.addons.reduce((sum, a) => {
+               if (a.status !== "approved") return sum;
+               const price = Number(a.rate?.price || a.price || 0);
+               return sum + price * a.quantity;
+            }, 0).toFixed(2)}
+          </span>
+        </div>
       )}
-    </span>
-  </div>
 
-  <div className="flex justify-between pt-2 border-t border-gray-200 text-lg font-bold text-gray-900">
-    <span>Final Amount</span>
-    <span className="text-blue-600">₹{booking.priceAtBooking}</span>
-  </div>
+      <div className="flex justify-between text-sm text-gray-600">
+        <span>Tax ({booking.taxPercentageAtBooking || 0}%)</span>
+        <span>₹{PriceUtils.calculateTax(booking)}</span>
+      </div>
 
-</div>
+      <div className="flex justify-between pt-2 border-t border-gray-200 text-lg font-bold text-gray-900">
+        <span>Final Amount</span>
+        <span className="text-blue-600">₹{PriceUtils.calculateBookingTotal(booking)}</span>
+      </div>
     </div>
   </div>
-)}
+</div>
             {/* Schedule & Location */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
