@@ -73,7 +73,7 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
     },
     groupId: {
-      type: DataTypes.STRING,
+      type: DataTypes.INTEGER,
       allowNull: true,
     },
     taxPercentageAtBooking: {

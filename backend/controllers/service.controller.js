@@ -350,57 +350,80 @@ const bookService = async (req, res) => {
     const setting = await AppSetting.findOne(); // adjust if needed
     const taxPercent = setting?.tax || 0;
 
-    /* 🔹 Generate groupId */
-    const groupId =
-      "RPSATHI-" +
-      Date.now().toString().slice(-3) +
-      Math.floor(1000 + Math.random() * 9000);
     const completionOtp = generateOTP();
     const bookings = [];
+    const bookingsTransaction = await Booking.sequelize.transaction();
 
-    for (const serviceId of serviceIds) {
-      const service = await Service.findByPk(serviceId);
+    try {
+      // Lock the current highest group so concurrent requests don't reuse it.
+      const lastGroupBooking = await Booking.findOne({
+        attributes: ["groupId"],
+        where: {
+          groupId: {
+            [Op.ne]: null,
+          },
+        },
+        order: [["groupId", "DESC"]],
+        transaction: bookingsTransaction,
+        lock: bookingsTransaction.LOCK.UPDATE,
+      });
 
-      if (!service) continue;
+      const groupId = (lastGroupBooking?.groupId || 0) + 1;
 
-      const booking = await Booking.create({
-        userId,
-        serviceId,
+      for (const serviceId of serviceIds) {
+        const service = await Service.findByPk(serviceId, {
+          transaction: bookingsTransaction,
+        });
+
+        if (!service) continue;
+
+        const booking = await Booking.create(
+          {
+            userId,
+            serviceId,
+            bookingDate,
+            bookingTime,
+            location: finalLocation,
+            specialNote: specialNote || "",
+            priceAtBooking: service.price,
+            basePriceAtBooking: service.price,
+            taxPercentageAtBooking: taxPercent,
+            status: "pending",
+            latitude,
+            longitude,
+            completionOtp,
+            groupId,
+          },
+          { transaction: bookingsTransaction },
+        );
+
+        bookings.push(booking);
+      }
+
+      await bookingsTransaction.commit();
+
+      /* 🔔 Send one notification to providers */
+      await emitToNearbyOnlineProviders(latitude, longitude, "new-order", {
+        groupId,
         bookingDate,
         bookingTime,
         location: finalLocation,
-        specialNote: specialNote || "",
-        priceAtBooking: service.price,
-        basePriceAtBooking: service.price,
-        taxPercentageAtBooking: taxPercent,
-        status: "pending",
-        latitude,
-        longitude,
-        completionOtp,
-        groupId,
+        services: bookings.map((b) => ({
+          id: b.id,
+          serviceId: b.serviceId,
+          price: b.priceAtBooking,
+        })),
       });
 
-      bookings.push(booking);
+      return res.status(201).json({
+        message: "Services booked successfully",
+        groupId,
+        bookings,
+      });
+    } catch (transactionError) {
+      await bookingsTransaction.rollback();
+      throw transactionError;
     }
-
-    /* 🔔 Send one notification to providers */
-    await emitToNearbyOnlineProviders(latitude, longitude, "new-order", {
-      groupId,
-      bookingDate,
-      bookingTime,
-      location: finalLocation,
-      services: bookings.map((b) => ({
-        id: b.id,
-        serviceId: b.serviceId,
-        price: b.priceAtBooking,
-      })),
-    });
-
-    res.status(201).json({
-      message: "Services booked successfully",
-      groupId,
-      bookings,
-    });
   } catch (error) {
     console.error("Booking error:", error);
     res.status(500).json({ message: "Internal server error" });

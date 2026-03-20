@@ -110,8 +110,9 @@ const generateInvoicePdf = async (
     // ================= FINAL DATA =================
     const data = {
       client: {
-        invoice_no: isCombined ? cleanBookings[0].groupId : cleanBookings[0].id,
-
+        invoice_no: `RPSATHI-${
+          isCombined ? cleanBookings[0].groupId : cleanBookings[0].groupId
+        }`,
         created_at: new Date().toLocaleDateString(),
 
         name: user?.name || "-",
@@ -144,17 +145,17 @@ const generateInvoicePdf = async (
     // ================= GENERATE PDF =================
     const html = compiled(data);
 
-    browser = await puppeteer.launch({
-      headless: true,
-      args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    });
-    // const browser = await puppeteer.launch({
-    //   executablePath: "/usr/bin/chromium-browser",
-    //   headless: "new",
-
-    //   // headless: true,
+    // browser = await puppeteer.launch({
+    //   headless: true,
     //   args: ["--no-sandbox", "--disable-setuid-sandbox"],
     // });
+    const browser = await puppeteer.launch({
+      executablePath: "/usr/bin/chromium-browser",
+      headless: "new",
+
+      // headless: true,
+      args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    });
 
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "domcontentloaded" });

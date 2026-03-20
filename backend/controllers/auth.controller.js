@@ -370,7 +370,7 @@ const editProfile = async (req, res) => {
         }
       }
 
-      updatedData.profilePicture = `${process.env.BACKEND_URL}/uploads/${fileUrl}`;
+      updatedData.profilePicture = `${process.env.BACKEND_URL}/uploads/${req.file.filename}`;
     }
 
     // Update DB
