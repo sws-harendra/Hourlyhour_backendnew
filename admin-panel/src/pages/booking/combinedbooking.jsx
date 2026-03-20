@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { BookingService } from "../../services/booking.service";
 import { UserService } from "../../services/user.service";
+import { PriceUtils } from "./priceUtil";
 
 export default function CombinedBookingDetail() {
   const { groupId } = useParams();
@@ -62,7 +63,7 @@ export default function CombinedBookingDetail() {
   if (loading) return <div className="p-10">Loading...</div>;
 
   const total = bookings.reduce(
-    (sum, b) => sum + (b.priceAtBooking || 0),
+    (sum, b) => sum + Number(PriceUtils.calculateBookingTotal(b)),
     0
   );
 
@@ -151,7 +152,7 @@ export default function CombinedBookingDetail() {
                 <td className="p-3">{b.user?.name}</td>
                 <td className="p-3">{b.service?.title}</td>
                 <td className="p-3">{b.bookingDate}</td>
-                <td className="p-3">₹{b.priceAtBooking}</td>
+                <td className="p-3">₹{PriceUtils.calculateBookingTotal(b)}</td>
                 <td className="p-3">{b.status}</td>
               </tr>
             ))}

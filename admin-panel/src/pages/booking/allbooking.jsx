@@ -209,7 +209,7 @@ const total = group
                 View Combined
               </button>
            <span className="bg-blue-100 px-3 py-1 rounded text-blue-700 font-semibold">
-          ₹{total} {/* ✅ Group total with tax */}
+          ₹{total} 
         </span>
 
               <button

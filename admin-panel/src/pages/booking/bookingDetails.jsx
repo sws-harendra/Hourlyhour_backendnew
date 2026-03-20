@@ -262,12 +262,7 @@ export default function BookingDetail() {
         <div className="flex justify-between text-sm text-gray-600">
           <span>Addons (Approved)</span>
           <span>
-            ₹
-            {booking.addons.reduce((sum, a) => {
-               if (a.status !== "approved") return sum;
-               const price = Number(a.rate?.price || a.price || 0);
-               return sum + price * a.quantity;
-            }, 0).toFixed(2)}
+            ₹{PriceUtils.calculateAddonsTotal(booking).toFixed(2)}
           </span>
         </div>
       )}

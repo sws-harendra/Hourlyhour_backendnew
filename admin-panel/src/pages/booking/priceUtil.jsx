@@ -1,45 +1,33 @@
 export const PriceUtils = {
+  calculateAddonsTotal: (booking) => {
+    const addons = booking?.addons || [];
+
+    return addons.reduce((sum, addon) => {
+      if (addon.status !== "approved") return sum;
+
+      const price = Number(addon.rate?.price || addon.price || 0);
+      const qty = Number(addon.quantity || 1);
+
+      return sum + price * qty;
+    }, 0);
+  },
+
+  calculateSubtotal: (booking) => {
+    const base = Number(booking?.basePriceAtBooking || 0);
+    return base + PriceUtils.calculateAddonsTotal(booking);
+  },
+
   calculateBookingTotal: (booking) => {
-    const base = Number(booking.basePriceAtBooking || 0);
-    const taxPercent = Number(booking.taxPercentageAtBooking || 0);
-
-    let addonsTotal = 0;
-
-    const addons = booking.addons || [];
-
-    for (const a of addons) {
-      if (a.status !== "approved") continue;
-
-      const price = Number(a.rate?.price || 0);
-      const qty = Number(a.quantity || 1);
-
-      addonsTotal += price * qty;
-    }
-
-    const subtotal = base + addonsTotal;
+    const subtotal = PriceUtils.calculateSubtotal(booking);
+    const taxPercent = Number(booking?.taxPercentageAtBooking || 0);
     const tax = (subtotal * taxPercent) / 100;
 
     return (subtotal + tax).toFixed(2);
   },
 
   calculateTax: (booking) => {
-    const base = Number(booking.basePriceAtBooking || 0);
-    const taxPercent = Number(booking.taxPercentageAtBooking || 0);
-
-    let addonsTotal = 0;
-
-    const addons = booking.addons || [];
-
-    for (const a of addons) {
-      if (a.status !== "approved") continue;
-
-      const price = Number(a.rate?.price || 0);
-      const qty = Number(a.quantity || 1);
-
-      addonsTotal += price * qty;
-    }
-
-    const subtotal = base + addonsTotal;
+    const subtotal = PriceUtils.calculateSubtotal(booking);
+    const taxPercent = Number(booking?.taxPercentageAtBooking || 0);
     return ((subtotal * taxPercent) / 100).toFixed(2);
-  }
+  },
 };

@@ -15,7 +15,7 @@ handlebars.registerHelper("numberToWords", (num) => {
 const generateInvoicePdf = async (
   bookings,
   isCombined = false,
-  taxPercent = 0,
+  defaultTaxPercent = 0,
 ) => {
   let browser;
 
@@ -43,6 +43,7 @@ const generateInvoicePdf = async (
 
     // ================= ITEMS =================
     let subtotal = 0;
+    let totalTax = 0;
     const items = [];
 
     cleanBookings.forEach((b) => {
@@ -68,9 +69,10 @@ const generateInvoicePdf = async (
       // ADDONS
       (b.addons || []).forEach((a) => {
         const price = Number(a?.rate?.price || a?.price) || 0;
+        const qty = Number(a?.quantity) || 1;
 
         if (a.status === "approved") {
-          addonTotal += price;
+          addonTotal += price * qty;
 
           items.push({
             index: items.length + 1,
@@ -78,18 +80,27 @@ const generateInvoicePdf = async (
             rateType: "extra",
             provider: providerName,
             providerPhone,
-            qty: 1,
-            amount: price.toFixed(2),
+            qty,
+            amount: (price * qty).toFixed(2),
           });
         }
       });
 
-      subtotal += base + addonTotal;
+      const bookingSubtotal = base + addonTotal;
+      const bookingTaxPercent =
+        Number(b.taxPercentageAtBooking) || Number(defaultTaxPercent) || 0;
+      const bookingTax = (bookingSubtotal * bookingTaxPercent) / 100;
+
+      subtotal += bookingSubtotal;
+      totalTax += bookingTax;
     });
 
     // ================= TOTALS =================
-    const gst = Number(taxPercent) || 0;
-    const gstAmount = (subtotal * gst) / 100;
+    const gst =
+      Number(cleanBookings[0]?.taxPercentageAtBooking) ||
+      Number(defaultTaxPercent) ||
+      0;
+    const gstAmount = totalTax;
     const discount = 0;
 
     const grandTotal = subtotal + gstAmount - discount;

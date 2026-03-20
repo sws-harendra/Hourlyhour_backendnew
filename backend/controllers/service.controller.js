@@ -456,6 +456,20 @@ const allBookings = async (req, res) => {
           attributes: ["id", "title", "price"],
           required: false,
         },
+        {
+          model: BookingAddon,
+          as: "addons",
+          attributes: ["id", "title", "price", "quantity", "status"],
+          required: false,
+          include: [
+            {
+              model: ServiceRate,
+              as: "rate",
+              attributes: ["id", "title", "price"],
+              required: false,
+            },
+          ],
+        },
       ],
       order: [[sortBy, order]],
       limit,
@@ -896,7 +910,25 @@ const getGroupBookings = async (req, res) => {
 
     const bookings = await Booking.findAll({
       where: { groupId },
-      include: ["user", "provider", "service", "addons"],
+      include: [
+        "user",
+        "provider",
+        "service",
+        {
+          model: BookingAddon,
+          as: "addons",
+          attributes: ["id", "title", "price", "quantity", "status"],
+          required: false,
+          include: [
+            {
+              model: ServiceRate,
+              as: "rate",
+              attributes: ["id", "title", "price"],
+              required: false,
+            },
+          ],
+        },
+      ],
     });
 
     res.json(bookings);
