@@ -199,6 +199,75 @@ const cancelBooking = async (req, res) => {
   }
 };
 
+/* ───────────────── RESCHEDULE BOOKING (USER) ───────────────── */
+const rescheduleBooking = async (req, res) => {
+  try {
+    const { bookingId, bookingDate, bookingTime } = req.body;
+    const userId = req.user.id;
+
+    if (!bookingId || !bookingDate || !bookingTime) {
+      return res.status(400).json({
+        message: "bookingId, bookingDate and bookingTime are required",
+      });
+    }
+
+    const booking = await Booking.findOne({
+      where: { id: bookingId, userId },
+    });
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    if (["cancelled", "completed"].includes(booking.status)) {
+      return res.status(400).json({
+        message: "This booking cannot be rescheduled",
+      });
+    }
+
+    if (booking.isRescheduled) {
+      return res.status(400).json({
+        message: "Booking can only be rescheduled once",
+      });
+    }
+
+    const whereClause = booking.groupId
+      ? { groupId: booking.groupId }
+      : { id: booking.id };
+
+    await Booking.update(
+      {
+        bookingDate,
+        bookingTime,
+        status: "pending",
+        isRescheduled: true,
+      },
+      { where: whereClause },
+    );
+
+    const updatedBookings = await Booking.findAll({
+      where: whereClause,
+      order: [["id", "ASC"]],
+    });
+
+    emitToAllProviders("order-rescheduled", {
+      groupId: booking.groupId,
+      bookingId: booking.id,
+      bookingDate,
+      bookingTime,
+    });
+
+    res.json({
+      success: true,
+      message: "Booking rescheduled successfully",
+      bookings: updatedBookings,
+    });
+  } catch (error) {
+    console.error("Reschedule booking error:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
 /* ───────────────── USER BOOKINGS ───────────────── */
 const getUserBookings = async (req, res) => {
   try {
@@ -545,6 +614,7 @@ module.exports = {
   completeService,
   getUserBookings,
   cancelBooking,
+  rescheduleBooking,
   allPendingBookings,
   addAddon,
   getBookingAddons,

@@ -439,7 +439,7 @@ const allBookings = async (req, res) => {
       limit = 10,
       search = "",
       status = "",
-      sortBy = "id",
+      sortBy = "createdAt",
       order = "DESC",
     } = req.query;
 
@@ -494,7 +494,10 @@ const allBookings = async (req, res) => {
           ],
         },
       ],
-      order: [[sortBy, order]],
+      order: [
+        ["createdAt", "DESC"],
+        ["id", "DESC"], // tie breaker
+      ],
       limit,
       offset,
       distinct: true,

@@ -27,15 +27,34 @@ const navigate = useNavigate();
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
 
-  const [sortBy, setSortBy] = useState("id");
+  const [sortBy, setSortBy] = useState("createdAt");
   const [order, setOrder] = useState("DESC");
-const groupedBookings = Object.values(
-  bookings.reduce((acc, b) => {
-    if (!acc[b.groupId]) acc[b.groupId] = [];
-    acc[b.groupId].push(b);
-    return acc;
-  }, {})
-);
+const groupedBookings = React.useMemo(() => {
+  const map = new Map();
+
+  bookings.forEach((b) => {
+    const key = b.groupId || `single-${b.id}`;
+
+    if (!map.has(key)) map.set(key, []);
+    map.get(key).push(b);
+  });
+
+  const groups = Array.from(map.values());
+
+  // ✅ Sort inside each group
+  groups.forEach(group => {
+    group.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+  });
+
+  // ✅ Sort groups by latest booking inside them
+  groups.sort((a, b) => {
+    const aDate = new Date(a[0].createdAt);
+    const bDate = new Date(b[0].createdAt);
+    return bDate - aDate;
+  });
+
+  return groups;
+}, [bookings]);
   const load = async () => {
     setLoading(true);
     const res = await BookingService.getAll({

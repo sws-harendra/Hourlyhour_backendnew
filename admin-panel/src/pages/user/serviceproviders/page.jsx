@@ -65,10 +65,10 @@ const ServiceProviders = () => {
                 </p>
               </div>
             </div>
-            <button className="flex items-center gap-2 bg-linear-to-r from-blue-600 to-indigo-600 text-white px-5 py-2.5 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg font-medium">
+            {/* <button className="flex items-center gap-2 bg-linear-to-r from-blue-600 to-indigo-600 text-white px-5 py-2.5 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg font-medium">
               <Plus className="w-5 h-5" />
               Add User
-            </button>
+            </button> */}
           </div>
         </div>
 
