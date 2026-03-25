@@ -335,10 +335,7 @@ export default function BookingDetail() {
                         Time
                       </div>
                       <div className="text-gray-900 font-medium">
-                        {new Date(booking.bookingTime).toLocaleTimeString([], {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
+                        {booking?.bookingTime}
                       </div>
                     </div>
                   </div>
