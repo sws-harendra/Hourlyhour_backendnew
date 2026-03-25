@@ -355,7 +355,7 @@ const editProfile = async (req, res) => {
     let updatedData = {
       name,
       email,
-      // address,
+      address,
       gender,
       bio,
     };
