@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { sectionService } from "../../services/section.service";
 import { ServiceService } from "../../services/services.service";
@@ -10,6 +10,9 @@ export default function ManageSections() {
 
   const [showModal, setShowModal] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [serviceDropdownOpen, setServiceDropdownOpen] = useState(false);
+  const [serviceSearch, setServiceSearch] = useState("");
+  const dropdownRef = useRef(null);
 
   const [form, setForm] = useState({
     title: "",
@@ -31,8 +34,21 @@ export default function ManageSections() {
   };
 
   const fetchServices = async () => {
-    const res = await ServiceService.getAllServices();
-    setServices(Array.isArray(res.data?.data) ? res.data.data : []);
+    const limit = 500;
+    let page = 1;
+    let totalPages = 1;
+    let allServices = [];
+
+    while (page <= totalPages) {
+      const res = await ServiceService.getAllServices({ page, limit });
+      const pageData = Array.isArray(res.data?.data) ? res.data.data : [];
+
+      allServices = [...allServices, ...pageData];
+      totalPages = Number(res.data?.totalPages) || 1;
+      page += 1;
+    }
+
+    setServices(allServices);
   };
 
   useEffect(() => {
@@ -40,7 +56,28 @@ export default function ManageSections() {
     fetchServices();
   }, []);
 
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setServiceDropdownOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   /* ================= HANDLERS ================= */
+
+  const resetFormState = () => {
+    setShowModal(false);
+    setIsEdit(false);
+    setEditingId(null);
+    setForm({ title: "", description: "", type: "service", order: 0 });
+    setSelectedServices([]);
+    setServiceSearch("");
+    setServiceDropdownOpen(false);
+  };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -62,7 +99,11 @@ export default function ManageSections() {
     try {
       setLoading(true);
 
-      const payload = { ...form, serviceIds: selectedServices };
+      const payload = {
+        ...form,
+        order: Number(form.order) || 0,
+        serviceIds: selectedServices,
+      };
 
       if (isEdit) {
         await sectionService.updateSection(editingId, payload);
@@ -70,11 +111,7 @@ export default function ManageSections() {
         await sectionService.createSection(payload);
       }
 
-      setShowModal(false);
-      setIsEdit(false);
-      setEditingId(null);
-      setForm({ title: "", description: "", type: "service", order: 0 });
-      setSelectedServices([]);
+      resetFormState();
       fetchSections();
     } catch (error) {
       alert("Failed to save section");
@@ -94,6 +131,8 @@ export default function ManageSections() {
     });
     const serviceIds = section.Services?.map((s) => s.id) || [];
     setSelectedServices(serviceIds);
+    setServiceSearch("");
+    setServiceDropdownOpen(false);
     setShowModal(true);
   };
 
@@ -110,13 +149,30 @@ export default function ManageSections() {
 
   /* ================= UI ================= */
 
+  const filteredServices = useMemo(() => {
+    const query = serviceSearch.trim().toLowerCase();
+
+    if (!query) return services;
+
+    return services.filter((service) =>
+      service.title?.toLowerCase().includes(query)
+    );
+  }, [services, serviceSearch]);
+
+  const selectedServiceTitles = services
+    .filter((service) => selectedServices.includes(service.id))
+    .map((service) => service.title);
+
   return (
     <div className="p-6 space-y-6">
       {/* Header */}
       <div className="flex justify-between items-center">
         <h1 className="text-2xl text-white font-semibold">Manage Sections</h1>
         <button
-          onClick={() => setShowModal(true)}
+          onClick={() => {
+            resetFormState();
+            setShowModal(true);
+          }}
           className="flex items-center gap-2 bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700"
         >
           <Plus size={16} />
@@ -192,12 +248,7 @@ export default function ManageSections() {
                 {isEdit ? "Edit Section" : "Add New Section"}
               </h2>
               <button
-                onClick={() => {
-                  setShowModal(false);
-                  setIsEdit(false);
-                  setEditingId(null);
-                  setSelectedServices([]);
-                }}
+                onClick={resetFormState}
               >
                 <X size={18} />
               </button>
@@ -232,30 +283,64 @@ export default function ManageSections() {
               />
 
               {/* SERVICES MULTI SELECT */}
-              <div>
+              <div ref={dropdownRef} className="relative">
                 <p className="text-sm font-medium mb-2">Select Services</p>
-                <div className="max-h-40 overflow-y-auto border rounded p-2 space-y-2">
-                  {Array.isArray(services) &&
-                    services.map((service) => (
-                      <label
-                        key={service.id}
-                        className="flex items-center gap-2 text-sm"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={selectedServices.includes(service.id)}
-                          onChange={() => toggleService(service.id)}
-                        />
-                        {service.title}
-                      </label>
-                    ))}
+                <button
+                  type="button"
+                  onClick={() => setServiceDropdownOpen((prev) => !prev)}
+                  className="w-full border rounded px-3 py-2 text-left min-h-[42px] flex items-center justify-between gap-3"
+                >
+                  <span className="text-sm text-gray-700 truncate">
+                    {selectedServiceTitles.length > 0
+                      ? selectedServiceTitles.join(", ")
+                      : "Choose services"}
+                  </span>
+                  <span className="text-xs text-gray-500 whitespace-nowrap">
+                    {selectedServices.length} selected
+                  </span>
+                </button>
 
-                  {services.length === 0 && (
-                    <p className="text-xs text-gray-500">
-                      No services available
-                    </p>
-                  )}
-                </div>
+                {serviceDropdownOpen && (
+                  <div className="absolute z-20 mt-2 w-full rounded border bg-white shadow-lg">
+                    <div className="p-2 border-b">
+                      <input
+                        type="text"
+                        value={serviceSearch}
+                        onChange={(e) => setServiceSearch(e.target.value)}
+                        placeholder="Search services..."
+                        className="w-full border rounded px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
+                    <div className="max-h-56 overflow-y-auto p-2 space-y-2">
+                      {filteredServices.length > 0 ? (
+                        filteredServices.map((service) => (
+                          <label
+                            key={service.id}
+                            className="flex items-center gap-2 text-sm cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={selectedServices.includes(service.id)}
+                              onChange={() => toggleService(service.id)}
+                            />
+                            <span>{service.title}</span>
+                          </label>
+                        ))
+                      ) : (
+                        <p className="text-xs text-gray-500">
+                          No matching services found
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {!services.length && (
+                  <p className="text-xs text-gray-500 mt-2">
+                    No services available
+                  </p>
+                )}
               </div>
 
               <button

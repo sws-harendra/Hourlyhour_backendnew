@@ -18,6 +18,7 @@ import {
   SeparatorVertical,
   Server,
   Key,
+  Star,
 } from "lucide-react";
 
 const menuItems = [
@@ -48,6 +49,11 @@ const menuItems = [
     name: "Bookings",
     icon: Users,
     children: [{ name: "All Bookings", path: "/bookings" }],
+  },{
+    name: "Testimonial",
+    icon: Star,
+    path: "/testimonial",
+    // children: [{ name: "Add Testimonial", path: "/settings" }],
   },
   {
     name: "Razorpay Config",
