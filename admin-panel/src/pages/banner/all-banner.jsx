@@ -34,9 +34,11 @@ const Banner = () => {
       setLoading(false);
     }
   };
-  const fetchServices = async () => {
+  const fetchServices = async () => {    const limit = 500;
+    let page = 1;
+
     try {
-      const res = await ServiceService.getAll(); // /service/all-services
+      const res = await ServiceService.getAll({page, limit}); // /service/all-services
       setServices(res.data.data || []);
     } catch (err) {
       console.error(err);
