@@ -1,7 +1,10 @@
 const express = require("express");
 const router = express.Router();
 const reviewController = require("../controllers/review.controller");
-const { authenticated } = require("../middlewares/auth.middleware");
+const {
+  authenticated,
+  adminAuthenticated,
+} = require("../middlewares/auth.middleware");
 
 // User: create review
 router.post("/", authenticated, reviewController.createReview);
@@ -10,6 +13,6 @@ router.post("/", authenticated, reviewController.createReview);
 router.get("/provider/:providerId", reviewController.getProviderReviews);
 
 // Admin: get all reviews
-router.get("/admin", authenticated, reviewController.getAllReviews);
+router.get("/admin", adminAuthenticated, reviewController.getAllReviews);
 
 module.exports = router;

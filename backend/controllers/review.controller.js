@@ -1,4 +1,5 @@
-const { Review, Booking, User } = require("../models");
+const { Review, Booking, User, Service } = require("../models");
+const { Op } = require("sequelize");
 
 const createReview = async (req, res) => {
   try {
@@ -87,7 +88,28 @@ const getProviderReviews = async (req, res) => {
 
 const getAllReviews = async (req, res) => {
   try {
-    const reviews = await Review.findAll({
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const search = req.query.search || "";
+    const providerId = req.query.providerId;
+
+    const offset = (page - 1) * limit;
+
+    const where = {};
+    if (providerId) {
+      where.providerId = providerId;
+    }
+
+    if (search) {
+      where[Op.or] = [
+        { comment: { [Op.like]: `%${search}%` } },
+        { "$user.name$": { [Op.like]: `%${search}%` } },
+        { "$provider.name$": { [Op.like]: `%${search}%` } },
+      ];
+    }
+
+    const { count, rows } = await Review.findAndCountAll({
+      where,
       include: [
         {
           model: User,
@@ -103,12 +125,30 @@ const getAllReviews = async (req, res) => {
           model: Booking,
           as: "booking",
           attributes: ["id", "bookingDate", "status"],
+          include: [
+            {
+              model: Service,
+              as: "service",
+              attributes: ["id", "title"],
+            },
+          ],
         },
       ],
+      offset,
+      limit,
       order: [["createdAt", "DESC"]],
+      distinct: true,
     });
 
-    res.json({ success: true, reviews });
+    res.json({
+      success: true,
+      reviews: rows,
+      pagination: {
+        totalItems: count,
+        totalPages: Math.ceil(count / limit),
+        currentPage: page,
+      },
+    });
   } catch (error) {
     console.error("Get all reviews error:", error);
     res.status(500).json({ message: "Internal server error" });
