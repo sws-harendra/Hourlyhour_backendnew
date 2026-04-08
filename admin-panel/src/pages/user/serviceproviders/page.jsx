@@ -41,7 +41,7 @@ const ServiceProviders = () => {
           order,
         });
         setUsers(data.data);
-        setTotalPages(data.pagination.totalPages);
+        setTotalPages(data.totalPages);
         setLoading(false);
       } catch {
         console.log("some error occured");
@@ -225,12 +225,17 @@ const ServiceProviders = () => {
                               <MapPin size={18} />
                             </button>
                           ) : (
-                            <div className="p-1.5 opacity-20 text-gray-400 cursor-not-allowed" title="No Location Data">
-                               <MapPin size={18} />
+                            <div
+                              className="p-1.5 opacity-20 text-gray-400 cursor-not-allowed"
+                              title="No Location Data"
+                            >
+                              <MapPin size={18} />
                             </div>
                           )}
                           <button
-                            onClick={() => navigate(`/reviews?providerId=${u.id}`)}
+                            onClick={() =>
+                              navigate(`/reviews?providerId=${u.id}`)
+                            }
                             className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors"
                             title="View Reviews"
                           >
