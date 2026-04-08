@@ -8,6 +8,8 @@ import {
   Eye,
   Edit,
   Trash,
+  MapPin,
+  X,
 } from "lucide-react";
 import { UserService } from "../../../services/user.service";
 
@@ -22,6 +24,8 @@ const ServiceProviders = () => {
   const [limit] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [showMap, setShowMap] = useState(false);
+  const [selectedProvider, setSelectedProvider] = useState(null);
 
   useEffect(() => {
     const load = async () => {
@@ -193,11 +197,32 @@ const ServiceProviders = () => {
                         </span>
                       </td>{" "}
                       <td className="px-6 py-4 text-sm text-gray-600">
-                        <div className="inline-flex gap-4">
-                          <Eye color="black" />
-
-                          <Edit color="blue" />
-                          <Trash color="red" />
+                        <div className="inline-flex gap-2">
+                          {u.latitude && u.longitude ? (
+                            <button
+                              onClick={() => {
+                                setSelectedProvider(u);
+                                setShowMap(true);
+                              }}
+                              className="p-1.5 hover:bg-green-50 rounded-lg text-green-600 transition-colors"
+                              title="View Location"
+                            >
+                              <MapPin size={18} />
+                            </button>
+                          ) : (
+                            <div className="p-1.5 opacity-20 text-gray-400 cursor-not-allowed" title="No Location Data">
+                               <MapPin size={18} />
+                            </div>
+                          )}
+                          <button className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors">
+                            <Eye size={18} />
+                          </button>
+                          <button className="p-1.5 hover:bg-blue-50 rounded-lg text-blue-600 transition-colors">
+                            <Edit size={18} />
+                          </button>
+                          <button className="p-1.5 hover:bg-red-50 rounded-lg text-red-600 transition-colors">
+                            <Trash size={18} />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -246,6 +271,68 @@ const ServiceProviders = () => {
           </div>
         </div>
       </div>
+
+      {/* Map Modal */}
+      {showMap && selectedProvider && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden">
+            <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-linear-to-r from-blue-600 to-indigo-600 text-white">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                  <MapPin className="w-5 h-5 text-white" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-lg">Provider Location</h3>
+                  <p className="text-xs text-white/80">
+                    Current location for {selectedProvider.name || "Provider"}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowMap(false)}
+                className="p-2 hover:bg-white/10 rounded-full transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+            <div className="p-6">
+              {selectedProvider.latitude && selectedProvider.longitude ? (
+                <div className="rounded-xl overflow-hidden border border-gray-200 shadow-inner h-[500px]">
+                  <iframe
+                    title="Provider Location"
+                    width="100%"
+                    height="100%"
+                    frameBorder="0"
+                    style={{ border: 0 }}
+                    src={`https://www.google.com/maps?q=${selectedProvider.latitude},${selectedProvider.longitude}&z=15&output=embed`}
+                    allowFullScreen
+                  ></iframe>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center h-[500px] bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
+                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                    <MapPin className="w-8 h-8 text-gray-400" />
+                  </div>
+                  <p className="text-gray-500 font-medium text-lg">
+                    Location data not available
+                  </p>
+                  <p className="text-gray-400 text-sm mt-1">
+                    Latitude and longitude are not saved for this provider
+                  </p>
+                </div>
+              )}
+            </div>
+            <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end">
+              <button
+                onClick={() => setShowMap(false)}
+                className="px-6 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-700 font-semibold hover:bg-gray-100 transition-colors shadow-sm"
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

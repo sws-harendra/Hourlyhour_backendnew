@@ -575,7 +575,12 @@ const bookingDetail = async (req, res) => {
     const booking = await Booking.findOne({
       where: { id: bookingId },
       include: [
-        { model: User, as: "user", attributes: ["id", "name", "email"] },
+        { model: User, as: "user", attributes: ["id", "name", "email", "phone"] },
+        {
+          model: User,
+          as: "provider",
+          attributes: ["id", "name", "email", "phone", "latitude", "longitude"],
+        },
         { model: Service, as: "service", attributes: ["id", "title", "price"] },
         {
           model: BookingAddon,

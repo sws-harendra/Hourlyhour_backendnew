@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import { UserService } from "../../services/user.service";
 import { BookingService } from "../../services/booking.service";
 import { PriceUtils } from "./priceUtil";
+import { MapPin, X } from "lucide-react";
 import SearchableSelect from "../../components/SearchableSelect";
 
 export default function BookingDetail() {
@@ -13,6 +14,7 @@ export default function BookingDetail() {
   const [selectedProvider, setSelectedProvider] = useState("");
   const [isAssigning, setIsAssigning] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState("");
+  const [showMap, setShowMap] = useState(false);
 
   const fetchBooking = async () => {
     const { data } = await BookingService.getBookingDetail(id);
@@ -484,10 +486,101 @@ export default function BookingDetail() {
                     "Assign Provider"
                   )}
                 </button>
+
+                {booking.provider && (
+                  <div className="pt-4 border-t border-gray-100 mt-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <div>
+                        <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                          Current Provider
+                        </div>
+                        <div className="text-gray-900 font-bold">
+                          {booking.provider.name}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {booking.provider.phone}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setShowMap(true)}
+                        className="flex flex-col items-center gap-1 p-2 hover:bg-green-50 rounded-lg group transition-all"
+                      >
+                        <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center text-green-600 group-hover:bg-green-600 group-hover:text-white transition-all">
+                          <MapPin className="w-5 h-5" />
+                        </div>
+                        <span className="text-[10px] font-bold text-green-700 uppercase tracking-tight">
+                          Track Location
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         </div>
+
+        {/* Map Modal */}
+        {showMap && booking.provider && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-4xl overflow-hidden">
+              <div className="p-4 border-b border-gray-100 flex items-center justify-between bg-linear-to-r from-green-600 to-emerald-600 text-white">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 bg-white/20 rounded-lg flex items-center justify-center">
+                    <MapPin className="w-5 h-5 text-white" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-lg">Provider Current Location</h3>
+                    <p className="text-xs text-white/80">
+                      Tracking {booking.provider.name}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowMap(false)}
+                  className="p-2 hover:bg-white/10 rounded-full transition-colors"
+                >
+                  <X className="w-6 h-6" />
+                </button>
+              </div>
+              <div className="p-6">
+                {booking.provider.latitude && booking.provider.longitude ? (
+                  <div className="rounded-xl overflow-hidden border border-gray-200 shadow-inner h-[500px]">
+                    <iframe
+                      title="Provider Location"
+                      width="100%"
+                      height="100%"
+                      frameBorder="0"
+                      style={{ border: 0 }}
+                      src={`https://www.google.com/maps?q=${booking.provider.latitude},${booking.provider.longitude}&z=15&output=embed`}
+                      allowFullScreen
+                    ></iframe>
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center h-[500px] bg-gray-50 rounded-xl border-2 border-dashed border-gray-200">
+                    <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4">
+                      <MapPin className="w-8 h-8 text-gray-400" />
+                    </div>
+                    <p className="text-gray-500 font-medium text-lg">
+                      Location data not available
+                    </p>
+                    <p className="text-gray-400 text-sm mt-1">
+                      Provider has not shared their current location yet
+                    </p>
+                  </div>
+                )}
+              </div>
+              <div className="p-4 bg-gray-50 border-t border-gray-100 flex justify-end">
+                <button
+                  onClick={() => setShowMap(false)}
+                  className="px-6 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-700 font-semibold hover:bg-gray-100 transition-colors shadow-sm"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );
