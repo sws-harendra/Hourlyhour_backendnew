@@ -3,12 +3,14 @@ import { useParams } from "react-router-dom";
 import { BookingService } from "../../services/booking.service";
 import { UserService } from "../../services/user.service";
 import { PriceUtils } from "./priceUtil";
+import SearchableSelect from "../../components/SearchableSelect";
 
 export default function CombinedBookingDetail() {
   const { groupId } = useParams();
 
   const [bookings, setBookings] = useState([]);
   const [providers, setProviders] = useState([]);
+  const [isProvidersLoading, setIsProvidersLoading] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
   const [loading, setLoading] = useState(true);
@@ -30,9 +32,14 @@ export default function CombinedBookingDetail() {
     setLoading(false);
   };
 
-  const fetchProviders = async () => {
-    const res = await UserService.getAllProviders();
-    setProviders(res.data || []);
+  const fetchProviders = async (search = "") => {
+    setIsProvidersLoading(true);
+    try {
+      const res = await UserService.getAllProviders({ search, limit: 100 });
+      setProviders(res.data || []);
+    } finally {
+      setIsProvidersLoading(false);
+    }
   };
 
   const handleAssignAll = async () => {
@@ -66,6 +73,12 @@ export default function CombinedBookingDetail() {
     (sum, b) => sum + Number(PriceUtils.calculateBookingTotal(b)),
     0
   );
+
+  const providerOptions = providers.map(p => ({
+    id: p.id,
+    label: p.name,
+    sublabel: p.phone
+  }));
 
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
@@ -109,18 +122,15 @@ export default function CombinedBookingDetail() {
         <div className="bg-white p-6 rounded-xl shadow">
           <h2 className="font-semibold mb-3">Assign Provider (All)</h2>
 
-          <select
+          <SearchableSelect
+            options={providerOptions}
             value={selectedProvider}
-            onChange={(e) => setSelectedProvider(e.target.value)}
-            className="w-full border p-2 rounded mb-3"
-          >
-            <option value="">Select</option>
-            {providers.map((p) => (
-              <option key={p.id} value={p.id}>
-                {p.name} - {p.phone}
-              </option>
-            ))}
-          </select>
+            onChange={setSelectedProvider}
+            onSearch={fetchProviders}
+            loading={isProvidersLoading}
+            placeholder="Select a provider"
+            searchPlaceholder="Search name or number..."
+          />
 
           <button
             onClick={handleAssignAll}

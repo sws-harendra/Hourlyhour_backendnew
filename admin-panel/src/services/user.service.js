@@ -11,8 +11,8 @@ export const UserService = {
     return data;
   },
 
-  getAllProviders: async () => {
-    const { data } = await api.get("/auth/all-service-provider");
+  getAllProviders: async (params) => {
+    const { data } = await api.get("/auth/all-service-provider", { params });
     return data;
   },
 

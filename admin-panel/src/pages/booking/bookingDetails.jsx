@@ -3,11 +3,13 @@ import { useParams } from "react-router-dom";
 import { UserService } from "../../services/user.service";
 import { BookingService } from "../../services/booking.service";
 import { PriceUtils } from "./priceUtil";
+import SearchableSelect from "../../components/SearchableSelect";
 
 export default function BookingDetail() {
   const { id } = useParams();
   const [booking, setBooking] = useState(null);
   const [providers, setProviders] = useState([]);
+  const [isProvidersLoading, setIsProvidersLoading] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState("");
   const [isAssigning, setIsAssigning] = useState(false);
   const [selectedStatus, setSelectedStatus] = useState("");
@@ -19,10 +21,14 @@ export default function BookingDetail() {
     setSelectedProvider(data.providerId || "");
   };
 
-  const fetchProviders = async () => {
-    const data = await UserService.getAllProviders();
-    console.log(data, data.data);
-    setProviders(data.data);
+  const fetchProviders = async (search = "") => {
+    setIsProvidersLoading(true);
+    try {
+      const data = await UserService.getAllProviders({ search, limit: 100 });
+      setProviders(data.data || []);
+    } finally {
+      setIsProvidersLoading(false);
+    }
   };
 
   const handleAssign = async () => {
@@ -107,6 +113,12 @@ export default function BookingDetail() {
   };
 
   const currentStatus = statusConfig[booking.status] || statusConfig.pending;
+
+  const providerOptions = providers.map((p) => ({
+    id: p.id,
+    label: p.name,
+    sublabel: p.phone,
+  }));
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -210,75 +222,82 @@ export default function BookingDetail() {
                 </div>
               </div>
             </div>
-{/* Pricing Details */}
-<div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-6">
-  <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
-    <h2 className="text-lg font-semibold text-gray-900">
-      Pricing Details
-    </h2>
-  </div>
+            {/* Pricing Details */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden mt-6">
+              <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Pricing Details
+                </h2>
+              </div>
 
-  <div className="p-6 space-y-4">
-    {booking.addons && booking.addons.length > 0 && booking.addons.map((addon) => {
-      const addonPrice = Number(addon.rate?.price || addon.price || 0);
-      return (
-      <div
-        key={addon.id}
-        className="flex items-center justify-between p-4 border border-gray-100 rounded-lg bg-gray-50"
-      >
-        <div>
-          <div className="font-semibold text-gray-900">
-            {addon.title || addon.service?.title || "Addon"}
-          </div>
+              <div className="p-6 space-y-4">
+                {booking.addons &&
+                  booking.addons.length > 0 &&
+                  booking.addons.map((addon) => {
+                    const addonPrice = Number(
+                      addon.rate?.price || addon.price || 0,
+                    );
+                    return (
+                      <div
+                        key={addon.id}
+                        className="flex items-center justify-between p-4 border border-gray-100 rounded-lg bg-gray-50"
+                      >
+                        <div>
+                          <div className="font-semibold text-gray-900">
+                            {addon.title || addon.service?.title || "Addon"}
+                          </div>
 
-          <div className="text-sm text-gray-500 mt-1">
-            Qty: {addon.quantity}
-          </div>
+                          <div className="text-sm text-gray-500 mt-1">
+                            Qty: {addon.quantity}
+                          </div>
 
-          <div className="text-xs text-gray-400 mt-1">
-            Status: {addon.status}
-          </div>
-        </div>
+                          <div className="text-xs text-gray-400 mt-1">
+                            Status: {addon.status}
+                          </div>
+                        </div>
 
-        <div className="text-right">
-          <div className="text-lg font-bold text-blue-600">
-            ₹{addonPrice * addon.quantity}
-          </div>
-          <div className="text-xs text-gray-500">
-            ₹{addonPrice} / unit
-          </div>
-        </div>
-      </div>
-    )})}
+                        <div className="text-right">
+                          <div className="text-lg font-bold text-blue-600">
+                            ₹{addonPrice * addon.quantity}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            ₹{addonPrice} / unit
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
 
-    {/* Pricing Breakdown */}
-    <div className="pt-4 border-t border-gray-200 space-y-2">
-      <div className="flex justify-between text-sm text-gray-600">
-        <span>Base Service</span>
-        <span>₹{booking.basePriceAtBooking}</span>
-      </div>
+                {/* Pricing Breakdown */}
+                <div className="pt-4 border-t border-gray-200 space-y-2">
+                  <div className="flex justify-between text-sm text-gray-600">
+                    <span>Base Service</span>
+                    <span>₹{booking.basePriceAtBooking}</span>
+                  </div>
 
-      {booking.addons && booking.addons.length > 0 && (
-        <div className="flex justify-between text-sm text-gray-600">
-          <span>Addons (Approved)</span>
-          <span>
-            ₹{PriceUtils.calculateAddonsTotal(booking).toFixed(2)}
-          </span>
-        </div>
-      )}
+                  {booking.addons && booking.addons.length > 0 && (
+                    <div className="flex justify-between text-sm text-gray-600">
+                      <span>Addons (Approved)</span>
+                      <span>
+                        ₹{PriceUtils.calculateAddonsTotal(booking).toFixed(2)}
+                      </span>
+                    </div>
+                  )}
 
-      <div className="flex justify-between text-sm text-gray-600">
-        <span>Tax ({booking.taxPercentageAtBooking || 0}%)</span>
-        <span>₹{PriceUtils.calculateTax(booking)}</span>
-      </div>
+                  <div className="flex justify-between text-sm text-gray-600">
+                    <span>Tax ({booking.taxPercentageAtBooking || 0}%)</span>
+                    <span>₹{PriceUtils.calculateTax(booking)}</span>
+                  </div>
 
-      <div className="flex justify-between pt-2 border-t border-gray-200 text-lg font-bold text-gray-900">
-        <span>Final Amount</span>
-        <span className="text-blue-600">₹{PriceUtils.calculateBookingTotal(booking)}</span>
-      </div>
-    </div>
-  </div>
-</div>
+                  <div className="flex justify-between pt-2 border-t border-gray-200 text-lg font-bold text-gray-900">
+                    <span>Final Amount</span>
+                    <span className="text-blue-600">
+                      ₹{PriceUtils.calculateBookingTotal(booking)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
             {/* Schedule & Location */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
@@ -412,7 +431,7 @@ export default function BookingDetail() {
             </div>
 
             {/* Assign Provider */}
-            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 ">
               <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">
                 <h2 className="text-lg font-semibold text-gray-900">
                   Service Provider
@@ -423,19 +442,15 @@ export default function BookingDetail() {
                   <label className="block text-sm font-medium text-gray-700 mb-2">
                     Assign Provider
                   </label>
-                  <select
+                  <SearchableSelect
+                    options={providerOptions}
                     value={selectedProvider}
-                    onChange={(e) => setSelectedProvider(e.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900 font-medium transition-all"
-                  >
-                    <option value="">Select a provider</option>
-                    {providers.length > 0 &&
-                      providers.map((p) => (
-                        <option key={p.id} value={p.id}>
-                          {p.name} - {p.phone}
-                        </option>
-                      ))}
-                  </select>
+                    onChange={setSelectedProvider}
+                    onSearch={fetchProviders}
+                    loading={isProvidersLoading}
+                    placeholder="Select a provider"
+                    searchPlaceholder="Search name or number..."
+                  />
                 </div>
                 <button
                   onClick={handleAssign}
