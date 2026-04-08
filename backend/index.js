@@ -46,6 +46,7 @@ app.use("/api/dashboard", require("./routes/dashboard.route"));
 app.use("/api/serviceRequest", require("./routes/servicerequest.route"));
 app.use("/api/invoice", require("./routes/invoice.route"));
 app.use("/api/testimonial", require("./routes/testimonial.route"));
+app.use("/api/review", require("./routes/review.route"));
 
 /* ===== INIT SOCKET ===== */
 initSocket(server, allowedOrigins);

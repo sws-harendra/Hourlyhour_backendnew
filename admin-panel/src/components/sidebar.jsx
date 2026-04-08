@@ -33,6 +33,7 @@ const menuItems = [
     children: [
       { name: "All Users", path: "/users" },
       { name: "Service Providers", path: "/service-providers" },
+      { name: "Reviews", path: "/reviews" },
     ],
   },
   {

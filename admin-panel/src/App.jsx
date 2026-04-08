@@ -17,6 +17,7 @@ import ProtectedRoute from "./protectedRoute";
 import ServiceRates from "./pages/service/serviceRates";
 import CombinedBookingDetail from "./pages/booking/combinedbooking";
 import TestimonialPage from "./pages/testimonial/testimonialPage";
+import ReviewsPage from "./pages/reviews/page";
 
 function App() {
   return (
@@ -41,6 +42,7 @@ function App() {
           <Route path="/services/:id/rates" element={<ServiceRates />} />
           <Route path="/users" element={<Users />} />
           <Route path="/service-providers" element={<ServiceProviders />} />
+          <Route path="/reviews" element={<ReviewsPage />} />
           <Route path="/bookings" element={<AllBooking />} />
           <Route path="/banner" element={<Banner />} />
           <Route path="/settings" element={<Settings />} />

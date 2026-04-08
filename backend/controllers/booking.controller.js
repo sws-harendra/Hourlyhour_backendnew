@@ -5,6 +5,7 @@ const {
   Service,
   ServiceRate,
   BookingAddon,
+  Review,
 } = require("../models");
 const { emitToAllProviders, emitToProvider } = require("../socket");
 const Sequelize = require("sequelize");
@@ -295,6 +296,11 @@ const getUserBookings = async (req, res) => {
             },
           ],
         },
+        {
+          model: Review,
+          as: "review",
+          attributes: ["id", "rating", "comment"],
+        },
       ],
     });
 
@@ -329,6 +335,11 @@ const getProviderBookings = async (req, res) => {
               as: "rate",
             },
           ],
+        },
+        {
+          model: Review,
+          as: "review",
+          attributes: ["id", "rating", "comment"],
         },
       ],
     });

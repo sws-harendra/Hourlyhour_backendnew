@@ -105,6 +105,10 @@ module.exports = (sequelize, DataTypes) => {
       foreignKey: "bookingId",
       as: "addons",
     });
+    Booking.hasOne(models.Review, {
+      foreignKey: "bookingId",
+      as: "review",
+    });
   };
 
   return Booking;

@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Plus,
   Search,
@@ -16,6 +17,7 @@ import { UserService } from "../../../services/user.service";
 // Mock UserService for demo
 
 const ServiceProviders = () => {
+  const navigate = useNavigate();
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("name");
@@ -148,6 +150,9 @@ const ServiceProviders = () => {
                     Status
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Rating
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Action
                   </th>
                 </tr>
@@ -195,7 +200,17 @@ const ServiceProviders = () => {
                         >
                           {u.status}
                         </span>
-                      </td>{" "}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-600">
+                        <div className="flex items-center gap-1">
+                          <span className="text-amber-500 font-bold">
+                            {Number(u.averageRating || 0).toFixed(1)}
+                          </span>
+                          <span className="text-gray-400 text-xs">
+                            ({u.totalReviews || 0})
+                          </span>
+                        </div>
+                      </td>
                       <td className="px-6 py-4 text-sm text-gray-600">
                         <div className="inline-flex gap-2">
                           {u.latitude && u.longitude ? (
@@ -214,7 +229,11 @@ const ServiceProviders = () => {
                                <MapPin size={18} />
                             </div>
                           )}
-                          <button className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors">
+                          <button
+                            onClick={() => navigate(`/reviews?providerId=${u.id}`)}
+                            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors"
+                            title="View Reviews"
+                          >
                             <Eye size={18} />
                           </button>
                           <button className="p-1.5 hover:bg-blue-50 rounded-lg text-blue-600 transition-colors">

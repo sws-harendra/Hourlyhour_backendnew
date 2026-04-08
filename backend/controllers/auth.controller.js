@@ -267,6 +267,28 @@ const allServiceProvider = async (req, res) => {
       limit,
       offset,
       order: [[sortBy, order]], // Sorting
+      attributes: {
+        include: [
+          [
+            User.sequelize.literal(`(
+              SELECT COALESCE(AVG(rating), 0)
+              FROM Reviews
+              WHERE
+                Reviews.providerId = User.id
+            )`),
+            "averageRating",
+          ],
+          [
+            User.sequelize.literal(`(
+              SELECT COUNT(*)
+              FROM Reviews
+              WHERE
+                Reviews.providerId = User.id
+            )`),
+            "totalReviews",
+          ],
+        ],
+      },
     });
 
     return res.json({
