@@ -45,6 +45,13 @@ export default function CombinedBookingDetail() {
   const handleAssignAll = async () => {
     try {
       await BookingService.assignProviderToGroup(groupId, selectedProvider);
+
+      // Automatically update status to confirmed if group is pending
+      const isAnyPending = bookings.some((b) => b.status === "pending");
+      if (isAnyPending) {
+        await BookingService.updateGroupStatus(groupId, "confirmed");
+      }
+
       alert("Provider assigned to all bookings!");
       fetchGroup();
     } catch {

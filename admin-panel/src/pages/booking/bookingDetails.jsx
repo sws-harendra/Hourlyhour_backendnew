@@ -37,6 +37,12 @@ export default function BookingDetail() {
     setIsAssigning(true);
     try {
       await BookingService.assignProvider(id, selectedProvider);
+
+      // Automatically update status to confirmed if it's currently pending
+      if (booking.status === "pending") {
+        await BookingService.updateStatus(id, "confirmed");
+      }
+
       await fetchBooking();
       alert("Provider assigned successfully!");
     } catch {
