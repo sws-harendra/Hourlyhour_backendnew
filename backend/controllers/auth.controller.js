@@ -36,7 +36,7 @@ const sendOtp = async (req, res) => {
       type: "login", // or register
       expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes expiry
     });
-    // const sent = await sendOtptoPhone(phone, otp);
+    const sent = await sendOtptoPhone(phone, otp);
 
     console.log(otp);
     res.json({ success: true, message: "OTP sent successfully" });
