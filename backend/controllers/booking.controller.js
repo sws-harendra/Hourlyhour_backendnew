@@ -128,19 +128,25 @@ const completeService = async (req, res) => {
         groupId,
         providerId,
       },
+      include: [{ model: Warranty, as: "appliedWarranty" }],
     });
 
     for (const b of bookingsInGroup) {
       b.status = "completed";
       b.completedAt = new Date();
 
-      if (b.warrantyId) {
-        const warranty = await Warranty.findByPk(b.warrantyId);
-        if (warranty) {
-          const expiryDate = new Date(b.completedAt);
-          expiryDate.setDate(expiryDate.getDate() + warranty.durationInDays);
-          b.warrantyExpiryDate = expiryDate;
-        }
+      // 🔥 Set warranty expiry date - use warranty duration if available, else 30 days default
+      if (b.warrantyId && b.appliedWarranty) {
+        const expiryDate = new Date(b.completedAt);
+        expiryDate.setDate(
+          expiryDate.getDate() + b.appliedWarranty.durationInDays,
+        );
+        b.warrantyExpiryDate = expiryDate;
+      } else {
+        // 🔥 Default to 30 days warranty for bookings without explicit warranty
+        const expiryDate = new Date(b.completedAt);
+        expiryDate.setDate(expiryDate.getDate() + 30);
+        b.warrantyExpiryDate = expiryDate;
       }
       await b.save();
     }

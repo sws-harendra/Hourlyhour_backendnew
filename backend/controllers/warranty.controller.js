@@ -48,8 +48,16 @@ exports.submitWarrantyClaim = async (req, res) => {
       });
     }
 
-    if (!booking.warrantyId || !booking.appliedWarranty) {
-      console.log("❌ [CLAIM] No warranty applicable");
+    // Allow warranty claims if either:
+    // 1. There's a warrantyId with appliedWarranty loaded, OR
+    // 2. There's a warrantyExpiryDate (warranty was assigned even without explicit ID)
+    const hasWarrantyId = booking.warrantyId && booking.appliedWarranty;
+    const hasWarrantyExpiryDate = booking.warrantyExpiryDate;
+
+    if (!hasWarrantyId && !hasWarrantyExpiryDate) {
+      console.log(
+        "❌ [CLAIM] No warranty applicable - no warrantyId or expiryDate",
+      );
       return res.status(400).json({
         message: "No warranty is applicable for this booking",
         success: false,
@@ -59,6 +67,8 @@ exports.submitWarrantyClaim = async (req, res) => {
     console.log("✅ [CLAIM] Warranty found:", {
       warrantyId: booking.warrantyId,
       expiryDate: booking.warrantyExpiryDate,
+      hasWarrantyId,
+      hasWarrantyExpiryDate,
     });
 
     if (
@@ -80,10 +90,11 @@ exports.submitWarrantyClaim = async (req, res) => {
     console.log("🔄 [CLAIM] Creating warranty claim record...");
 
     // Create warranty claim
+    // 🔥 warrantyId can be null for bookings with only warrantyExpiryDate
     const claim = await WarrantyClaim.create({
       bookingId,
       userId,
-      warrantyId: booking.warrantyId,
+      warrantyId: booking.warrantyId || null, // Allow null
       claimDescription: claimDescription || "",
       claimImage,
       status: "pending",
@@ -104,7 +115,7 @@ exports.submitWarrantyClaim = async (req, res) => {
     res.status(500).json({
       message: "Failed to submit warranty claim",
       success: false,
-      error: error.message,
+      error: "Sorry for the inconvenience. Please try again later.",
     });
   }
 };

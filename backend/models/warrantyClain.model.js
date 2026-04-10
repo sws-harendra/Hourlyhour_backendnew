@@ -20,7 +20,7 @@ module.exports = (sequelize, DataTypes) => {
 
       warrantyId: {
         type: DataTypes.INTEGER,
-        allowNull: false,
+        allowNull: true, // 🔥 Allow null for bookings with only warrantyExpiryDate, no explicit warranty
       },
 
       claimDescription: {
