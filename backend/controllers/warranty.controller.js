@@ -1,4 +1,10 @@
-const { Warranty, Service, Booking, WarrantyClaim, User } = require("../models");
+const {
+  Warranty,
+  Service,
+  Booking,
+  WarrantyClaim,
+  User,
+} = require("../models");
 const { upload } = require("../helpers/multer");
 
 // ==================== WARRANTY CLAIMS ====================
@@ -10,6 +16,12 @@ exports.submitWarrantyClaim = async (req, res) => {
     const userId = req.user.id;
     let claimImage = null;
 
+    console.log("🔵 [CLAIM] Request received:", {
+      bookingId,
+      userId,
+      claimDescription: claimDescription?.substring(0, 30),
+    });
+
     // Get booking details
     const booking = await Booking.findOne({
       where: { id: bookingId, userId },
@@ -20,12 +32,16 @@ exports.submitWarrantyClaim = async (req, res) => {
     });
 
     if (!booking) {
+      console.log("❌ [CLAIM] Booking not found");
       return res
         .status(404)
         .json({ message: "Booking not found", success: false });
     }
 
+    console.log("✅ [CLAIM] Booking found. Status:", booking.status);
+
     if (booking.status !== "completed") {
+      console.log("❌ [CLAIM] Booking not completed. Status:", booking.status);
       return res.status(400).json({
         message: "Cannot claim warranty for incomplete service",
         success: false,
@@ -33,16 +49,23 @@ exports.submitWarrantyClaim = async (req, res) => {
     }
 
     if (!booking.warrantyId || !booking.appliedWarranty) {
+      console.log("❌ [CLAIM] No warranty applicable");
       return res.status(400).json({
         message: "No warranty is applicable for this booking",
         success: false,
       });
     }
 
+    console.log("✅ [CLAIM] Warranty found:", {
+      warrantyId: booking.warrantyId,
+      expiryDate: booking.warrantyExpiryDate,
+    });
+
     if (
       !booking.warrantyExpiryDate ||
       new Date(booking.warrantyExpiryDate) < new Date()
     ) {
+      console.log("❌ [CLAIM] Warranty expired");
       return res.status(400).json({
         message: "Warranty has expired",
         success: false,
@@ -54,6 +77,8 @@ exports.submitWarrantyClaim = async (req, res) => {
       claimImage = req.file.filename || req.file.path;
     }
 
+    console.log("🔄 [CLAIM] Creating warranty claim record...");
+
     // Create warranty claim
     const claim = await WarrantyClaim.create({
       bookingId,
@@ -64,16 +89,22 @@ exports.submitWarrantyClaim = async (req, res) => {
       status: "pending",
     });
 
+    console.log("✅ [CLAIM] Claim created successfully:", {
+      claimId: claim.id,
+      status: claim.status,
+    });
+
     res.status(201).json({
       message: "Warranty claim submitted successfully",
       success: true,
       data: claim,
     });
   } catch (error) {
-    console.error("Error submitting warranty claim:", error);
+    console.error("❌ [CLAIM] Error submitting warranty claim:", error);
     res.status(500).json({
       message: "Failed to submit warranty claim",
       success: false,
+      error: error.message,
     });
   }
 };
@@ -217,54 +248,19 @@ exports.updateClaimStatus = async (req, res) => {
   }
 };
 
-// 6. Claim Warranty (Deprecated - use submitWarrantyClaim instead)
+// 6. Claim Warranty (DEPRECATED - use /claim/submit instead)
 exports.claimWarranty = async (req, res) => {
-  try {
-    const { bookingId } = req.body;
-    const userId = req.user.id;
+  console.warn(
+    "⚠️  DEPRECATED ENDPOINT CALLED: /api/warranty/claim\n" +
+      "   Please use: POST /api/warranty/claim/submit instead",
+  );
 
-    const booking = await Booking.findOne({
-      where: { id: bookingId, userId },
-      include: [{ model: Warranty, as: "appliedWarranty" }],
-    });
-
-    if (!booking) {
-      return res
-        .status(404)
-        .json({ message: "Booking not found", success: false });
-    }
-
-    if (booking.status !== "completed") {
-      return res.status(400).json({
-        message: "Cannot claim warranty for incomplete service",
-        success: false,
-      });
-    }
-
-    if (
-      !booking.warrantyExpiryDate ||
-      new Date(booking.warrantyExpiryDate) < new Date()
-    ) {
-      return res.status(400).json({
-        message: "Warranty has expired or is not applicable",
-        success: false,
-      });
-    }
-
-    // Here you would typically create a new service request or flag the booking
-    // For now, we'll just return success as "claimed"
-
-    res.status(200).json({
-      message:
-        "Warranty claim submitted successfully. Our team will contact you soon.",
-      success: true,
-    });
-  } catch (error) {
-    console.error("Error claiming warranty:", error);
-    res
-      .status(500)
-      .json({ message: "Failed to submit warranty claim", success: false });
-  }
+  return res.status(400).json({
+    success: false,
+    message:
+      "This endpoint is deprecated. Please use POST /api/warranty/claim/submit instead",
+    correctEndpoint: "/api/warranty/claim/submit",
+  });
 };
 
 // ==================== WARRANTY MANAGEMENT ====================
