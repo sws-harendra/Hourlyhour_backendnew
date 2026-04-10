@@ -16,6 +16,7 @@ import Login from "./pages/auth/login";
 import ProtectedRoute from "./protectedRoute";
 import ServiceRates from "./pages/service/serviceRates";
 import WarrantyList from "./pages/warranty/warrantyList";
+import WarrantyClaims from "./pages/warranty/warrantyClaims";
 import CombinedBookingDetail from "./pages/booking/combinedbooking";
 import TestimonialPage from "./pages/testimonial/testimonialPage";
 import ReviewsPage from "./pages/reviews/page";
@@ -43,6 +44,7 @@ function App() {
 
           <Route path="/services/:id/rates" element={<ServiceRates />} />
           <Route path="/services/:id/warranties" element={<WarrantyList />} />
+          <Route path="/warranty/claims" element={<WarrantyClaims />} />
           <Route path="/users" element={<Users />} />
           <Route path="/service-providers" element={<ServiceProviders />} />
           <Route path="/reviews" element={<ReviewsPage />} />

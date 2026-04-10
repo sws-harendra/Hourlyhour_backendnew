@@ -47,7 +47,7 @@ const menuItems = [
     icon: Hammer,
     children: [
       { name: "Service List", path: "/service" },
-      { name: "Warranty List", path: "/warranty" },
+      { name: "Warranty Claims", path: "/warranty/claims" },
     ],
   },
   {

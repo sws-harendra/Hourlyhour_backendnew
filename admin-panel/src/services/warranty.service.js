@@ -16,4 +16,14 @@ export const WarrantyService = {
   getByService: async (serviceId) => {
     return await api.get(`/warranty/service/${serviceId}`);
   },
+  // Warranty Claims Management
+  getAllClaims: async (filters = {}) => {
+    return await api.get("/warranty/claims/all", { params: filters });
+  },
+  updateClaimStatus: async (claimId, data) => {
+    return await api.put(`/warranty/claim/${claimId}/status`, data);
+  },
+  getClaimById: async (claimId) => {
+    return await api.get(`/warranty/claim/${claimId}`);
+  },
 };
