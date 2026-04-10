@@ -11,6 +11,7 @@ import {
   SlidersHorizontal,
   Star,
   Tag,
+  Shield,
 } from "lucide-react";
 import ServiceForm from "./serviceAdd";
 import { Pencil, Trash2, MoreVertical } from "lucide-react";
@@ -308,6 +309,13 @@ export default function Services() {const navigate = useNavigate();
                             title="Service Rate List"
                           >
                             <List className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => navigate(`/services/${srv.id}/warranties`)}
+                            className="p-2 rounded-lg bg-green-50 hover:bg-green-100 text-green-600"
+                            title="Service Warranty List"
+                          >
+                            <Shield className="w-4 h-4" />
                           </button>
                           {/* Edit */}
                           <button

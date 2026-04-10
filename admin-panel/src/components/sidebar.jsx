@@ -19,6 +19,7 @@ import {
   Server,
   Key,
   Star,
+  Shield,
 } from "lucide-react";
 
 const menuItems = [
@@ -44,7 +45,10 @@ const menuItems = [
   {
     name: "Service",
     icon: Hammer,
-    children: [{ name: "Service List", path: "/service" }],
+    children: [
+      { name: "Service List", path: "/service" },
+      { name: "Warranty List", path: "/warranty" },
+    ],
   },
   {
     name: "Bookings",

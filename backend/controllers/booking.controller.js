@@ -6,6 +6,7 @@ const {
   ServiceRate,
   BookingAddon,
   Review,
+  Warranty,
 } = require("../models");
 const { emitToAllProviders, emitToProvider } = require("../socket");
 const Sequelize = require("sequelize");
@@ -122,15 +123,27 @@ const completeService = async (req, res) => {
     const groupId = booking.groupId;
 
     /* 🔹 COMPLETE ALL BOOKINGS IN GROUP */
-    await Booking.update(
-      { status: "completed" },
-      {
-        where: {
-          groupId,
-          providerId,
-        },
+    const bookingsInGroup = await Booking.findAll({
+      where: {
+        groupId,
+        providerId,
       },
-    );
+    });
+
+    for (const b of bookingsInGroup) {
+      b.status = "completed";
+      b.completedAt = new Date();
+
+      if (b.warrantyId) {
+        const warranty = await Warranty.findByPk(b.warrantyId);
+        if (warranty) {
+          const expiryDate = new Date(b.completedAt);
+          expiryDate.setDate(expiryDate.getDate() + warranty.durationInDays);
+          b.warrantyExpiryDate = expiryDate;
+        }
+      }
+      await b.save();
+    }
 
     res.json({
       success: true,

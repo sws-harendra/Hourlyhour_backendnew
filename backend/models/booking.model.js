@@ -85,6 +85,18 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: false,
       defaultValue: false,
     },
+    warrantyId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
+    warrantyExpiryDate: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
+    completedAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
   });
 
   Booking.associate = (models) => {
@@ -100,6 +112,10 @@ module.exports = (sequelize, DataTypes) => {
     Booking.belongsTo(models.Service, {
       foreignKey: "serviceId",
       as: "service",
+    });
+    Booking.belongsTo(models.Warranty, {
+      foreignKey: "warrantyId",
+      as: "appliedWarranty",
     });
     Booking.hasMany(models.BookingAddon, {
       foreignKey: "bookingId",

@@ -8,6 +8,7 @@ const {
   ServiceRate,
   AppSetting,
   BookingAddon,
+  Warranty,
 } = require("../models");
 const { Op } = require("sequelize");
 const {
@@ -371,11 +372,15 @@ const bookService = async (req, res) => {
       const groupId = (lastGroupBooking?.groupId || 0) + 1;
 
       for (const serviceId of serviceIds) {
+
         const service = await Service.findByPk(serviceId, {
           transaction: bookingsTransaction,
+          include: [{ model: Warranty, as: "warranties", where: { status: "active" }, limit: 1, required: false }]
         });
 
         if (!service) continue;
+
+        const appliedWarranty = service.warranties && service.warranties.length > 0 ? service.warranties[0] : null;
 
         const booking = await Booking.create(
           {
@@ -393,6 +398,7 @@ const bookService = async (req, res) => {
             longitude,
             completionOtp,
             groupId,
+            warrantyId: appliedWarranty ? appliedWarranty.id : null,
           },
           { transaction: bookingsTransaction },
         );
@@ -592,6 +598,10 @@ const bookingDetail = async (req, res) => {
             },
           ],
         },
+        {
+          model: Warranty,
+          as: "appliedWarranty",
+        },
       ],
     });
 
@@ -641,17 +651,31 @@ const statusUpdate = async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
-    const booking = await Booking.findByPk(id);
+    const booking = await Booking.findByPk(id, {
+      include: [{ model: Warranty, as: "appliedWarranty" }],
+    });
 
     if (!booking) {
       return res.status(404).json({ message: "Booking not found" });
     }
 
-    await Booking.update({ status }, { where: { groupId: booking.groupId } });
+    // Calculate warranty expiry date if booking is being marked as completed
+    let updateData = { status };
+    if (status === "completed" && booking.appliedWarranty) {
+      const completedAt = new Date();
+      const warrantyExpiryDate = new Date(
+        completedAt.getTime() +
+          booking.appliedWarranty.durationInDays * 24 * 60 * 60 * 1000
+      );
+      updateData.completedAt = completedAt;
+      updateData.warrantyExpiryDate = warrantyExpiryDate;
+    }
+
+    await Booking.update(updateData, { where: { groupId: booking.groupId } });
 
     const updated = await Booking.findAll({
       where: { groupId: booking.groupId },
-      include: ["user", "provider", "service"],
+      include: ["user", "provider", "service", "appliedWarranty"],
     });
 
     res.json(updated);
