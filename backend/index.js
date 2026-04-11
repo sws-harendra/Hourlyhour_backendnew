@@ -48,6 +48,7 @@ app.use("/api/invoice", require("./routes/invoice.route"));
 app.use("/api/testimonial", require("./routes/testimonial.route"));
 app.use("/api/review", require("./routes/review.route"));
 app.use("/api/warranty", require("./routes/warranty.routes"));
+app.use("/api/service-area", require("./routes/serviceArea.route"));
 
 /* ===== INIT SOCKET ===== */
 initSocket(server, allowedOrigins);

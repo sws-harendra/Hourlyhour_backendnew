@@ -21,6 +21,7 @@ import CombinedBookingDetail from "./pages/booking/combinedbooking";
 import TestimonialPage from "./pages/testimonial/testimonialPage";
 import ReviewsPage from "./pages/reviews/page";
 import WarrantyPage from "./pages/warranty/warranty";
+import ServiceArea from "./pages/service/serviceArea";
 
 function App() {
   return (
@@ -39,9 +40,8 @@ function App() {
         >
           <Route path="/" element={<Home />} />
           <Route path="/category" element={<Category />} />
-          <Route path="/service" element={<Service />} />       
-             <Route path="/testimonial" element={<TestimonialPage />} />
-
+          <Route path="/service" element={<Service />} />
+          <Route path="/testimonial" element={<TestimonialPage />} />
           <Route path="/services/:id/rates" element={<ServiceRates />} />
           <Route path="/services/:id/warranties" element={<WarrantyList />} />
           <Route path="/warranty/claims" element={<WarrantyClaims />} />
@@ -58,7 +58,11 @@ function App() {
             path="/service-request"
             element={<AdminServiceRequestsPage />}
           />
-          <Route path="/booking/allbookings/:id" element={<BookingDetail />} />{" "}
+          <Route path="/service-area" element={<ServiceArea />} />
+          <Route
+            path="/booking/allbookings/:id"
+            element={<BookingDetail />}
+          />{" "}
           <Route
             path="/booking/group/:groupId"
             element={<CombinedBookingDetail />}
