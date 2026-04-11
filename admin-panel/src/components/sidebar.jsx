@@ -47,6 +47,8 @@ const menuItems = [
     icon: Hammer,
     children: [
       { name: "Service List", path: "/service" },
+
+      { name: "Service Area", path: "/service-area" },
       { name: "Warranty Claims", path: "/warranty/claims" },
     ],
   },
@@ -54,7 +56,8 @@ const menuItems = [
     name: "Bookings",
     icon: Users,
     children: [{ name: "All Bookings", path: "/bookings" }],
-  },{
+  },
+  {
     name: "Testimonial",
     icon: Star,
     path: "/testimonial",
