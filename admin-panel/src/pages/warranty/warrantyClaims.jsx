@@ -234,7 +234,26 @@ export default function WarrantyClaims() {
                         <h3 className="font-semibold text-gray-900 mb-3">
                           Warranty & Service
                         </h3>
-                        <div className="space-y-2 text-sm">
+                        <div className="space-y-2 text-sm"><p>
+  <span className="text-gray-600">Provider Name:</span>
+  <span className="font-medium text-gray-900 ml-2">
+    {claim.booking?.provider?.name || "N/A"}
+  </span>
+</p>
+
+<p>
+  <span className="text-gray-600">Provider Phone:</span>
+  <span className="font-medium text-gray-900 ml-2">
+    {claim.booking?.provider?.phone || "N/A"}
+  </span>
+</p>
+
+<p>
+  <span className="text-gray-600">Provider Email:</span>
+  <span className="font-medium text-gray-900 ml-2">
+    {claim.booking?.provider?.email || "N/A"}
+  </span>
+</p>
                           <p>
                             <span className="text-gray-600">Warranty:</span>
                             <span className="font-medium text-gray-900 ml-2">
@@ -283,8 +302,8 @@ export default function WarrantyClaims() {
                       </div>
                     )}
 
-                    {/* Action Button */}
-                    {claim.status === "pending" && (
+                    {/* Action Button 
+                    {claim.status === "pending" && (*/}
                       <div className="mt-6">
                         <button
                           onClick={() => {
@@ -298,7 +317,7 @@ export default function WarrantyClaims() {
                           Review & Update Claim
                         </button>
                       </div>
-                    )}
+                    
                   </div>
                 )}
               </div>

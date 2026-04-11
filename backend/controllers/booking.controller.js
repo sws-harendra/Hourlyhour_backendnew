@@ -7,6 +7,7 @@ const {
   BookingAddon,
   Review,
   Warranty,
+  WarrantyClaim,
 } = require("../models");
 const { emitToAllProviders, emitToProvider } = require("../socket");
 const Sequelize = require("sequelize");
@@ -637,6 +638,67 @@ const approveAddons = async (req, res) => {
 
   res.json({ success: true });
 };
+
+/* ───────────────── PROVIDER WARRANTIES ───────────────── */
+const getProviderWarranties = async (req, res) => {
+  try {
+    const providerId = req.user.id;
+
+    // Fetch all completed bookings for the provider that have warranty
+    const warranties = await Booking.findAll({
+      where: {
+        providerId,
+        status: "completed",
+        warrantyExpiryDate: {
+          [Sequelize.Op.ne]: null,
+        },
+      },
+      include: [
+        {
+          model: User,
+          as: "user",
+          attributes: ["id", "name", "phone"],
+        },
+        {
+          model: Service,
+          as: "service",
+          attributes: ["id", "title"],
+        },
+        {
+          model: Warranty,
+          as: "appliedWarranty",
+          attributes: ["id", "title", "description", "durationInDays"],
+        },
+        {
+          model: WarrantyClaim,
+          as: "warrantyClaim",
+          attributes: [
+            "id",
+            "claimDescription",
+            "claimImage",
+            "status",
+            "adminNotes",
+            "claimedAt",
+            "resolvedAt",
+          ],
+        },
+      ],
+      order: [["completedAt", "DESC"]],
+    });
+
+    res.status(200).json({
+      success: true,
+      data: warranties,
+    });
+  } catch (error) {
+    console.error("Error fetching provider warranties:", error);
+    res.status(500).json({
+      message: "Failed to fetch warranties",
+      success: false,
+    });
+  }
+};
+
 module.exports = {
   acceptBooking,
   startService,
@@ -649,4 +711,5 @@ module.exports = {
   addAddon,
   getBookingAddons,
   approveAddons,
+  getProviderWarranties,
 };

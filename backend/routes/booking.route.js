@@ -19,6 +19,10 @@ router.post("/complete", authenticated, booking.completeService);
 
 // Provider: my assigned bookings
 router.get("/assigned", authenticated, booking.getProviderBookings);
+
+// Provider: my warranties (for approved services)
+router.get("/warranties", authenticated, booking.getProviderWarranties);
+
 router.post("/add-addon", authenticated, booking.addAddon);
 router.get("/:id/addons", authenticated, booking.getBookingAddons);
 

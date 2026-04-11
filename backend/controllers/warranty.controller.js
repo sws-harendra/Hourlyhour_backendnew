@@ -195,6 +195,13 @@ exports.getAllClaims = async (req, res) => {
           model: Booking,
           as: "booking",
           attributes: ["id", "priceAtBooking", "status"],
+          include: [
+            {
+              model: User,
+              as: "provider", // 👈 important
+              attributes: ["id", "name", "email", "phone"],
+            },
+          ],
         },
       ],
       order: [["createdAt", "DESC"]],

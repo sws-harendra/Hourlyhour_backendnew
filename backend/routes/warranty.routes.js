@@ -46,7 +46,4 @@ router.put(
   warrantyController.updateClaimStatus,
 );
 
-// // Legacy endpoint (deprecated)
-// router.post("/claim", authenticated, warrantyController.claimWarranty);
-
 module.exports = router;
