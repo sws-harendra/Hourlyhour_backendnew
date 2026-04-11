@@ -97,6 +97,10 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.DATE,
       allowNull: true,
     },
+    areaId: {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    },
   });
 
   Booking.associate = (models) => {

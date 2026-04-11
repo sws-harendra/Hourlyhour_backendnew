@@ -187,6 +187,14 @@ const emitToProvider = (providerId, event, payload) => {
     io.to(socketId).emit(event, payload);
   }
 };
+const emitToSpecificProviders = (providerIds, event, data) => {
+  providerIds.forEach((id) => {
+    const socketId = onlineProviders[id]; // you must track this
+    if (socketId) {
+      io.to(socketId).emit(event, data);
+    }
+  });
+};
 const emitToNearbyOnlineProviders = async (
   latitude,
   longitude,
@@ -224,4 +232,5 @@ module.exports = {
   emitToAllProviders,
   onlineProviders,
   emitToNearbyOnlineProviders,
+  emitToSpecificProviders,
 };

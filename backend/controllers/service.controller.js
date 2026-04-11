@@ -8,12 +8,18 @@ const {
   ServiceRate,
   AppSetting,
   BookingAddon,
+  ServiceArea,
+  ServiceAreaPrice,
+  // ProviderArea,
   Warranty,
 } = require("../models");
+const turf = require("@turf/turf");
+
 const { Op } = require("sequelize");
 const {
   emitToAllProviders,
   emitToNearbyOnlineProviders,
+  emitToSpecificProviders,
 } = require("../socket");
 const { generateOTP } = require("../helpers/otp_generator");
 const { v4: uuidv4 } = require("uuid");
@@ -310,7 +316,6 @@ const getAllServices = async (req, res) => {
     });
   }
 };
-
 const bookService = async (req, res) => {
   try {
     const {
@@ -332,6 +337,7 @@ const bookService = async (req, res) => {
     let latitude = null;
     let longitude = null;
 
+    // 📍 GET USER LOCATION
     if (addressId) {
       const address = await Address.findOne({
         where: { id: addressId, userId },
@@ -348,22 +354,52 @@ const bookService = async (req, res) => {
       latitude = address.latitude;
       longitude = address.longitude;
     }
-    const setting = await AppSetting.findOne(); // adjust if needed
+
+    // ❌ LOCATION REQUIRED
+    if (!latitude || !longitude) {
+      return res.status(400).json({
+        message: "Location required for booking",
+      });
+    }
+
+    // 🌍 FIND MATCHING AREA
+    const areas = await ServiceArea.findAll({
+      where: { isActive: true },
+    });
+
+    const point = turf.point([longitude, latitude]); // ⚠️ lng, lat
+
+    let matchedArea = null;
+
+    for (const area of areas) {
+      const polygon = turf.polygon(area.polygon.coordinates);
+
+      if (turf.booleanPointInPolygon(point, polygon)) {
+        matchedArea = area;
+        break;
+      }
+    }
+
+    // ❌ OUTSIDE SERVICE AREA
+    if (!matchedArea) {
+      return res.status(400).json({
+        message: "Service not available in your location",
+      });
+    }
+
+    const setting = await AppSetting.findOne();
     const taxPercent = setting?.tax || 0;
 
     const completionOtp = generateOTP();
     const bookings = [];
+
     const bookingsTransaction = await Booking.sequelize.transaction();
 
     try {
-      // Lock the current highest group so concurrent requests don't reuse it.
+      // 🔒 SAFE GROUP ID GENERATION
       const lastGroupBooking = await Booking.findOne({
         attributes: ["groupId"],
-        where: {
-          groupId: {
-            [Op.ne]: null,
-          },
-        },
+        where: { groupId: { [Op.ne]: null } },
         order: [["groupId", "DESC"]],
         transaction: bookingsTransaction,
         lock: bookingsTransaction.LOCK.UPDATE,
@@ -371,6 +407,7 @@ const bookService = async (req, res) => {
 
       const groupId = (lastGroupBooking?.groupId || 0) + 1;
 
+      // 🔁 LOOP SERVICES
       for (const serviceId of serviceIds) {
         const service = await Service.findByPk(serviceId, {
           transaction: bookingsTransaction,
@@ -388,10 +425,20 @@ const bookService = async (req, res) => {
         if (!service) continue;
 
         const appliedWarranty =
-          service.warranties && service.warranties.length > 0
-            ? service.warranties[0]
-            : null;
+          service.warranties?.length > 0 ? service.warranties[0] : null;
 
+        // 💰 AREA BASED PRICE
+        const areaPrice = await ServiceAreaPrice.findOne({
+          where: {
+            serviceId,
+            areaId: matchedArea.id,
+          },
+          transaction: bookingsTransaction,
+        });
+
+        const finalPrice = areaPrice?.price || service.price;
+
+        // 🧾 CREATE BOOKING
         const booking = await Booking.create(
           {
             userId,
@@ -400,14 +447,15 @@ const bookService = async (req, res) => {
             bookingTime,
             location: finalLocation,
             specialNote: specialNote || "",
-            priceAtBooking: service.price,
-            basePriceAtBooking: service.price,
+            priceAtBooking: finalPrice,
+            basePriceAtBooking: finalPrice,
             taxPercentageAtBooking: taxPercent,
             status: "pending",
             latitude,
             longitude,
             completionOtp,
             groupId,
+            areaId: matchedArea.id, // 🔥 IMPORTANT
             warrantyId: appliedWarranty ? appliedWarranty.id : null,
           },
           { transaction: bookingsTransaction },
@@ -418,12 +466,19 @@ const bookService = async (req, res) => {
 
       await bookingsTransaction.commit();
 
-      /* 🔔 Send one notification to providers */
-      await emitToNearbyOnlineProviders(latitude, longitude, "new-order", {
+      // 🔔 SEND TO AREA PROVIDERS ONLY
+      const providers = await ProviderArea.findAll({
+        where: { areaId: matchedArea.id },
+      });
+
+      const providerIds = providers.map((p) => p.providerId);
+
+      await emitToSpecificProviders(providerIds, "new-order", {
         groupId,
         bookingDate,
         bookingTime,
         location: finalLocation,
+        area: matchedArea.name,
         services: bookings.map((b) => ({
           id: b.id,
           serviceId: b.serviceId,
@@ -434,6 +489,7 @@ const bookService = async (req, res) => {
       return res.status(201).json({
         message: "Services booked successfully",
         groupId,
+        area: matchedArea.name,
         bookings,
       });
     } catch (transactionError) {
@@ -445,6 +501,7 @@ const bookService = async (req, res) => {
     res.status(500).json({ message: "Internal server error" });
   }
 };
+
 // ----------------------------------------------------------
 // 2️⃣ ALL BOOKINGS (ADMIN)
 // ----------------------------------------------------------
