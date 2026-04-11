@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { UserService } from "../../services/user.service";
 import { BookingService } from "../../services/booking.service";
+import { ServiceAreaService } from "../../services/serviceArea.service";
 import { PriceUtils } from "./priceUtil";
 import { MapPin, X } from "lucide-react";
 import SearchableSelect from "../../components/SearchableSelect";
@@ -9,6 +10,7 @@ import SearchableSelect from "../../components/SearchableSelect";
 export default function BookingDetail() {
   const { id } = useParams();
   const [booking, setBooking] = useState(null);
+  const [serviceArea, setServiceArea] = useState(null);
   const [providers, setProviders] = useState([]);
   const [isProvidersLoading, setIsProvidersLoading] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState("");
@@ -21,6 +23,17 @@ export default function BookingDetail() {
     setBooking(data);
     setSelectedStatus(data.status);
     setSelectedProvider(data.providerId || "");
+
+    if (data?.areaId) {
+      try {
+        const areaRes = await ServiceAreaService.getById(data.areaId);
+        setServiceArea(areaRes.data || null);
+      } catch (err) {
+        setServiceArea(null);
+      }
+    } else {
+      setServiceArea(null);
+    }
   };
 
   const fetchProviders = async (search = "") => {
@@ -127,6 +140,63 @@ export default function BookingDetail() {
     label: p.name,
     sublabel: p.phone,
   }));
+
+  const toNumber = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  const pointInPolygon = (lng, lat, polygon) => {
+    const ring = polygon?.coordinates?.[0];
+    if (!Array.isArray(ring) || ring.length < 4) return false;
+
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const xi = Number(ring[i][0]);
+      const yi = Number(ring[i][1]);
+      const xj = Number(ring[j][0]);
+      const yj = Number(ring[j][1]);
+
+      const intersects =
+        yi > lat !== yj > lat &&
+        lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
+      if (intersects) inside = !inside;
+    }
+
+    return inside;
+  };
+
+  const isProviderInArea = (provider) => {
+    if (!serviceArea?.polygon) return false;
+
+    const latitude = toNumber(provider?.latitude);
+    const longitude = toNumber(provider?.longitude);
+
+    if (latitude === null || longitude === null) return false;
+
+    return pointInPolygon(longitude, latitude, serviceArea.polygon);
+  };
+
+  const areaProviders = providers.filter(isProviderInArea);
+  const otherProviders = providers.filter((p) => !isProviderInArea(p));
+  const providerGroups = [
+    {
+      label: "In Area",
+      options: areaProviders.map((p) => ({
+        id: p.id,
+        label: p.name,
+        sublabel: p.phone,
+      })),
+    },
+    {
+      label: "Other Providers",
+      options: otherProviders.map((p) => ({
+        id: p.id,
+        label: p.name,
+        sublabel: p.phone,
+      })),
+    },
+  ].filter((group) => group.options.length > 0);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -452,6 +522,7 @@ export default function BookingDetail() {
                   </label>
                   <SearchableSelect
                     options={providerOptions}
+                    groups={providerGroups}
                     value={selectedProvider}
                     onChange={setSelectedProvider}
                     onSearch={fetchProviders}
@@ -459,6 +530,9 @@ export default function BookingDetail() {
                     placeholder="Select a provider"
                     searchPlaceholder="Search name or number..."
                   />
+                  <p className="mt-2 text-xs text-gray-500">
+                    In-area providers are shown first in the dropdown.
+                  </p>
                 </div>
                 <button
                   onClick={handleAssign}
@@ -519,6 +593,13 @@ export default function BookingDetail() {
                         </span>
                       </button>
                     </div>
+                  </div>
+                )}
+
+                {serviceArea && (
+                  <div className="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-4 text-xs text-gray-600">
+                    Area detected: <span className="font-semibold">{serviceArea.name}</span>
+                    {" "}The dropdown above is grouped by this area.
                   </div>
                 )}
               </div>

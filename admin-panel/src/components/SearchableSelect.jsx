@@ -3,6 +3,7 @@ import { Search, ChevronDown } from "lucide-react";
 
 export default function SearchableSelect({ 
   options, 
+  groups,
   value, 
   onChange, 
   onSearch,
@@ -15,15 +16,38 @@ export default function SearchableSelect({
   const containerRef = useRef(null);
   const debounceTimer = useRef(null);
 
-  const selectedOption = options.find(opt => opt.id === value || opt.value === value);
+  const allOptions = groups
+    ? groups.flatMap((group) => group.options || [])
+    : options;
+
+  const selectedOption = allOptions.find(
+    (opt) => opt.id === value || opt.value === value,
+  );
 
   // If onSearch is provided, we assume searching is handled by the parent
-  const filteredOptions = onSearch 
-    ? options 
-    : options.filter(opt => 
-        opt.label.toLowerCase().includes(search.toLowerCase()) ||
-        opt.sublabel?.toLowerCase().includes(search.toLowerCase())
-      );
+  const filteredOptions = onSearch
+    ? groups
+      ? groups.map((group) => ({
+          ...group,
+          options: group.options || [],
+        }))
+      : options
+    : groups
+      ? groups
+          .map((group) => ({
+            ...group,
+            options: (group.options || []).filter(
+              (opt) =>
+                opt.label.toLowerCase().includes(search.toLowerCase()) ||
+                opt.sublabel?.toLowerCase().includes(search.toLowerCase()),
+            ),
+          }))
+          .filter((group) => group.options.length > 0)
+      : options.filter(
+          (opt) =>
+            opt.label.toLowerCase().includes(search.toLowerCase()) ||
+            opt.sublabel?.toLowerCase().includes(search.toLowerCase()),
+        );
 
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -85,29 +109,61 @@ export default function SearchableSelect({
           <div className="max-h-60 overflow-y-auto">
             {loading && options.length === 0 ? (
               <div className="p-4 text-center text-gray-500 text-sm italic">Searching...</div>
-            ) : filteredOptions.length === 0 ? (
+            ) : (groups ? filteredOptions.length === 0 : filteredOptions.length === 0) ? (
               <div className="p-4 text-center text-gray-500 text-sm italic">No results found</div>
             ) : (
-              filteredOptions.map((option) => (
-                <button
-                  key={option.id || option.value}
-                  type="button"
-                  onClick={() => {
-                    onChange(option.id || option.value);
-                    setIsOpen(false);
-                    setSearch("");
-                    if (onSearch) onSearch(""); // Reset search on parent if needed
-                  }}
-                  className={`w-full px-4 py-2 text-left hover:bg-blue-50 transition-colors flex flex-col ${
-                    (option.id === value || option.value === value) ? "bg-blue-50 border-l-4 border-blue-500" : ""
-                  }`}
-                >
-                  <span className="font-medium text-gray-900">{option.label}</span>
-                  {option.sublabel && (
-                    <span className="text-xs text-gray-500">{option.sublabel}</span>
-                  )}
-                </button>
-              ))
+              groups ? (
+                filteredOptions.map((group, groupIndex) => (
+                  <div key={group.label || groupIndex}>
+                    <div className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500 bg-gray-50">
+                      {group.label}
+                    </div>
+                    {group.options.map((option) => (
+                      <button
+                        key={option.id || option.value}
+                        type="button"
+                        onClick={() => {
+                          onChange(option.id || option.value);
+                          setIsOpen(false);
+                          setSearch("");
+                          if (onSearch) onSearch("");
+                        }}
+                        className={`w-full px-4 py-2 text-left hover:bg-blue-50 transition-colors flex flex-col ${
+                          (option.id === value || option.value === value)
+                            ? "bg-blue-50 border-l-4 border-blue-500"
+                            : ""
+                        }`}
+                      >
+                        <span className="font-medium text-gray-900">{option.label}</span>
+                        {option.sublabel && (
+                          <span className="text-xs text-gray-500">{option.sublabel}</span>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                ))
+              ) : (
+                filteredOptions.map((option) => (
+                  <button
+                    key={option.id || option.value}
+                    type="button"
+                    onClick={() => {
+                      onChange(option.id || option.value);
+                      setIsOpen(false);
+                      setSearch("");
+                      if (onSearch) onSearch(""); // Reset search on parent if needed
+                    }}
+                    className={`w-full px-4 py-2 text-left hover:bg-blue-50 transition-colors flex flex-col ${
+                      (option.id === value || option.value === value) ? "bg-blue-50 border-l-4 border-blue-500" : ""
+                    }`}
+                  >
+                    <span className="font-medium text-gray-900">{option.label}</span>
+                    {option.sublabel && (
+                      <span className="text-xs text-gray-500">{option.sublabel}</span>
+                    )}
+                  </button>
+                ))
+              )
             )}
           </div>
         </div>

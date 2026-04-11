@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
 import { BookingService } from "../../services/booking.service";
 import { UserService } from "../../services/user.service";
+import { ServiceAreaService } from "../../services/serviceArea.service";
 import { PriceUtils } from "./priceUtil";
 import SearchableSelect from "../../components/SearchableSelect";
 
@@ -14,6 +15,7 @@ export default function CombinedBookingDetail() {
   const [selectedProvider, setSelectedProvider] = useState("");
   const [selectedStatus, setSelectedStatus] = useState("");
   const [loading, setLoading] = useState(true);
+  const [serviceArea, setServiceArea] = useState(null);
 
   const STATUS_OPTIONS = [
     "pending",
@@ -29,6 +31,19 @@ export default function CombinedBookingDetail() {
     setBookings(res.data || []);
     setSelectedStatus(res.data[0]?.status || "");
     setSelectedProvider(res.data[0]?.providerId || "");
+
+    const firstBooking = res.data?.[0];
+    if (firstBooking?.areaId) {
+      try {
+        const areaRes = await ServiceAreaService.getById(firstBooking.areaId);
+        setServiceArea(areaRes.data || null);
+      } catch (error) {
+        setServiceArea(null);
+      }
+    } else {
+      setServiceArea(null);
+    }
+
     setLoading(false);
   };
 
@@ -87,6 +102,60 @@ export default function CombinedBookingDetail() {
     sublabel: p.phone
   }));
 
+  const toNumber = (value) => {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  };
+
+  const pointInPolygon = (lng, lat, polygon) => {
+    const ring = polygon?.coordinates?.[0];
+    if (!Array.isArray(ring) || ring.length < 4) return false;
+
+    let inside = false;
+    for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+      const xi = Number(ring[i][0]);
+      const yi = Number(ring[i][1]);
+      const xj = Number(ring[j][0]);
+      const yj = Number(ring[j][1]);
+
+      const intersects =
+        yi > lat !== yj > lat &&
+        lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi;
+      if (intersects) inside = !inside;
+    }
+
+    return inside;
+  };
+
+  const isProviderInArea = (provider) => {
+    if (!serviceArea?.polygon) return false;
+    const latitude = toNumber(provider?.latitude);
+    const longitude = toNumber(provider?.longitude);
+    if (latitude === null || longitude === null) return false;
+    return pointInPolygon(longitude, latitude, serviceArea.polygon);
+  };
+
+  const areaProviders = providers.filter(isProviderInArea);
+  const otherProviders = providers.filter((p) => !isProviderInArea(p));
+  const providerGroups = [
+    {
+      label: "In Area",
+      options: areaProviders.map((p) => ({
+        id: p.id,
+        label: p.name,
+        sublabel: p.phone,
+      })),
+    },
+    {
+      label: "Other Providers",
+      options: otherProviders.map((p) => ({
+        id: p.id,
+        label: p.name,
+        sublabel: p.phone,
+      })),
+    },
+  ].filter((group) => group.options.length > 0);
+
   return (
     <div className="p-8 bg-gray-50 min-h-screen">
       {/* Header */}
@@ -131,6 +200,7 @@ export default function CombinedBookingDetail() {
 
           <SearchableSelect
             options={providerOptions}
+            groups={providerGroups}
             value={selectedProvider}
             onChange={setSelectedProvider}
             onSearch={fetchProviders}
@@ -138,6 +208,9 @@ export default function CombinedBookingDetail() {
             placeholder="Select a provider"
             searchPlaceholder="Search name or number..."
           />
+          <p className="mt-2 text-xs text-gray-500">
+            In-area providers are shown first in the dropdown.
+          </p>
 
           <button
             onClick={handleAssignAll}
@@ -145,6 +218,13 @@ export default function CombinedBookingDetail() {
           >
             Assign All
           </button>
+
+          {serviceArea && (
+            <div className="mt-6 rounded-xl border border-gray-200 bg-gray-50 p-4 text-xs text-gray-600">
+              Area detected: <span className="font-semibold">{serviceArea.name}</span>
+              {" "}The dropdown above is grouped by this area.
+            </div>
+          )}
         </div>
       </div>
 
