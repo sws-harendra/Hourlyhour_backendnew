@@ -10,7 +10,6 @@ const {
   BookingAddon,
   ServiceArea,
   ServiceAreaPrice,
-  // ProviderArea,
   Warranty,
 } = require("../models");
 const turf = require("@turf/turf");
@@ -19,10 +18,146 @@ const { Op } = require("sequelize");
 const {
   emitToAllProviders,
   emitToNearbyOnlineProviders,
-  emitToSpecificProviders,
 } = require("../socket");
 const { generateOTP } = require("../helpers/otp_generator");
-const { v4: uuidv4 } = require("uuid");
+
+const getNumericValue = (value) => {
+  if (value === undefined || value === null || value === "") return null;
+  const parsed = Number(value);
+  return Number.isNaN(parsed) ? null : parsed;
+};
+
+const formatAddressLabel = (address) => {
+  if (!address) return null;
+
+  const parts = [
+    address.address1,
+    address.city,
+    address.state,
+    address.zipCode,
+  ].filter(Boolean);
+
+  return parts.length > 0 ? parts.join(", ") : null;
+};
+
+const resolveServiceAreaContext = async (req) => {
+  let latitude = null;
+  let longitude = null;
+  let sourceLocation = null;
+
+  const addressId = req.query?.addressId ?? req.body?.addressId;
+
+  if (addressId && req.user?.id) {
+    const address = await Address.findOne({
+      where: { id: addressId, userId: req.user.id },
+    });
+
+    if (address) {
+      latitude = getNumericValue(address.latitude);
+      longitude = getNumericValue(address.longitude);
+      sourceLocation = formatAddressLabel(address);
+    }
+  }
+
+  if (latitude === null || longitude === null) {
+    latitude =
+      getNumericValue(req.query?.latitude) ??
+      getNumericValue(req.body?.latitude);
+    longitude =
+      getNumericValue(req.query?.longitude) ??
+      getNumericValue(req.body?.longitude);
+  }
+
+  if ((latitude === null || longitude === null) && req.user) {
+    latitude = getNumericValue(req.user.latitude);
+    longitude = getNumericValue(req.user.longitude);
+  }
+
+  if (latitude === null || longitude === null) {
+    return {
+      latitude: null,
+      longitude: null,
+      matchedArea: null,
+      sourceLocation,
+    };
+  }
+
+  const areas = await ServiceArea.findAll({
+    where: { isActive: true },
+  });
+
+  const point = turf.point([longitude, latitude]);
+  let matchedArea = null;
+
+  for (const area of areas) {
+    if (!area?.polygon?.coordinates) continue;
+
+    const polygon = turf.polygon(area.polygon.coordinates);
+    if (turf.booleanPointInPolygon(point, polygon)) {
+      matchedArea = area;
+      break;
+    }
+  }
+
+  return {
+    latitude,
+    longitude,
+    matchedArea,
+    sourceLocation,
+  };
+};
+
+const getAreaPriceMap = async (serviceIds, areaId) => {
+  if (!areaId || !Array.isArray(serviceIds) || serviceIds.length === 0) {
+    return new Map();
+  }
+
+  const prices = await ServiceAreaPrice.findAll({
+    where: {
+      areaId,
+      serviceId: {
+        [Op.in]: serviceIds,
+      },
+    },
+  });
+
+  return new Map(prices.map((item) => [String(item.serviceId), item.price]));
+};
+
+const serializeServiceWithAreaPrice = (
+  service,
+  matchedArea,
+  areaPrice,
+  relatedAreaPriceMap = null,
+) => {
+  const plainService = service.get ? service.get({ plain: true }) : { ...service };
+  const basePrice = getNumericValue(plainService.price);
+  const effectiveAreaPrice = getNumericValue(areaPrice);
+  const effectivePrice =
+    effectiveAreaPrice !== null ? effectiveAreaPrice : basePrice;
+
+  let relatedServices = plainService.relatedServices;
+  if (Array.isArray(relatedServices) && relatedServices.length > 0) {
+    relatedServices = relatedServices.map((relatedService) =>
+      serializeServiceWithAreaPrice(
+        relatedService,
+        matchedArea,
+        relatedAreaPriceMap?.get(String(relatedService.id)),
+      ),
+    );
+  }
+
+  return {
+    ...plainService,
+    relatedServices,
+    price: effectivePrice,
+    basePrice,
+    areaPrice: effectiveAreaPrice,
+    effectivePrice,
+    areaId: matchedArea?.id ?? null,
+    areaName: matchedArea?.name ?? null,
+  };
+};
 
 const addService = async (req, res) => {
   try {
@@ -222,6 +357,7 @@ const deleteService = async (req, res) => {
 const getServicesByCategory = async (req, res) => {
   try {
     const { id } = req.params;
+    const areaContext = await resolveServiceAreaContext(req);
 
     // Extract pagination query params
     let { page = 1, limit = 10 } = req.query;
@@ -237,13 +373,26 @@ const getServicesByCategory = async (req, res) => {
       offset,
     });
 
+    const areaPriceMap = await getAreaPriceMap(
+      services.map((service) => service.id),
+      areaContext.matchedArea?.id,
+    );
+
+    const data = services.map((service) =>
+      serializeServiceWithAreaPrice(
+        service,
+        areaContext.matchedArea,
+        areaPriceMap.get(String(service.id)),
+      ),
+    );
+
     return res.json({
       success: true,
       page,
       limit,
       total,
       totalPages: Math.ceil(total / limit),
-      data: services,
+      data,
     });
   } catch (err) {
     return res.status(500).json({ error: err.message });
@@ -252,6 +401,8 @@ const getServicesByCategory = async (req, res) => {
 
 const getAllServices = async (req, res) => {
   try {
+    const areaContext = await resolveServiceAreaContext(req);
+
     // Query params
     let {
       page = 1,
@@ -299,14 +450,36 @@ const getAllServices = async (req, res) => {
           through: { attributes: [] }, // hide junction table
         },
       ],
+      distinct: true,
     });
+
+    const areaPriceMap = await getAreaPriceMap(
+      rows.map((service) => service.id),
+      areaContext.matchedArea?.id,
+    );
+
+    const relatedAreaPriceMap = await getAreaPriceMap(
+      rows
+        .flatMap((service) => service.relatedServices || [])
+        .map((relatedService) => relatedService.id),
+      areaContext.matchedArea?.id,
+    );
+
+    const data = rows.map((service) =>
+      serializeServiceWithAreaPrice(
+        service,
+        areaContext.matchedArea,
+        areaPriceMap.get(String(service.id)),
+        relatedAreaPriceMap,
+      ),
+    );
 
     return res.json({
       success: true,
       total: count,
       currentPage: page,
       totalPages: Math.ceil(count / limit),
-      data: rows,
+      data,
     });
   } catch (err) {
     console.error("Error retrieving services:", err);
@@ -325,17 +498,35 @@ const bookService = async (req, res) => {
       location,
       specialNote,
       addressId,
+      latitude: bodyLatitude,
+      longitude: bodyLongitude,
     } = req.body;
 
     const userId = req.user.id;
 
-    if (!serviceIds || serviceIds.length === 0) {
+    let selectedServiceIds = [];
+    if (Array.isArray(serviceIds)) {
+      selectedServiceIds = serviceIds;
+    } else if (typeof serviceIds === "string") {
+      try {
+        selectedServiceIds = JSON.parse(serviceIds);
+      } catch (parseError) {
+        selectedServiceIds = serviceIds
+          .split(",")
+          .map((item) => item.trim())
+          .filter(Boolean);
+      }
+    } else if (serviceIds !== undefined && serviceIds !== null) {
+      selectedServiceIds = [serviceIds];
+    }
+
+    if (!selectedServiceIds || selectedServiceIds.length === 0) {
       return res.status(400).json({ message: "No services selected" });
     }
 
     let finalLocation = location;
-    let latitude = null;
-    let longitude = null;
+    let latitude = getNumericValue(bodyLatitude);
+    let longitude = getNumericValue(bodyLongitude);
 
     // 📍 GET USER LOCATION
     if (addressId) {
@@ -347,38 +538,37 @@ const bookService = async (req, res) => {
         return res.status(404).json({ message: "Address not found" });
       }
 
-      finalLocation = `${address.address1}, ${address.city}, ${
-        address.state || ""
-      }, ${address.zipCode || ""}`;
+      finalLocation = formatAddressLabel(address) || finalLocation;
 
-      latitude = address.latitude;
-      longitude = address.longitude;
+      latitude = getNumericValue(address.latitude);
+      longitude = getNumericValue(address.longitude);
+    }
+
+    if ((latitude === null || longitude === null) && req.user) {
+      latitude = getNumericValue(req.user.latitude);
+      longitude = getNumericValue(req.user.longitude);
+    }
+
+    finalLocation = finalLocation ? String(finalLocation).trim() : finalLocation;
+    if (!finalLocation) {
+      return res.status(400).json({
+        message: "Location is required for booking",
+      });
     }
 
     // ❌ LOCATION REQUIRED
-    if (!latitude || !longitude) {
+    if (latitude === null || longitude === null) {
       return res.status(400).json({
         message: "Location required for booking",
       });
     }
 
-    // 🌍 FIND MATCHING AREA
-    const areas = await ServiceArea.findAll({
-      where: { isActive: true },
+    const areaContext = await resolveServiceAreaContext({
+      user: { latitude, longitude },
+      query: {},
+      body: {},
     });
-
-    const point = turf.point([longitude, latitude]); // ⚠️ lng, lat
-
-    let matchedArea = null;
-
-    for (const area of areas) {
-      const polygon = turf.polygon(area.polygon.coordinates);
-
-      if (turf.booleanPointInPolygon(point, polygon)) {
-        matchedArea = area;
-        break;
-      }
-    }
+    const matchedArea = areaContext.matchedArea;
 
     // ❌ OUTSIDE SERVICE AREA
     if (!matchedArea) {
@@ -408,7 +598,7 @@ const bookService = async (req, res) => {
       const groupId = (lastGroupBooking?.groupId || 0) + 1;
 
       // 🔁 LOOP SERVICES
-      for (const serviceId of serviceIds) {
+      for (const serviceId of selectedServiceIds) {
         const service = await Service.findByPk(serviceId, {
           transaction: bookingsTransaction,
           include: [
@@ -436,7 +626,7 @@ const bookService = async (req, res) => {
           transaction: bookingsTransaction,
         });
 
-        const finalPrice = areaPrice?.price || service.price;
+        const finalPrice = areaPrice?.price ?? service.price;
 
         // 🧾 CREATE BOOKING
         const booking = await Booking.create(
@@ -466,14 +656,8 @@ const bookService = async (req, res) => {
 
       await bookingsTransaction.commit();
 
-      // 🔔 SEND TO AREA PROVIDERS ONLY
-      const providers = await ProviderArea.findAll({
-        where: { areaId: matchedArea.id },
-      });
-
-      const providerIds = providers.map((p) => p.providerId);
-
-      await emitToSpecificProviders(providerIds, "new-order", {
+      // 🔔 SEND TO NEARBY ONLINE PROVIDERS
+      await emitToNearbyOnlineProviders(latitude, longitude, "new-order", {
         groupId,
         bookingDate,
         bookingTime,
@@ -821,10 +1005,53 @@ const updateGroupStatus = async (req, res) => {
 const getServiceDetail = async (req, res) => {
   try {
     const id = req.params.id;
+    const areaContext = await resolveServiceAreaContext(req);
 
-    const servicedetail = await Service.findByPk(id);
+    const servicedetail = await Service.findByPk(id, {
+      include: [
+        {
+          model: Category,
+          as: "category",
+          attributes: ["id", "name", "image"],
+        },
+        {
+          model: Service,
+          as: "relatedServices",
+          attributes: ["id", "title", "price", "mainimage"],
+          through: { attributes: [] },
+        },
+      ],
+    });
 
-    res.json({ servicedetail });
+    if (!servicedetail) {
+      return res.status(404).json({ message: "Service not found" });
+    }
+
+    let areaPrice = null;
+    if (areaContext.matchedArea?.id) {
+      const serviceAreaPrice = await ServiceAreaPrice.findOne({
+        where: {
+          serviceId: id,
+          areaId: areaContext.matchedArea.id,
+        },
+      });
+      areaPrice = serviceAreaPrice?.price ?? null;
+    }
+
+    const relatedAreaPriceMap = await getAreaPriceMap(
+      servicedetail.relatedServices?.map((relatedService) => relatedService.id) ||
+        [],
+      areaContext.matchedArea?.id,
+    );
+
+    res.json({
+      servicedetail: serializeServiceWithAreaPrice(
+        servicedetail,
+        areaContext.matchedArea,
+        areaPrice,
+        relatedAreaPriceMap,
+      ),
+    });
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Server error" });
@@ -835,6 +1062,7 @@ const popularService = async (req, res) => {
   try {
     let { limit = 10 } = req.query;
     limit = parseInt(limit);
+    const areaContext = await resolveServiceAreaContext(req);
 
     const services = await Service.findAll({
       where: {
@@ -852,10 +1080,23 @@ const popularService = async (req, res) => {
       ],
     });
 
+    const areaPriceMap = await getAreaPriceMap(
+      services.map((service) => service.id),
+      areaContext.matchedArea?.id,
+    );
+
+    const data = services.map((service) =>
+      serializeServiceWithAreaPrice(
+        service,
+        areaContext.matchedArea,
+        areaPriceMap.get(String(service.id)),
+      ),
+    );
+
     return res.status(200).json({
       success: true,
-      count: services.length,
-      data: services,
+      count: data.length,
+      data,
     });
   } catch (err) {
     console.error("Error fetching popular services:", err);
@@ -1042,6 +1283,7 @@ const deleteRate = async (req, res) => {
 const getRelatedServices = async (req, res) => {
   try {
     const { serviceId } = req.params;
+    const areaContext = await resolveServiceAreaContext(req);
 
     const service = await Service.findByPk(serviceId, {
       include: [
@@ -1061,9 +1303,21 @@ const getRelatedServices = async (req, res) => {
       });
     }
 
+    const relatedServices = service.relatedServices || [];
+    const areaPriceMap = await getAreaPriceMap(
+      relatedServices.map((item) => item.id),
+      areaContext.matchedArea?.id,
+    );
+
     return res.json({
       success: true,
-      data: service.relatedServices, // ✅ THIS IS IMPORTANT
+      data: relatedServices.map((item) =>
+        serializeServiceWithAreaPrice(
+          item,
+          areaContext.matchedArea,
+          areaPriceMap.get(String(item.id)),
+        ),
+      ),
     });
   } catch (error) {
     console.error(error);
