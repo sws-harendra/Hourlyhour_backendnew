@@ -185,3 +185,160 @@ exports.deletePriceByArea = async (req, res) => {
     });
   }
 };
+
+const getServicePriceRows = async (serviceId) => {
+  const [areas, servicePrices, service] = await Promise.all([
+    ServiceArea.findAll({
+      where: { isActive: true },
+      attributes: ["id", "name", "description", "isActive"],
+      order: [["name", "ASC"]],
+    }),
+    ServiceAreaPrice.findAll({
+      where: { serviceId },
+      include: [
+        {
+          model: ServiceArea,
+          as: "area",
+          attributes: ["id", "name", "description", "isActive"],
+        },
+      ],
+      order: [["id", "ASC"]],
+    }),
+    Service.findByPk(serviceId, {
+      attributes: ["id", "title", "price", "mainimage", "status"],
+    }),
+  ]);
+
+  const priceMap = new Map(
+    servicePrices.map((item) => [String(item.areaId), item]),
+  );
+
+  const rows = areas.map((area) => {
+    const servicePrice = priceMap.get(String(area.id));
+    return {
+      areaId: area.id,
+      areaName: area.name,
+      description: area.description,
+      serviceId: service?.id || serviceId,
+      serviceTitle: service?.title || "",
+      mainimage: service?.mainimage || null,
+      basePrice: Number(service?.price) || 0,
+      serviceAreaPriceId: servicePrice?.id || null,
+      price: servicePrice?.price ?? service?.price ?? 0,
+      hasOverride: Boolean(servicePrice),
+    };
+  });
+
+  return { rows, service };
+};
+
+exports.getPricesByService = async (req, res) => {
+  try {
+    const { serviceId } = req.params;
+
+    const service = await Service.findByPk(serviceId);
+    if (!service) {
+      return res.status(404).json({
+        success: false,
+        message: "Service not found",
+      });
+    }
+
+    const { rows } = await getServicePriceRows(serviceId);
+
+    res.json({
+      success: true,
+      data: {
+        service,
+        rows,
+      },
+    });
+  } catch (error) {
+    console.error("Get service prices error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};
+
+exports.bulkUpsertPricesByService = async (req, res) => {
+  const transaction = await sequelize.transaction();
+
+  try {
+    const { serviceId } = req.params;
+    const { prices = [] } = req.body;
+
+    const service = await Service.findByPk(serviceId, { transaction });
+    if (!service) {
+      await transaction.rollback();
+      return res.status(404).json({
+        success: false,
+        message: "Service not found",
+      });
+    }
+
+    if (!Array.isArray(prices)) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: "prices must be an array",
+      });
+    }
+
+    const basePrice = Number(service.price) || 0;
+
+    for (const item of prices) {
+      const areaId = Number(item.areaId);
+      const price = Number(item.price);
+
+      if (!areaId || Number.isNaN(price)) continue;
+
+      const area = await ServiceArea.findByPk(areaId, { transaction });
+      if (!area) continue;
+
+      const existing = await ServiceAreaPrice.findOne({
+        where: { areaId, serviceId },
+        transaction,
+        lock: transaction.LOCK.UPDATE,
+      });
+
+      if (price === basePrice) {
+        if (existing) {
+          await existing.destroy({ transaction });
+        }
+        continue;
+      }
+
+      if (existing) {
+        await existing.update({ price }, { transaction });
+      } else {
+        await ServiceAreaPrice.create(
+          {
+            areaId,
+            serviceId,
+            price,
+          },
+          { transaction },
+        );
+      }
+    }
+
+    await transaction.commit();
+
+    const payload = await getServicePriceRows(serviceId);
+
+    res.json({
+      success: true,
+      message: "Service area prices saved successfully",
+      data: payload.rows,
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error("Bulk upsert service prices error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+};

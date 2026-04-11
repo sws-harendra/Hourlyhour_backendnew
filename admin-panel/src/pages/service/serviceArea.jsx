@@ -27,7 +27,7 @@ const ServiceArea = () => {
     if (!mapRef.current || mapInstanceRef.current) return;
 
     // Create map centered on India (default view)
-    const map = L.map(mapRef.current).setView([28.6139, 77.209], 5);
+    const map = L.map(mapRef.current).setView([25.60727, 85.067846], 14);
 
     // Add OpenStreetMap tiles
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
@@ -220,7 +220,7 @@ const ServiceArea = () => {
     const area = calculatePolygonArea(coordinates);
 
     return (
-      <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+      <div className=" border-blue-200 rounded-lg p-4">
         <h4 className="font-semibold text-blue-900 mb-2">Polygon Details</h4>
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
@@ -317,7 +317,7 @@ const ServiceArea = () => {
             {/* Form */}
             <form onSubmit={handleSaveServiceArea} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-white mb-1">
                   Service Area Name
                 </label>
                 <input
@@ -325,12 +325,12 @@ const ServiceArea = () => {
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder="e.g., Downtown Area"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border bg-white border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block text-sm font-medium text-white mb-1">
                   Description (Optional)
                 </label>
                 <textarea
@@ -338,7 +338,7 @@ const ServiceArea = () => {
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Add notes about this service area..."
                   rows="3"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full px-3 py-2 border bg-white border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                 />
               </div>
 
