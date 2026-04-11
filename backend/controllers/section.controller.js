@@ -1,5 +1,10 @@
 // controllers/sectionController.js
 const { Section, Service } = require("../models");
+const {
+  resolveServiceAreaContext,
+  getAreaPriceMap,
+  serializeServiceWithAreaPrice,
+} = require("../helpers/serviceAreaPricing");
 
 exports.createSection = async (req, res) => {
   try {
@@ -21,6 +26,7 @@ exports.createSection = async (req, res) => {
 
 exports.getSections = async (req, res) => {
   try {
+    const areaContext = await resolveServiceAreaContext(req);
     const sections = await Section.findAll({
       where: { isActive: true },
       order: [["order", "ASC"]],
@@ -32,7 +38,27 @@ exports.getSections = async (req, res) => {
       ],
     });
 
-    res.json({ success: true, sections });
+    const allServices = sections.flatMap((section) => section.Services || []);
+    const areaPriceMap = await getAreaPriceMap(
+      allServices.map((service) => service.id),
+      areaContext.matchedArea?.id,
+    );
+
+    const enrichedSections = sections.map((section) => {
+      const plainSection = section.get ? section.get({ plain: true }) : section;
+      return {
+        ...plainSection,
+        Services: (plainSection.Services || []).map((service) =>
+          serializeServiceWithAreaPrice(
+            service,
+            areaContext.matchedArea,
+            areaPriceMap.get(String(service.id)),
+          ),
+        ),
+      };
+    });
+
+    res.json({ success: true, sections: enrichedSections });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }
@@ -40,6 +66,7 @@ exports.getSections = async (req, res) => {
 
 exports.getSectionById = async (req, res) => {
   try {
+    const areaContext = await resolveServiceAreaContext(req);
     const section = await Section.findByPk(req.params.id, {
       include: [{ model: Service }],
     });
@@ -49,7 +76,25 @@ exports.getSectionById = async (req, res) => {
         .status(404)
         .json({ success: false, message: "Section not found" });
 
-    res.json({ success: true, section });
+    const plainSection = section.get ? section.get({ plain: true }) : section;
+    const areaPriceMap = await getAreaPriceMap(
+      (plainSection.Services || []).map((service) => service.id),
+      areaContext.matchedArea?.id,
+    );
+
+    res.json({
+      success: true,
+      section: {
+        ...plainSection,
+        Services: (plainSection.Services || []).map((service) =>
+          serializeServiceWithAreaPrice(
+            service,
+            areaContext.matchedArea,
+            areaPriceMap.get(String(service.id)),
+          ),
+        ),
+      },
+    });
   } catch (error) {
     res.status(500).json({ success: false, message: error.message });
   }

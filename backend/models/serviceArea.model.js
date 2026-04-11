@@ -32,5 +32,12 @@ module.exports = (sequelize, DataTypes) => {
     },
   });
 
+  ServiceArea.associate = (models) => {
+    ServiceArea.hasMany(models.ServiceAreaPrice, {
+      foreignKey: "areaId",
+      as: "prices",
+    });
+  };
+
   return ServiceArea;
 };

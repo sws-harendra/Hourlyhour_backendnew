@@ -22,6 +22,7 @@ import TestimonialPage from "./pages/testimonial/testimonialPage";
 import ReviewsPage from "./pages/reviews/page";
 import WarrantyPage from "./pages/warranty/warranty";
 import ServiceArea from "./pages/service/serviceArea";
+import ServiceAreaPricing from "./pages/service/serviceAreaPricing";
 
 function App() {
   return (
@@ -59,6 +60,7 @@ function App() {
             element={<AdminServiceRequestsPage />}
           />
           <Route path="/service-area" element={<ServiceArea />} />
+          <Route path="/service-area/:areaId/prices" element={<ServiceAreaPricing />} />
           <Route
             path="/booking/allbookings/:id"
             element={<BookingDetail />}

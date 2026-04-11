@@ -49,7 +49,7 @@ router.get(
   service.getAllServices,
 );
 
-router.get("/popular-services", service.popularService);
+router.get("/popular-services", authenticated, service.popularService);
 
 router.post("/book-service", authenticated, service.bookService);
 router.get("/all-bookings", service.allBookings);

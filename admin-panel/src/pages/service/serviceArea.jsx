@@ -4,8 +4,10 @@ import "leaflet/dist/leaflet.css";
 import "leaflet-draw/dist/leaflet.draw.css";
 import "leaflet-draw";
 import axios from "axios";
+import { useNavigate } from "react-router-dom";
 
 const ServiceArea = () => {
+  const navigate = useNavigate();
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const featureGroupRef = useRef(null);
@@ -60,6 +62,7 @@ const ServiceArea = () => {
         rectangle: false,
         circle: false,
         marker: false,
+        circlemarker: false, // ← IMPORTANT (this removes small circle icon)
       },
       edit: {
         featureGroup: featureGroup,
@@ -402,6 +405,12 @@ const ServiceArea = () => {
                       {area.polygon?.coordinates?.[0]?.length - 1 || 0} points
                     </span>
                   </div>
+                  <button
+                    onClick={() => navigate(`/service-area/${area.id}/prices`)}
+                    className="mt-4 w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
+                  >
+                    Manage Pricing
+                  </button>
                 </div>
               ))}
             </div>

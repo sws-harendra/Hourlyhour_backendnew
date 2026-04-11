@@ -13,6 +13,11 @@ const { ValidationError } = require("sequelize");
 const path = require("path");
 const fs = require("fs");
 const sendOtptoPhone = require("../helpers/otp_send");
+const {
+  resolveServiceAreaContext,
+  getAreaPriceMap,
+  serializeServiceWithAreaPrice,
+} = require("../helpers/serviceAreaPricing");
 
 const sendOtp = async (req, res) => {
   try {
@@ -652,6 +657,7 @@ const updateProviderLocation = async (req, res) => {
 };
 const getMyServices = async (req, res) => {
   try {
+    const areaContext = await resolveServiceAreaContext(req);
     // Get all UserService entries for this user
     const userServices = await UserService.findAll({
       where: { userId: req.user.id },
@@ -672,11 +678,24 @@ const getMyServices = async (req, res) => {
         },
       ],
     });
+
+    const areaPriceMap = await getAreaPriceMap(
+      services.map((service) => service.id),
+      areaContext.matchedArea?.id,
+    );
+
+    const data = services.map((service) =>
+      serializeServiceWithAreaPrice(
+        service,
+        areaContext.matchedArea,
+        areaPriceMap.get(String(service.id)),
+      ),
+    );
     // console.log(services);
 
     return res.status(200).json({
       success: true,
-      services: services,
+      services: data,
       serviceIds: serviceIds, // Optional: for debugging
     });
   } catch (error) {

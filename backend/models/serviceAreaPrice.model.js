@@ -14,5 +14,17 @@ module.exports = (sequelize, DataTypes) => {
     },
   });
 
+  ServiceAreaPrice.associate = (models) => {
+    ServiceAreaPrice.belongsTo(models.Service, {
+      foreignKey: "serviceId",
+      as: "service",
+    });
+
+    ServiceAreaPrice.belongsTo(models.ServiceArea, {
+      foreignKey: "areaId",
+      as: "area",
+    });
+  };
+
   return ServiceAreaPrice;
 };

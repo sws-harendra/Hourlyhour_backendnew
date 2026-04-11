@@ -1,4 +1,9 @@
 const { Category, Service } = require("../models");
+const {
+  resolveServiceAreaContext,
+  getAreaPriceMap,
+  serializeServiceWithAreaPrice,
+} = require("../helpers/serviceAreaPricing");
 
 const addCategory = async (req, res) => {
   try {
@@ -34,6 +39,7 @@ const updateCategory = async (req, res) => {
 };
 const getAllCategories = async (req, res) => {
   try {
+    const areaContext = await resolveServiceAreaContext(req);
     // query params
     const page = parseInt(req.query.page) || 1;
     const limit = parseInt(req.query.limit) || 10;
@@ -47,8 +53,28 @@ const getAllCategories = async (req, res) => {
       distinct: true, // IMPORTANT when using include
     });
 
+    const allServices = rows.flatMap((category) => category.services || []);
+    const areaPriceMap = await getAreaPriceMap(
+      allServices.map((service) => service.id),
+      areaContext.matchedArea?.id,
+    );
+
+    const data = rows.map((category) => {
+      const plainCategory = category.get ? category.get({ plain: true }) : category;
+      return {
+        ...plainCategory,
+        services: (plainCategory.services || []).map((service) =>
+          serializeServiceWithAreaPrice(
+            service,
+            areaContext.matchedArea,
+            areaPriceMap.get(String(service.id)),
+          ),
+        ),
+      };
+    });
+
     return res.status(200).json({
-      data: rows,
+      data,
       pagination: {
         totalItems: count,
         totalPages: Math.ceil(count / limit),
