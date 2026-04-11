@@ -188,9 +188,7 @@ const ServiceArea = () => {
       const response = await axios.post(`${API_BASE}/service-area`, payload);
 
       if (response.data.success) {
-        setMessage(
-          `✓ Service area "${name}" saved successfully!`
-        );
+        setMessage(`✓ Service area "${name}" saved successfully!`);
         setName("");
         setDescription("");
         setDrawnPolygon(null);
@@ -205,9 +203,7 @@ const ServiceArea = () => {
       }
     } catch (error) {
       console.error("Error saving service area:", error);
-      setMessage(
-        `✗ Error: ${error.response?.data?.message || error.message}`
-      );
+      setMessage(`✗ Error: ${error.response?.data?.message || error.message}`);
     } finally {
       setIsLoading(false);
     }
@@ -240,7 +236,11 @@ const ServiceArea = () => {
               {coord[0].toFixed(6)}, {coord[1].toFixed(6)}
             </div>
           ))}
-          {coordinates.length > 6 && <div className="text-gray-500 mt-2">... and {coordinates.length - 6} more points</div>}
+          {coordinates.length > 6 && (
+            <div className="text-gray-500 mt-2">
+              ... and {coordinates.length - 6} more points
+            </div>
+          )}
         </div>
       </div>
     );
@@ -276,7 +276,9 @@ const ServiceArea = () => {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-6">
       <div className="max-w-7xl mx-auto">
-        <h1 className="text-3xl font-bold text-white mb-2">Service Area Management</h1>
+        <h1 className="text-3xl font-bold text-white mb-2">
+          Service Area Management
+        </h1>
         <p className="text-slate-300 mb-6">
           Draw polygons on the map to define service areas
         </p>
@@ -285,10 +287,7 @@ const ServiceArea = () => {
           {/* Map Container */}
           <div className="lg:col-span-2">
             <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-              <div
-                ref={mapRef}
-                className="h-[600px] w-full"
-              />
+              <div ref={mapRef} className="h-[600px] w-full" />
             </div>
           </div>
 

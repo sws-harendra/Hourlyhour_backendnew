@@ -74,7 +74,8 @@ exports.createServiceArea = async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
-        message: "Polygon must be closed (first and last point must be the same)",
+        message:
+          "Polygon must be closed (first and last point must be the same)",
       });
     }
 
@@ -133,7 +134,8 @@ exports.updateServiceArea = async (req, res) => {
       ) {
         return res.status(400).json({
           success: false,
-          message: "Polygon must be closed (first and last point must be the same)",
+          message:
+            "Polygon must be closed (first and last point must be the same)",
         });
       }
     }
@@ -141,7 +143,8 @@ exports.updateServiceArea = async (req, res) => {
     await serviceArea.update({
       name: name || serviceArea.name,
       polygon: polygon || serviceArea.polygon,
-      description: description !== undefined ? description : serviceArea.description,
+      description:
+        description !== undefined ? description : serviceArea.description,
       isActive: isActive !== undefined ? isActive : serviceArea.isActive,
     });
 
@@ -209,7 +212,11 @@ exports.checkPointInServiceArea = async (req, res) => {
       const coordinates = polygon.coordinates[0];
       let isInside = false;
 
-      for (let i = 0, j = coordinates.length - 1; i < coordinates.length; j = i++) {
+      for (
+        let i = 0, j = coordinates.length - 1;
+        i < coordinates.length;
+        j = i++
+      ) {
         const xi = coordinates[i][0],
           yi = coordinates[i][1];
         const xj = coordinates[j][0],
@@ -225,7 +232,7 @@ exports.checkPointInServiceArea = async (req, res) => {
     };
 
     const matchedAreas = serviceAreas.filter((area) =>
-      pointInArea([parseFloat(lng), parseFloat(lat)], area.polygon)
+      pointInArea([parseFloat(lng), parseFloat(lat)], area.polygon),
     );
 
     res.status(200).json({
