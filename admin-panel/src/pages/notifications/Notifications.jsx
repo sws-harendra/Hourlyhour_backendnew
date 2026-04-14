@@ -197,23 +197,34 @@ const Notifications = () => {
                         />
                         <button
                           type="button"
-                          onClick={() => setFormData(p => ({ ...p, imageUrl: "" }))}
+                          onClick={() =>
+                            setFormData((p) => ({ ...p, imageUrl: "" }))
+                          }
                           className="absolute top-2 right-2 bg-red-600 text-white p-1.5 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                         >
                           <Cross size={16} className="rotate-45" />
                         </button>
                       </div>
                     ) : (
-                      <label className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-all ${uploadingImage ? 'opacity-50 pointer-events-none' : ''}`}>
+                      <label
+                        className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-all ${uploadingImage ? "opacity-50 pointer-events-none" : ""}`}
+                      >
                         {uploadingImage ? (
                           <div className="flex flex-col items-center">
                             <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-2"></div>
-                            <span className="text-xs text-slate-500">Uploading...</span>
+                            <span className="text-xs text-slate-500">
+                              Uploading...
+                            </span>
                           </div>
                         ) : (
                           <>
-                            <ImageIcon className="text-slate-400 mb-2" size={24} />
-                            <span className="text-xs text-slate-500 font-medium">Click to select image</span>
+                            <ImageIcon
+                              className="text-slate-400 mb-2"
+                              size={24}
+                            />
+                            <span className="text-xs text-slate-500 font-medium">
+                              Click to select image
+                            </span>
                             <input
                               type="file"
                               accept="image/*"

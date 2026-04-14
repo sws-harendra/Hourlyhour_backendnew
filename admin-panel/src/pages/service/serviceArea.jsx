@@ -20,7 +20,8 @@ const ServiceArea = () => {
   const [message, setMessage] = useState("");
   const [drawnPolygon, setDrawnPolygon] = useState(null);
 
-  const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8008/api";
+  const API_BASE =
+    import.meta.env.VITE_SERVER_URL || "http://localhost:8008/api";
 
   // Initialize map
   useEffect(() => {
