@@ -13,6 +13,7 @@ const {
 } = require("../models");
 
 const { Op } = require("sequelize");
+const { sendNotification } = require("../utils/notification.util");
 const {
   emitToAllProviders,
   emitToNearbyOnlineProviders,
@@ -25,6 +26,10 @@ const {
   getAreaPriceMap,
   serializeServiceWithAreaPrice,
 } = require("../helpers/serviceAreaPricing");
+
+const isInvalidFcmTokenError = (errorCode) =>
+  errorCode === "messaging/registration-token-not-registered" ||
+  errorCode === "messaging/invalid-registration-token";
 
 const addService = async (req, res) => {
   try {
@@ -745,11 +750,53 @@ const assignProvider = async (req, res) => {
     const bookingId = req.params.id;
     const { providerId } = req.body;
 
-    const booking = await Booking.findByPk(bookingId);
+    if (!providerId) {
+      return res.status(400).json({ message: "providerId is required" });
+    }
+
+    const booking = await Booking.findByPk(bookingId, {
+      include: [
+        { model: Service, as: "service", attributes: ["id", "title"] },
+        { model: User, as: "user", attributes: ["id", "name"] },
+      ],
+    });
     if (!booking) return res.status(404).json({ message: "Booking not found" });
 
     booking.providerId = providerId;
     await booking.save();
+
+    const provider = await User.findByPk(providerId, {
+      attributes: ["id", "name", "fcmToken"],
+    });
+
+    if (provider?.fcmToken) {
+      const notificationResult = await sendNotification({
+        token: provider.fcmToken,
+        title: "New booking assigned",
+        body: `You have been assigned booking #${bookingId}${booking.service?.title ? ` for ${booking.service.title}` : ""}.`,
+        data: {
+          type: "booking_assigned",
+          bookingId: String(bookingId),
+          providerId: String(providerId),
+          groupId: booking.groupId ? String(booking.groupId) : "",
+          navigateTo: "bookings",
+        },
+      });
+
+      if (!notificationResult.success) {
+        console.error(
+          "Error sending provider assignment notification:",
+          notificationResult.error,
+        );
+
+        if (isInvalidFcmTokenError(notificationResult.errorCode)) {
+          await provider.update({ fcmToken: null });
+          console.warn(
+            `Cleared invalid FCM token for provider ${providerId} after assignment notification failure.`,
+          );
+        }
+      }
+    }
 
     res.json({ message: "Provider assigned successfully", booking });
   } catch (error) {
@@ -763,7 +810,56 @@ const assignProviderToGroup = async (req, res) => {
     const { groupId } = req.params;
     const { providerId } = req.body;
 
+    if (!providerId) {
+      return res.status(400).json({ message: "providerId is required" });
+    }
+
+    const bookings = await Booking.findAll({
+      where: { groupId },
+      include: [
+        { model: Service, as: "service", attributes: ["id", "title"] },
+        { model: User, as: "user", attributes: ["id", "name"] },
+      ],
+    });
+
+    if (!bookings.length) {
+      return res.status(404).json({ message: "Group not found" });
+    }
+
     await Booking.update({ providerId }, { where: { groupId } });
+
+    const provider = await User.findByPk(providerId, {
+      attributes: ["id", "name", "fcmToken"],
+    });
+
+    if (provider?.fcmToken) {
+      const notificationResult = await sendNotification({
+        token: provider.fcmToken,
+        title: "New group booking assigned",
+        body: `You have been assigned ${bookings.length} booking${bookings.length > 1 ? "s" : ""} in group #${groupId}.`,
+        data: {
+          type: "group_booking_assigned",
+          groupId: String(groupId),
+          providerId: String(providerId),
+          bookingId: String(bookings[0].id),
+          navigateTo: "bookings",
+        },
+      });
+
+      if (!notificationResult.success) {
+        console.error(
+          "Error sending group assignment notification:",
+          notificationResult.error,
+        );
+
+        if (isInvalidFcmTokenError(notificationResult.errorCode)) {
+          await provider.update({ fcmToken: null });
+          console.warn(
+            `Cleared invalid FCM token for provider ${providerId} after group assignment notification failure.`,
+          );
+        }
+      }
+    }
 
     res.json({ message: "Assigned to all" });
   } catch (err) {

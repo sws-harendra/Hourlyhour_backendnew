@@ -97,7 +97,11 @@ const sendNotification = async ({
     return { success: true, response };
   } catch (error) {
     console.error("Error sending message:", error);
-    return { success: false, error: error.message };
+    return {
+      success: false,
+      error: error.message,
+      errorCode: error.code || error.errorInfo?.code || null,
+    };
   }
 };
 
