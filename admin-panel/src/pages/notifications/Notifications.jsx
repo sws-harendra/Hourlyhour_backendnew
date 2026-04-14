@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from "react";
 import axios from "axios";
 import {
-  Send,
   Bell,
-  User,
   Users,
   ShieldCheck,
+  User,
+  Send,
   Image as ImageIcon,
   Search,
   Smartphone,
@@ -22,28 +22,65 @@ const Notifications = () => {
     token: "",
     topic: "",
     imageUrl: "",
+    navigateTo: "",
+    serviceId: "",
   });
   const [loading, setLoading] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const [users, setUsers] = useState([]);
   const [fetchingUsers, setFetchingUsers] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState("");
   const [selectedUser, setSelectedUser] = useState(null);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [imageInputMode, setImageInputMode] = useState("upload"); // "upload" or "url"
+
+  const customerDestinations = [
+    { value: "", label: "No redirect" },
+    { value: "service_details", label: "Service details" },
+    { value: "service_warranty", label: "Service warranty" },
+    { value: "bookings", label: "My bookings" },
+    { value: "search", label: "Search screen" },
+    { value: "home", label: "Home screen" },
+  ];
+
+  const providerDestinations = [
+    { value: "", label: "No redirect" },
+    { value: "bookings", label: "Orders / Bookings" },
+    { value: "warranty", label: "Warranty screen" },
+    { value: "service_requests", label: "Service requests" },
+    { value: "home", label: "Home screen" },
+  ];
+
+  const destinationOptions =
+    formData.target === "all_providers"
+      ? providerDestinations
+      : customerDestinations;
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm);
+      setPage(1); // Reset to page 1 on new search
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [searchTerm]);
 
   useEffect(() => {
     if (formData.target === "token") {
-      fetchUsers();
+      fetchUsers(debouncedSearchTerm, page);
     }
-  }, [formData.target]);
+  }, [formData.target, debouncedSearchTerm, page]);
 
-  const fetchUsers = async () => {
+  const fetchUsers = async (search = "", currentPage = 1) => {
     setFetchingUsers(true);
     try {
       const response = await axios.get(
-        `${import.meta.env.VITE_SERVER_URL || "http://localhost:8008/api"}/auth/all-users?limit=100`,
+        `${import.meta.env.VITE_SERVER_URL || "http://localhost:8008/api"}/auth/all-users?limit=10&page=${currentPage}&search=${search}`,
       );
       if (response.data.success) {
         setUsers(response.data.data);
+        setTotalPages(response.data.pagination.totalPages);
       }
     } catch (error) {
       console.error("Error fetching users:", error);
@@ -106,6 +143,14 @@ const Notifications = () => {
       return;
     }
 
+    const needsServiceId = ["service_details", "service_warranty"].includes(
+      formData.navigateTo,
+    );
+    if (needsServiceId && !formData.serviceId.trim()) {
+      toast.error("Service ID is required for this destination");
+      return;
+    }
+
     setLoading(true);
     try {
       const response = await axios.post(
@@ -121,6 +166,8 @@ const Notifications = () => {
           token: "",
           topic: "",
           imageUrl: "",
+          navigateTo: "",
+          serviceId: "",
         });
         setSelectedUser(null);
         setSearchTerm("");
@@ -135,14 +182,13 @@ const Notifications = () => {
     }
   };
 
-  const filteredUsers = users.filter((u) => {
-    const search = searchTerm.toLowerCase();
-    return (
-      u.name?.toLowerCase().includes(search) ||
-      u.phone?.toLowerCase().includes(search) ||
-      u.email?.toLowerCase().includes(search)
-    );
-  });
+  const handleNextPage = () => {
+    if (page < totalPages) setPage((p) => p + 1);
+  };
+
+  const handlePrevPage = () => {
+    if (page > 1) setPage((p) => p - 1);
+  };
 
   return (
     <div className="p-6 max-w-5xl mx-auto">
@@ -183,10 +229,28 @@ const Notifications = () => {
                   />
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-semibold text-slate-700 uppercase tracking-wider">
-                    Notification Image
-                  </label>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <label className="text-sm font-semibold text-slate-700 uppercase tracking-wider">
+                      Notification Image
+                    </label>
+                    <div className="flex gap-2">
+                       <button 
+                         type="button" 
+                         onClick={() => setImageInputMode("upload")}
+                         className={`text-xs px-2 py-1 rounded-md font-medium transition-colors ${imageInputMode === "upload" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+                       >
+                         Upload
+                       </button>
+                       <button 
+                         type="button" 
+                         onClick={() => setImageInputMode("url")}
+                         className={`text-xs px-2 py-1 rounded-md font-medium transition-colors ${imageInputMode === "url" ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-600 hover:bg-slate-200"}`}
+                       >
+                         URL
+                       </button>
+                    </div>
+                  </div>
                   <div className="relative">
                     {formData.imageUrl ? (
                       <div className="relative group rounded-xl overflow-hidden aspect-video border-2 border-slate-100 bg-slate-50">
@@ -206,34 +270,53 @@ const Notifications = () => {
                         </button>
                       </div>
                     ) : (
-                      <label
-                        className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-all ${uploadingImage ? "opacity-50 pointer-events-none" : ""}`}
-                      >
-                        {uploadingImage ? (
-                          <div className="flex flex-col items-center">
-                            <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-2"></div>
-                            <span className="text-xs text-slate-500">
-                              Uploading...
-                            </span>
-                          </div>
+                      <>
+                        {imageInputMode === "upload" ? (
+                          <label
+                            className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed border-slate-200 rounded-xl cursor-pointer hover:bg-slate-50 transition-all ${uploadingImage ? "opacity-50 pointer-events-none" : ""}`}
+                          >
+                            {uploadingImage ? (
+                              <div className="flex flex-col items-center">
+                                <div className="w-6 h-6 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-2"></div>
+                                <span className="text-xs text-slate-500">
+                                  Uploading...
+                                </span>
+                              </div>
+                            ) : (
+                              <>
+                                <ImageIcon
+                                  className="text-slate-400 mb-2"
+                                  size={24}
+                                />
+                                <span className="text-xs text-slate-500 font-medium">
+                                  Click to select image
+                                </span>
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  onChange={handleImageUpload}
+                                  className="hidden"
+                                />
+                              </>
+                            )}
+                          </label>
                         ) : (
-                          <>
-                            <ImageIcon
-                              className="text-slate-400 mb-2"
-                              size={24}
-                            />
-                            <span className="text-xs text-slate-500 font-medium">
-                              Click to select image
-                            </span>
-                            <input
-                              type="file"
-                              accept="image/*"
-                              onChange={handleImageUpload}
-                              className="hidden"
-                            />
-                          </>
+                          <div className="flex items-center w-full h-32 p-4 border-2 border-slate-200 rounded-xl bg-slate-50">
+                             <input
+                               type="url"
+                               placeholder="Enter image URL..."
+                               value={formData.imageUrl}
+                               onChange={(e) =>
+                                 setFormData((prev) => ({
+                                   ...prev,
+                                   imageUrl: e.target.value,
+                                 }))
+                               }
+                               className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
+                             />
+                          </div>
                         )}
-                      </label>
+                      </>
                     )}
                   </div>
                 </div>
@@ -273,7 +356,12 @@ const Notifications = () => {
                       key={item.id}
                       type="button"
                       onClick={() =>
-                        setFormData((prev) => ({ ...prev, target: item.id }))
+                        setFormData((prev) => ({
+                          ...prev,
+                          target: item.id,
+                          navigateTo: "",
+                          serviceId: "",
+                        }))
                       }
                       className={`flex flex-col items-center justify-center p-4 rounded-2xl border-2 transition-all duration-200 ${
                         formData.target === item.id
@@ -322,6 +410,46 @@ const Notifications = () => {
                     placeholder="Enter FCM Topic (e.g., promotions)"
                     className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                     required
+                  />
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <label className="text-sm font-semibold text-slate-700 uppercase tracking-wider block">
+                  Optional Redirect
+                </label>
+                <select
+                  name="navigateTo"
+                  value={formData.navigateTo}
+                  onChange={handleChange}
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none bg-white"
+                >
+                  {destinationOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-xs text-slate-500">
+                  Leave it blank if you only want to show the notification. If
+                  you select a service screen, add the service ID below.
+                </p>
+              </div>
+
+              {["service_details", "service_warranty"].includes(
+                formData.navigateTo,
+              ) && (
+                <div className="space-y-2 animate-in fade-in slide-in-from-top-2 duration-300">
+                  <label className="text-sm font-semibold text-slate-700 uppercase tracking-wider">
+                    Service ID
+                  </label>
+                  <input
+                    type="number"
+                    name="serviceId"
+                    value={formData.serviceId}
+                    onChange={handleChange}
+                    placeholder="Enter the service ID to open"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
                   />
                 </div>
               )}
@@ -382,44 +510,46 @@ const Notifications = () => {
                     <div className="w-8 h-8 border-2 border-blue-500 border-t-transparent rounded-full animate-spin mb-2"></div>
                     <p className="text-sm">Loading users...</p>
                   </div>
-                ) : filteredUsers.length > 0 ? (
-                  filteredUsers.map((user) => (
-                    <button
-                      key={user.id}
-                      type="button"
-                      onClick={() => handleUserSelect(user)}
-                      className={`w-full p-4 rounded-xl border transition-all flex items-center justify-between text-left ${
-                        selectedUser?.id === user.id
-                          ? "border-blue-600 bg-blue-50 ring-1 ring-blue-600"
-                          : "border-slate-50 hover:bg-slate-50"
-                      }`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div
-                          className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${user.fcmToken ? "bg-blue-600" : "bg-slate-300"}`}
-                        >
-                          {(user.name || user.phone).charAt(0).toUpperCase()}
+                ) : users.length > 0 ? (
+                  <>
+                    {users.map((user) => (
+                      <button
+                        key={user.id}
+                        type="button"
+                        onClick={() => handleUserSelect(user)}
+                        className={`w-full p-4 rounded-xl border transition-all flex items-center justify-between text-left ${
+                          selectedUser?.id === user.id
+                            ? "border-blue-600 bg-blue-50 ring-1 ring-blue-600"
+                            : "border-slate-50 hover:bg-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${user.fcmToken ? "bg-blue-600" : "bg-slate-300"}`}
+                          >
+                            {(user.name || user.phone).charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p
+                              className={`text-sm font-bold ${selectedUser?.id === user.id ? "text-blue-900" : "text-slate-700"}`}
+                            >
+                              {user.name || "Unnamed"}
+                            </p>
+                            <p className="text-[10px] text-slate-400 uppercase tracking-tighter">
+                              {user.phone}
+                            </p>
+                          </div>
                         </div>
                         <div>
-                          <p
-                            className={`text-sm font-bold ${selectedUser?.id === user.id ? "text-blue-900" : "text-slate-700"}`}
-                          >
-                            {user.name || "Unnamed"}
-                          </p>
-                          <p className="text-[10px] text-slate-400 uppercase tracking-tighter">
-                            {user.phone}
-                          </p>
+                          {user.fcmToken ? (
+                            <Smartphone size={16} className="text-green-500" />
+                          ) : (
+                            <Cross size={16} className="text-slate-300" />
+                          )}
                         </div>
-                      </div>
-                      <div>
-                        {user.fcmToken ? (
-                          <Smartphone size={16} className="text-green-500" />
-                        ) : (
-                          <Cross size={16} className="text-slate-300" />
-                        )}
-                      </div>
-                    </button>
-                  ))
+                      </button>
+                    ))}
+                  </>
                 ) : (
                   <div className="text-center py-10">
                     <Users className="mx-auto text-slate-200 mb-2" size={40} />
@@ -427,6 +557,29 @@ const Notifications = () => {
                   </div>
                 )}
               </div>
+              {!fetchingUsers && totalPages > 1 && (
+                <div className="p-4 border-t border-slate-100 flex items-center justify-between bg-slate-50 mt-auto">
+                  <button
+                    type="button"
+                    onClick={handlePrevPage}
+                    disabled={page === 1}
+                    className="px-3 py-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
+                  >
+                    Previous
+                  </button>
+                  <span className="text-xs font-medium text-slate-500">
+                    Page {page} of {totalPages}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={handleNextPage}
+                    disabled={page === totalPages}
+                    className="px-3 py-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}

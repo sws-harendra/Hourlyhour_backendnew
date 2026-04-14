@@ -2,7 +2,16 @@ const { sendNotification } = require("../utils/notification.util");
 
 exports.sendManualNotification = async (req, res) => {
   try {
-    const { title, body, target, token, topic, imageUrl } = req.body;
+    const {
+      title,
+      body,
+      target,
+      token,
+      topic,
+      imageUrl,
+      navigateTo,
+      serviceId,
+    } = req.body;
 
     if (!title || !body) {
       return res.status(400).json({
@@ -11,7 +20,47 @@ exports.sendManualNotification = async (req, res) => {
       });
     }
 
-    let options = { title, body, imageUrl };
+    const allowedNavigations = new Set([
+      "service_details",
+      "service_warranty",
+      "bookings",
+      "warranty",
+      "service_requests",
+      "search",
+      "home",
+    ]);
+    if (navigateTo && !allowedNavigations.has(navigateTo)) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid navigateTo value",
+      });
+    }
+    if (
+      ["service_details", "service_warranty"].includes(navigateTo) &&
+      !serviceId
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Service ID is required for this destination",
+      });
+    }
+
+    const data = {};
+
+    if (navigateTo) {
+      data.navigateTo = navigateTo;
+    }
+
+    if (serviceId) {
+      data.serviceId = String(serviceId);
+    }
+
+    data.title = title;
+    if (imageUrl) {
+      data.imageUrl = imageUrl;
+    }
+
+    let options = { title, body, imageUrl, data };
 
     if (target === "token") {
       if (!token) return res.status(400).json({ success: false, message: "FCM token is required" });
