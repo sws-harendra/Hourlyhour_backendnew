@@ -24,6 +24,7 @@ import WarrantyPage from "./pages/warranty/warranty";
 import ServiceArea from "./pages/service/serviceArea";
 import ServiceAreaPricing from "./pages/service/serviceAreaPricing";
 import ServiceAreaPricingByService from "./pages/service/serviceAreaPricingByService";
+import Notifications from "./pages/notifications/Notifications";
 
 function App() {
   return (
@@ -71,6 +72,7 @@ function App() {
             path="/booking/group/:groupId"
             element={<CombinedBookingDetail />}
           />
+          <Route path="/notifications" element={<Notifications />} />
         </Route>
       </Routes>
     </BrowserRouter>

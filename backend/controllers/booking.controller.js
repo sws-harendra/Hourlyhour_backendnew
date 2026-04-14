@@ -10,6 +10,7 @@ const {
   WarrantyClaim,
 } = require("../models");
 const { emitToAllProviders, emitToProvider } = require("../socket");
+const { sendNotification } = require("../utils/notification.util");
 const Sequelize = require("sequelize");
 
 const acceptBooking = async (req, res) => {
@@ -21,6 +22,7 @@ const acceptBooking = async (req, res) => {
 
     const booking = await Booking.findOne({
       where: { id: bookingId },
+      include: [{ model: User, as: "user", attributes: ["id", "fcmToken"] }],
       transaction,
       lock: transaction.LOCK.UPDATE,
     });
@@ -61,6 +63,20 @@ const acceptBooking = async (req, res) => {
     emitToProvider(providerId, "order-accepted", {
       groupId,
     });
+
+    // Send Push Notification to User
+    if (booking.user && booking.user.fcmToken) {
+      sendNotification({
+        token: booking.user.fcmToken,
+        title: "Booking Accepted!",
+        body: `Your booking (ID: ${bookingId}) has been accepted by a service provider.`,
+        data: {
+          type: "order_accepted",
+          bookingId: String(bookingId),
+          groupId: String(groupId),
+        },
+      }).catch((err) => console.error("Notification error:", err));
+    }
 
     res.json({
       message: "Booking accepted successfully",

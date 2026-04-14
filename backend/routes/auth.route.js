@@ -57,6 +57,7 @@ router.delete(
 router.put("/location", authenticated, authcontroller.updateProviderLocation);
 router.get("/me/services", authenticated, authcontroller.getMyServices);
 router.put("/me/services", authenticated, authcontroller.updateMyServices);
+router.post("/update-fcm", authenticated, authcontroller.updateFCMToken);
 router.post("/admin-login", authcontroller.adminLogin); // Create
 router.get("/admin-me", authcontroller.addminnme);
 module.exports = router;

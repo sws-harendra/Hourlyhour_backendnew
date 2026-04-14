@@ -63,6 +63,10 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.DOUBLE,
         allowNull: true,
       },
+      fcmToken: {
+        type: DataTypes.STRING,
+        allowNull: true,
+      },
     },
     {
       tableName: "Users",

@@ -804,4 +804,30 @@ module.exports = {
   updateMyServices,
   adminLogin,
   addminnme,
+  updateFCMToken: async (req, res) => {
+    try {
+      const { fcmToken } = req.body;
+      const userId = req.user.id;
+
+      if (!fcmToken) {
+        return res.status(400).json({ success: false, message: "fcmToken is required" });
+      }
+
+      const user = await User.findByPk(userId);
+      if (!user) {
+        return res.status(404).json({ success: false, message: "User not found" });
+      }
+
+      user.fcmToken = fcmToken;
+      await user.save();
+
+      return res.json({
+        success: true,
+        message: "FCM token updated successfully",
+      });
+    } catch (error) {
+      console.error("Error updating FCM token:", error);
+      res.status(500).json({ success: false, message: "Internal server error" });
+    }
+  },
 };

@@ -94,6 +94,11 @@ const menuItems = [
     path: "/service-request",
     children: [{ name: "Service Request", path: "/service-request" }],
   },
+  {
+    name: "Notifications",
+    icon: BellRing,
+    path: "/notifications",
+  },
   // { name: "Tickets", icon: Users, path: "/tickets" },
 ];
 
