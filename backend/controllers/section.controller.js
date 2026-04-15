@@ -1,5 +1,5 @@
 // controllers/sectionController.js
-const { Section, Service } = require("../models");
+const { Section, Service, Category, Warranty } = require("../models");
 const {
   resolveServiceAreaContext,
   getAreaPriceMap,
@@ -33,26 +33,69 @@ exports.getSections = async (req, res) => {
       include: [
         {
           model: Service,
-          through: { attributes: [] }, // hide join table
+          through: { attributes: [] },
+          include: [
+            {
+              model: Category,
+              as: "category",
+              attributes: ["id", "name", "image"],
+            },
+            {
+              model: Service,
+              as: "relatedServices",
+              attributes: ["id", "title", "price", "mainimage"],
+              through: { attributes: [] },
+            },
+            {
+              model: Warranty,
+              as: "warranties",
+              where: { status: "active" },
+              required: false,
+            },
+          ],
         },
       ],
     });
 
-    const allServices = sections.flatMap((section) => section.Services || []);
+    const allMainServices = sections.flatMap(
+      (section) => section.Services || section.services || [],
+    );
+    const allRelatedServices = allMainServices.flatMap(
+      (service) => service.relatedServices || [],
+    );
+
     const areaPriceMap = await getAreaPriceMap(
-      allServices.map((service) => service.id),
+      allMainServices.map((service) => service.id),
+      areaContext.matchedArea?.id,
+    );
+
+    const relatedAreaPriceMap = await getAreaPriceMap(
+      allRelatedServices.map((service) => service.id),
       areaContext.matchedArea?.id,
     );
 
     const enrichedSections = sections.map((section) => {
       const plainSection = section.get ? section.get({ plain: true }) : section;
+      const sectionServices =
+        plainSection.Services || plainSection.services || [];
+
       return {
         ...plainSection,
-        Services: (plainSection.Services || []).map((service) =>
+        services: sectionServices.map((service) =>
           serializeServiceWithAreaPrice(
             service,
             areaContext.matchedArea,
             areaPriceMap.get(String(service.id)),
+            relatedAreaPriceMap,
+          ),
+        ),
+        // Keep capitalized version for compatibility if needed
+        Services: sectionServices.map((service) =>
+          serializeServiceWithAreaPrice(
+            service,
+            areaContext.matchedArea,
+            areaPriceMap.get(String(service.id)),
+            relatedAreaPriceMap,
           ),
         ),
       };
@@ -68,7 +111,31 @@ exports.getSectionById = async (req, res) => {
   try {
     const areaContext = await resolveServiceAreaContext(req);
     const section = await Section.findByPk(req.params.id, {
-      include: [{ model: Service }],
+      include: [
+        {
+          model: Service,
+          through: { attributes: [] },
+          include: [
+            {
+              model: Category,
+              as: "category",
+              attributes: ["id", "name", "image"],
+            },
+            {
+              model: Service,
+              as: "relatedServices",
+              attributes: ["id", "title", "price", "mainimage"],
+              through: { attributes: [] },
+            },
+            {
+              model: Warranty,
+              as: "warranties",
+              where: { status: "active" },
+              required: false,
+            },
+          ],
+        },
+      ],
     });
 
     if (!section)
@@ -77,8 +144,18 @@ exports.getSectionById = async (req, res) => {
         .json({ success: false, message: "Section not found" });
 
     const plainSection = section.get ? section.get({ plain: true }) : section;
+    const sectionServices =
+      plainSection.Services || plainSection.services || [];
+
     const areaPriceMap = await getAreaPriceMap(
-      (plainSection.Services || []).map((service) => service.id),
+      sectionServices.map((service) => service.id),
+      areaContext.matchedArea?.id,
+    );
+
+    const relatedAreaPriceMap = await getAreaPriceMap(
+      sectionServices
+        .flatMap((s) => s.relatedServices || [])
+        .map((rs) => rs.id),
       areaContext.matchedArea?.id,
     );
 
@@ -86,11 +163,20 @@ exports.getSectionById = async (req, res) => {
       success: true,
       section: {
         ...plainSection,
-        Services: (plainSection.Services || []).map((service) =>
+        services: sectionServices.map((service) =>
           serializeServiceWithAreaPrice(
             service,
             areaContext.matchedArea,
             areaPriceMap.get(String(service.id)),
+            relatedAreaPriceMap,
+          ),
+        ),
+        Services: sectionServices.map((service) =>
+          serializeServiceWithAreaPrice(
+            service,
+            areaContext.matchedArea,
+            areaPriceMap.get(String(service.id)),
+            relatedAreaPriceMap,
           ),
         ),
       },
