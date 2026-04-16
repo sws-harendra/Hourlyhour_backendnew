@@ -125,7 +125,7 @@ export default function Sidebar() {
       </div>
 
       {/* Navigation */}
-      <nav className="flex-1 px-4 py-6 space-y-1">
+      <nav className="flex-1 px-4 py-6 space-y-1 overflow-y-auto no-scrollbar scroll-smooth">
         {menuItems.map((item, idx) => {
           const Icon = item.icon;
 
@@ -135,10 +135,9 @@ export default function Sidebar() {
                 key={idx}
                 to={item.path}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 rounded-xl px-4 py-3 font-medium transition-all duration-200 ${
-                    isActive
-                      ? "bg-blue-600 text-white shadow-lg shadow-blue-500/30"
-                      : "text-slate-300 hover:bg-slate-800/50 hover:text-white"
+                  `flex items-center gap-3 rounded-xl px-4 py-3 font-medium transition-all duration-200 ${isActive
+                    ? "bg-blue-600 text-white shadow-lg shadow-blue-500/30"
+                    : "text-slate-300 hover:bg-slate-800/50 hover:text-white"
                   }`
                 }
               >
@@ -153,11 +152,10 @@ export default function Sidebar() {
               {/* Parent Menu */}
               <button
                 onClick={() => toggleMenu(item.name)}
-                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-left transition-all duration-200 ${
-                  openMenu === item.name
-                    ? "bg-slate-800 text-white"
-                    : "text-slate-300 hover:bg-slate-800/50"
-                }`}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-left transition-all duration-200 ${openMenu === item.name
+                  ? "bg-slate-800 text-white"
+                  : "text-slate-300 hover:bg-slate-800/50"
+                  }`}
               >
                 <div className="flex items-center gap-3">
                   <Icon size={20} />
@@ -173,9 +171,8 @@ export default function Sidebar() {
 
               {/* Child Items */}
               <div
-                className={`overflow-hidden transition-all duration-300 ${
-                  openMenu === item.name ? "max-h-40" : "max-h-0"
-                }`}
+                className={`overflow-hidden transition-all duration-300 ${openMenu === item.name ? "max-h-40" : "max-h-0"
+                  }`}
               >
                 <div className="ml-8 mt-1 space-y-1 border-l border-slate-700/40 pl-4">
                   {item.children.map((child, cIdx) => (
@@ -183,10 +180,9 @@ export default function Sidebar() {
                       key={cIdx}
                       to={child.path}
                       className={({ isActive }) =>
-                        `block rounded-lg px-3 py-2 text-sm transition-colors ${
-                          isActive
-                            ? "text-blue-400"
-                            : "text-slate-400 hover:text-white"
+                        `block rounded-lg px-3 py-2 text-sm transition-colors ${isActive
+                          ? "text-blue-400"
+                          : "text-slate-400 hover:text-white"
                         }`
                       }
                     >

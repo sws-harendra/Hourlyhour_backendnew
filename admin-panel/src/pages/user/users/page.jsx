@@ -24,6 +24,8 @@ const Users = () => {
   const [loading, setLoading] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [showDelete, setShowDelete] = useState(false);
+  const [deleteUserId, setDeleteUserId] = useState(null);
   const [form, setForm] = useState({
     name: "",
     phone: "",
@@ -49,17 +51,18 @@ const Users = () => {
     setTotalPages(data.pagination.totalPages);
     setLoading(false);
   };
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this user?")) return;
 
+  const handleDelete = async () => {
     try {
-      setDeletingId(id);
-      await UserService.delete(id);
+      setDeletingId(deleteUserId);
+      await UserService.delete(deleteUserId);
       await fetchUsers();
     } catch (e) {
       console.error(e);
     } finally {
       setDeletingId(null);
+      setShowDelete(false);
+      setDeleteUserId(null);
     }
   };
 
@@ -207,11 +210,10 @@ const Users = () => {
                       </td>
                       <td className="px-6 py-4">
                         <span
-                          className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                            u.status === "active"
-                              ? "bg-green-100 text-green-700"
-                              : "bg-gray-100 text-gray-700"
-                          }`}
+                          className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${u.status === "active"
+                            ? "bg-green-100 text-green-700"
+                            : "bg-gray-100 text-gray-700"
+                            }`}
                         >
                           {u.status}
                         </span>
@@ -243,7 +245,10 @@ const Users = () => {
 
                           <Trash
                             className="cursor-pointer text-red-600 hover:scale-110"
-                            onClick={() => handleDelete(u.id)}
+                            onClick={() => {
+                              setDeleteUserId(u.id);
+                              setShowDelete(true);
+                            }}
                           />
                         </div>
                       </td>
@@ -544,11 +549,10 @@ const Users = () => {
                         Status
                       </p>
                       <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          selectedUser.status === "active"
-                            ? "bg-green-100 text-green-800"
-                            : "bg-gray-100 text-gray-800"
-                        }`}
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${selectedUser.status === "active"
+                          ? "bg-green-100 text-green-800"
+                          : "bg-gray-100 text-gray-800"
+                          }`}
                       >
                         {selectedUser.status}
                       </span>
@@ -574,11 +578,10 @@ const Users = () => {
               <button
                 onClick={() => setPage(page - 1)}
                 disabled={page === 1}
-                className={`flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg font-medium transition-all ${
-                  page === 1
-                    ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-400"
-                    : "bg-white text-gray-700 hover:bg-gray-50 hover:border-blue-300"
-                }`}
+                className={`flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg font-medium transition-all ${page === 1
+                  ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-400"
+                  : "bg-white text-gray-700 hover:bg-gray-50 hover:border-blue-300"
+                  }`}
               >
                 <ChevronLeft className="w-4 h-4" />
                 Previous
@@ -594,11 +597,10 @@ const Users = () => {
               <button
                 onClick={() => setPage(page + 1)}
                 disabled={page === totalPages}
-                className={`flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg font-medium transition-all ${
-                  page === totalPages
-                    ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-400"
-                    : "bg-white text-gray-700 hover:bg-gray-50 hover:border-blue-300"
-                }`}
+                className={`flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg font-medium transition-all ${page === totalPages
+                  ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-400"
+                  : "bg-white text-gray-700 hover:bg-gray-50 hover:border-blue-300"
+                  }`}
               >
                 Next
                 <ChevronRight className="w-4 h-4" />
@@ -737,6 +739,34 @@ const Users = () => {
           </div>
         )}
       </div>
+      {showDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
+            <h3 className="text-lg font-semibold text-gray-800 mb-2">
+              Delete User
+            </h3>
+            <p className="text-sm text-gray-600 mb-6">
+              Are you sure you want to delete this user? This action cannot be undone.
+            </p>
+
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowDelete(false)}
+                className="px-4 py-2 border rounded-lg text-gray-600"
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={handleDelete}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                {deletingId ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
