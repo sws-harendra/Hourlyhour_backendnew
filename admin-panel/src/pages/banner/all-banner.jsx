@@ -3,13 +3,15 @@ import { Image, Edit2, Trash2, Plus, X, Save } from "lucide-react";
 import { CommonService } from "../../services/common.service";
 import BannerService from "../../services/banner.service";
 import { ServiceService } from "../../services/services.service";
-
+import Delete from "../../components/Delete";
 // Mock service for demonstration
 
 const Banner = () => {
   const [banners, setBanners] = useState([]);
   const [loading, setLoading] = useState(false);
   const [services, setServices] = useState([]);
+  const [deleteId, setDeleteId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   const [form, setForm] = useState({
     image_url: "",
@@ -34,11 +36,12 @@ const Banner = () => {
       setLoading(false);
     }
   };
-  const fetchServices = async () => {    const limit = 500;
+  const fetchServices = async () => {
+    const limit = 500;
     let page = 1;
 
     try {
-      const res = await ServiceService.getAll({page, limit}); // /service/all-services
+      const res = await ServiceService.getAll({ page, limit }); // /service/all-services
       setServices(res.data.data || []);
     } catch (err) {
       console.error(err);
@@ -83,13 +86,17 @@ const Banner = () => {
     try {
       if (editId) {
         await BannerService.update(editId, form);
-        setBanners(
-          banners.map((b) => (b.id === editId ? { ...b, ...form } : b))
+        const res = await BannerService.update(editId, form);
+        const updatedBanner = res.data.data;
+
+        setBanners((prev) =>
+          prev.map((b) => (b.id === editId ? updatedBanner : b))
         );
       } else {
-        const newBanner = { ...form, id: Date.now() };
-        await BannerService.create(form);
-        setBanners([...banners, newBanner]);
+        const res = await BannerService.create(form);
+        const createdBanner = res.data.data;
+
+        setBanners((prev) => [...prev, createdBanner]);
       }
 
       setForm({ image_url: "", title: "", description: "" });
@@ -113,14 +120,17 @@ const Banner = () => {
     setShowForm(true);
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this banner?")) return;
-
+  const handleDelete = async () => {
     try {
-      await BannerService.remove(id);
-      setBanners(banners.filter((b) => b.id !== id));
+      setDeletingId(deleteId);
+      await BannerService.remove(deleteId);
+
+      setBanners((prev) => prev.filter((b) => b.id !== deleteId));
     } catch (err) {
       console.error(err);
+    } finally {
+      setDeletingId(null);
+      setDeleteId(null);
     }
   };
 
@@ -294,7 +304,9 @@ const Banner = () => {
                       Edit
                     </button>
                     <button
-                      onClick={() => handleDelete(banner.id)}
+                      onClick={() => {
+                        setDeleteId(banner.id);
+                      }}
                       className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 bg-red-50 text-red-700 rounded-xl font-medium hover:bg-red-100 transition-all duration-200"
                     >
                       <Trash2 size={16} />
@@ -330,6 +342,14 @@ const Banner = () => {
           </div>
         )}
       </div>
+      <Delete
+        open={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        onConfirm={handleDelete}
+        loading={deletingId === deleteId}
+        title="Delete Banner?"
+        description="This banner will be permanently removed."
+      />
     </div>
   );
 };

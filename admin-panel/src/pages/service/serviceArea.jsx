@@ -6,6 +6,8 @@ import "leaflet-draw";
 import { ServiceAreaService } from '../../services/serviceArea.service';
 import { useNavigate } from "react-router-dom";
 import { Pencil, Trash2 } from "lucide-react";
+import Delete from "../../components/Delete";
+
 const ServiceArea = () => {
   const navigate = useNavigate();
   const mapRef = useRef(null);
@@ -19,6 +21,7 @@ const ServiceArea = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [drawnPolygon, setDrawnPolygon] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
   const [deleteId, setDeleteId] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const topRef = useRef(null);
@@ -313,8 +316,11 @@ const ServiceArea = () => {
   const handleDelete = (id) => {
     setDeleteId(id); // open modal
   };
+
   const confirmDelete = async () => {
     try {
+      setDeletingId(deleteId);
+
       const response = await ServiceAreaService.delete(deleteId);
 
       if (response.success) {
@@ -324,10 +330,10 @@ const ServiceArea = () => {
     } catch (error) {
       setMessage("✗ Failed to delete service area");
     } finally {
+      setDeletingId(null);
       setDeleteId(null);
     }
   };
-
   const handleEdit = (area) => {
     if (!mapInstanceRef.current || !featureGroupRef.current) return;
 
@@ -558,38 +564,14 @@ const ServiceArea = () => {
           )}
         </div>
       </div>
-      {deleteId && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/60 backdrop-blur-md">
-
-          {/* Modal Box */}
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-[90%] max-w-sm text-center animate-scaleIn">
-
-            <h2 className="text-xl font-semibold text-gray-800 mb-2">
-              Delete Service Area
-            </h2>
-
-            <p className="text-gray-600 mb-6">
-              This action cannot be undone.
-            </p>
-
-            <div className="flex gap-3">
-              <button
-                onClick={() => setDeleteId(null)}
-                className="w-1/2 py-2 rounded-lg bg-gray-200 hover:bg-gray-300 transition font-medium"
-              >
-                Cancel
-              </button>
-
-              <button
-                onClick={confirmDelete}
-                className="w-1/2 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700 transition font-medium"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Delete
+        open={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        onConfirm={confirmDelete}
+        loading={deletingId === deleteId}
+        title="Delete Service Area?"
+        description="This service area will be permanently removed."
+      />
     </div>
   );
 };

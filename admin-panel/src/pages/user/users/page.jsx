@@ -10,6 +10,7 @@ import {
   Eye,
 } from "lucide-react";
 import { UserService } from "../../../services/user.service";
+import Delete from "../../../components/Delete";
 
 // Mock UserService for demo
 
@@ -24,7 +25,6 @@ const Users = () => {
   const [loading, setLoading] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [submitting, setSubmitting] = useState(false);
-  const [showDelete, setShowDelete] = useState(false);
   const [deleteUserId, setDeleteUserId] = useState(null);
   const [form, setForm] = useState({
     name: "",
@@ -61,7 +61,6 @@ const Users = () => {
       console.error(e);
     } finally {
       setDeletingId(null);
-      setShowDelete(false);
       setDeleteUserId(null);
     }
   };
@@ -223,8 +222,7 @@ const Users = () => {
                           <Eye
                             className="cursor-pointer hover:scale-110"
                             onClick={() => {
-                              setSelectedUser(u);
-                              setShowView(true);
+                              setDeleteUserId(u.id);
                             }}
                           />
 
@@ -739,34 +737,14 @@ const Users = () => {
           </div>
         )}
       </div>
-      {showDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-2">
-              Delete User
-            </h3>
-            <p className="text-sm text-gray-600 mb-6">
-              Are you sure you want to delete this user? This action cannot be undone.
-            </p>
-
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setShowDelete(false)}
-                className="px-4 py-2 border rounded-lg text-gray-600"
-              >
-                Cancel
-              </button>
-
-              <button
-                onClick={handleDelete}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-              >
-                {deletingId ? "Deleting..." : "Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Delete
+        open={!!deleteUserId}
+        onClose={() => setDeleteUserId(null)}
+        onConfirm={handleDelete}
+        loading={deletingId === deleteUserId}
+        title="Delete User?"
+        description="This user will be permanently removed."
+      />
     </div>
   );
 };

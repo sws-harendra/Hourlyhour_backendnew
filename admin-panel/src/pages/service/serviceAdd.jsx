@@ -19,26 +19,26 @@ export default function ServiceForm({ open, onClose, data, reload }) {
     isMostBooked: false,
     relatedServiceIds: [],
     mainimage: "",
-    images: [],  rateListHeading: "", // ✅ ADD THIS
+    images: [], rateListHeading: "", // ✅ ADD THIS
 
   });
 
   const [mainImageFile, setMainImageFile] = useState(null);
   const [galleryFiles, setGalleryFiles] = useState([]);
 
-useEffect(() => {
-  if (data) {
-    console.table(data.relatedServices)
-    setForm({
-      ...data,
-      categoryId: data.categoryId || "",
-      images: data.images || [],
-      relatedServiceIds: data.relatedServices
-        ? data.relatedServices.map((s) => String(s.id)) // 👈 FIX
-        : [],
-    });
-  }
-}, [data]);  const loadServices = async () => {
+  useEffect(() => {
+    if (data) {
+      console.table(data.relatedServices)
+      setForm({
+        ...data,
+        categoryId: data.categoryId || "",
+        images: data.images || [],
+        relatedServiceIds: data.relatedServices
+          ? data.relatedServices.map((s) => String(s.id)) // 👈 FIX
+          : [],
+      });
+    }
+  }, [data]); const loadServices = async () => {
     const res = await ServiceService.getAllServices({
       page: 1,
       limit: 100, // important for dropdown
@@ -173,16 +173,16 @@ useEffect(() => {
               rows="2"
             />
           </div>
-<div className="col-span-2">
-  <label className="font-medium">Rate List Heading</label>
-  <input
-    name="rateListHeading"
-    value={form.rateListHeading}
-    onChange={handleChange}
-    className="w-full mt-1 p-3 border rounded-xl"
-    placeholder="Heading for rate List sections"
-  />
-</div>
+          <div className="col-span-2">
+            <label className="font-medium">Rate List Heading</label>
+            <input
+              name="rateListHeading"
+              value={form.rateListHeading}
+              onChange={handleChange}
+              className="w-full mt-1 p-3 border rounded-xl"
+              placeholder="Heading for rate List sections"
+            />
+          </div>
           {/* Full Description */}
           <div className="col-span-2">
             <label className="font-medium">Full Description</label>

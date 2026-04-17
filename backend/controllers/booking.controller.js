@@ -715,6 +715,32 @@ const getProviderWarranties = async (req, res) => {
   }
 };
 
+const deleteBooking = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const booking = await Booking.findByPk(id);
+
+    if (!booking) {
+      return res.status(404).json({
+        message: "Booking not found",
+      });
+    }
+
+    await booking.destroy();
+
+    res.json({
+      success: true,
+      message: "Booking deleted successfully",
+    });
+  } catch (error) {
+    console.error("Delete booking error:", error);
+    res.status(500).json({
+      message: "Delete failed",
+    });
+  }
+};
+
 module.exports = {
   acceptBooking,
   startService,
@@ -728,4 +754,5 @@ module.exports = {
   getBookingAddons,
   approveAddons,
   getProviderWarranties,
+  deleteBooking,
 };

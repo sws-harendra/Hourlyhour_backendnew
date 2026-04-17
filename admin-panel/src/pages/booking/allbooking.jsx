@@ -10,6 +10,7 @@ import {
   Eye,
   Edit,
   Trash,
+  Download,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { handleDownload } from "../../utils/filedownload";
@@ -22,6 +23,7 @@ export default function AllBooking() {
 
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("");
+  const [deleteId, setDeleteId] = useState(null);
 
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -96,6 +98,18 @@ export default function AllBooking() {
       alert("Failed to download invoice");
     }
   };
+
+  const handleDelete = async () => {
+    try {
+      await BookingService.deleteBooking(deleteId);
+      setDeleteId(null);
+      load(); // refresh
+    } catch (err) {
+      console.error(err);
+      alert("Delete failed");
+    }
+  };
+
   return (
     <div className="min-h-screen bg-slate-50 p-8">
       {/* Header */}
@@ -249,8 +263,9 @@ export default function AllBooking() {
 
                               <button
                                 onClick={() => downloadGroupInvoice(group)}
-                                className="bg-blue-600 text-white px-3 py-1 rounded"
+                                className="flex items-center gap-2 bg-blue-600 text-white px-3 py-1 rounded"
                               >
+                                <Download size={16} />
                                 Download
                               </button>
                             </div>
@@ -288,12 +303,17 @@ export default function AllBooking() {
                           </Link>
 
                           {!isGrouped && (
-                            <button onClick={() => downloadSingleInvoice(b.id)}>
-                              ⬇️
+                            <button
+                              onClick={() => downloadSingleInvoice(b.id)}
+                              className="text-blue-500 hover:text-blue-700"
+                            >
+                              <Download size={18} />
                             </button>
                           )}
 
-                          <Trash size={18} />
+                          <button onClick={() => setDeleteId(b.id)}>
+                            <Trash size={18} className="text-red-500 hover:text-red-700" />
+                          </button>
                         </td>
                       </tr>
                     )),
@@ -327,6 +347,34 @@ export default function AllBooking() {
           </button>
         </div>
       </div>
+      {deleteId && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-2xl shadow-xl p-6 w-[350px] text-center">
+            <h2 className="text-lg font-semibold text-slate-800">
+              Delete Booking?
+            </h2>
+            <p className="text-sm text-slate-500 mt-2">
+              This action cannot be undone.
+            </p>
+
+            <div className="flex justify-center gap-4 mt-6">
+              <button
+                onClick={() => setDeleteId(null)}
+                className="px-4 py-2 rounded-lg border text-slate-600 hover:bg-slate-100"
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={handleDelete}
+                className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

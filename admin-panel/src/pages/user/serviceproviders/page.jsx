@@ -13,7 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { UserService } from "../../../services/user.service";
-
+import Delete from "../../../components/Delete";
 // Mock UserService for demo
 
 const ServiceProviders = () => {
@@ -28,9 +28,8 @@ const ServiceProviders = () => {
   const [loading, setLoading] = useState(false);
   const [showMap, setShowMap] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState(null);
-  const [showDelete, setShowDelete] = useState(false);
-  const [deleteId, setDeleteId] = useState(null);
-  const [deleting, setDeleting] = useState(false);
+  const [deleteUserId, setDeleteUserId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
   const [showEdit, setShowEdit] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [form, setForm] = useState({
@@ -67,19 +66,18 @@ const ServiceProviders = () => {
 
   const handleDelete = async () => {
     try {
-      setDeleting(true);
-      await UserService.delete(deleteId);
+      setDeletingId(deleteUserId);
+      await UserService.delete(deleteUserId);
 
-      setUsers((prev) => prev.filter((u) => u.id !== deleteId));
-    } catch (err) {
-      console.error(err);
+      // remove from UI instantly
+      setUsers((prev) => prev.filter((u) => u.id !== deleteUserId));
+    } catch (e) {
+      console.error(e);
     } finally {
-      setDeleting(false);
-      setShowDelete(false);
-      setDeleteId(null);
+      setDeletingId(null);
+      setDeleteUserId(null);
     }
   };
-
   return (
     <div className="min-h-screen bg-linear-to-br from-blue-50 to-indigo-50 p-6">
       <div className="max-w-7xl mx-auto">
@@ -286,8 +284,7 @@ const ServiceProviders = () => {
                           </button>
                           <button
                             onClick={() => {
-                              setDeleteId(u.id);
-                              setShowDelete(true);
+                              setDeleteUserId(u.id);
                             }}
                             className="p-1.5 hover:bg-red-50 rounded-lg text-red-600 transition-colors"
                           >
@@ -402,34 +399,15 @@ const ServiceProviders = () => {
         </div>
       )}
 
-      {showDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6">
-            <h3 className="text-lg font-semibold text-gray-800 mb-2">
-              Delete Provider
-            </h3>
-            <p className="text-sm text-gray-600 mb-6">
-              Are you sure you want to delete this provider? This action cannot be undone.
-            </p>
+      <Delete
+        open={!!deleteUserId}
+        onClose={() => setDeleteUserId(null)}
+        onConfirm={handleDelete}
+        loading={deletingId === deleteUserId}
+        title="Delete User?"
+        description="This user will be permanently removed."
+      />
 
-            <div className="flex justify-end gap-3">
-              <button
-                onClick={() => setShowDelete(false)}
-                className="px-4 py-2 border rounded-lg text-gray-600"
-              >
-                Cancel
-              </button>
-
-              <button
-                onClick={handleDelete}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
-              >
-                {deleting ? "Deleting..." : "Delete"}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
       {showEdit && selectedUser && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
           <div className="bg-white w-full max-w-md rounded-xl shadow-xl border p-6">

@@ -28,4 +28,5 @@ router.get("/:id/addons", authenticated, booking.getBookingAddons);
 
 router.post("/approve-addons", authenticated, booking.approveAddons);
 router.post("/reschedule", authenticated, booking.rescheduleBooking);
+router.delete("/:id", booking.deleteBooking);
 module.exports = router;

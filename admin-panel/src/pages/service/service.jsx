@@ -16,6 +16,9 @@ import {
 import ServiceForm from "./serviceAdd";
 import { Pencil, Trash2, MoreVertical } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import Delete from "../../components/Delete";
+
+
 export default function Services() {
   const navigate = useNavigate();
   const [services, setServices] = useState([]);
@@ -25,6 +28,7 @@ export default function Services() {
   const [loading, setLoading] = useState(true);
   const [openForm, setOpenForm] = useState(false);
   const [selected, setSelected] = useState(null); // for edit later
+  const [deleteId, setDeleteId] = useState(null);
 
   const [sortBy, setSortBy] = useState("id");
   const [order, setOrder] = useState("DESC");
@@ -50,6 +54,20 @@ export default function Services() {
     };
     fetchServices();
   }, [search, page, sortBy, order]);
+
+
+  const handleDelete = async () => {
+    try {
+      await ServiceService.deleteService(deleteId);
+      setDeleteId(null);
+      load();
+    } catch (err) {
+      console.error(err);
+      alert("Delete failed");
+    } finally {
+
+    }
+  };
 
   return (
     <div className="min-h-screen bg-linear-to-br from-blue-50 via-white to-indigo-50">
@@ -287,11 +305,10 @@ export default function Services() {
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <span
-                          className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${
-                            srv.status === "active"
-                              ? "bg-green-100 text-green-800"
-                              : "bg-gray-100 text-gray-800"
-                          }`}
+                          className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${srv.status === "active"
+                            ? "bg-green-100 text-green-800"
+                            : "bg-gray-100 text-gray-800"
+                            }`}
                         >
                           {srv.status || "inactive"}
                         </span>
@@ -343,21 +360,8 @@ export default function Services() {
                           </button>
 
                           {/* Delete */}
-                          <button
-                            onClick={async () => {
-                              if (
-                                !confirm(
-                                  "Are you sure you want to delete this service?",
-                                )
-                              )
-                                return;
-                              await ServiceService.deleteService(srv.id);
-                              load();
-                            }}
-                            className="p-2 rounded-lg bg-red-50 hover:bg-red-100 text-red-600"
-                            title="Delete"
-                          >
-                            <Trash2 className="w-4 h-4" />
+                          <button onClick={() => setDeleteId(srv.id)}>
+                            <Trash2 className="w-4 h-4 text-red-500" />
                           </button>
                         </div>
                       </td>
@@ -374,11 +378,10 @@ export default function Services() {
               <button
                 onClick={() => setPage(page - 1)}
                 disabled={page === 1}
-                className={`flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg font-medium transition-all ${
-                  page === 1
-                    ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-400"
-                    : "bg-white text-gray-700 hover:bg-gray-50 hover:border-blue-300"
-                }`}
+                className={`flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg font-medium transition-all ${page === 1
+                  ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-400"
+                  : "bg-white text-gray-700 hover:bg-gray-50 hover:border-blue-300"
+                  }`}
               >
                 <ChevronLeft className="w-4 h-4" />
                 Previous
@@ -394,11 +397,10 @@ export default function Services() {
               <button
                 onClick={() => setPage(page + 1)}
                 disabled={page === totalPages}
-                className={`flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg font-medium transition-all ${
-                  page === totalPages
-                    ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-400"
-                    : "bg-white text-gray-700 hover:bg-gray-50 hover:border-blue-300"
-                }`}
+                className={`flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg font-medium transition-all ${page === totalPages
+                  ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-400"
+                  : "bg-white text-gray-700 hover:bg-gray-50 hover:border-blue-300"
+                  }`}
               >
                 Next
                 <ChevronRight className="w-4 h-4" />
@@ -412,6 +414,13 @@ export default function Services() {
         onClose={() => setOpenForm(false)}
         data={selected}
         reload={load}
+      />
+      <Delete
+        open={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        onConfirm={handleDelete}
+        title="Delete Service?"
+        description="This service will be permanently removed."
       />
     </div>
   );

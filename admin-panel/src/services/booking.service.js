@@ -39,4 +39,7 @@ export const BookingService = {
   updateGroupStatus(groupId, status) {
     return api.put(`/service/booking/group/${groupId}/status`, { status });
   },
+  deleteBooking: async (id) => {
+    return await api.delete(`/booking/${id}`);
+  },
 };
