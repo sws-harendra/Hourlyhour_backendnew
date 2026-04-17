@@ -16,6 +16,8 @@ import { Link } from "react-router-dom";
 import { handleDownload } from "../../utils/filedownload";
 import { useNavigate } from "react-router-dom";
 import { PriceUtils } from "./priceUtil";
+import Delete from "../../components/Delete";
+
 export default function AllBooking() {
   const navigate = useNavigate();
   const [bookings, setBookings] = useState([]);
@@ -347,34 +349,13 @@ export default function AllBooking() {
           </button>
         </div>
       </div>
-      {deleteId && (
-        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
-          <div className="bg-white rounded-2xl shadow-xl p-6 w-[350px] text-center">
-            <h2 className="text-lg font-semibold text-slate-800">
-              Delete Booking?
-            </h2>
-            <p className="text-sm text-slate-500 mt-2">
-              This action cannot be undone.
-            </p>
-
-            <div className="flex justify-center gap-4 mt-6">
-              <button
-                onClick={() => setDeleteId(null)}
-                className="px-4 py-2 rounded-lg border text-slate-600 hover:bg-slate-100"
-              >
-                Cancel
-              </button>
-
-              <button
-                onClick={handleDelete}
-                className="px-4 py-2 rounded-lg bg-red-600 text-white hover:bg-red-700"
-              >
-                Delete
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <Delete
+        open={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        onConfirm={handleDelete}
+        title="Delete Booking?"
+        description="This action cannot be undone."
+      />
     </div>
   );
 }

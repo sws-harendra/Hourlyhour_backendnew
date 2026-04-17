@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Eye, EyeOff, Check, AlertCircle } from "lucide-react";
 import RazorpayConfigService from "../../services/razorpayConfig.service";
+import Delete from "../../components/Delete";
 
 export default function RazorpayConfig() {
   const [form, setForm] = useState({
@@ -13,6 +14,8 @@ export default function RazorpayConfig() {
   const [saved, setSaved] = useState(false);
   const [showSecret, setShowSecret] = useState(false);
   const [showWebhook, setShowWebhook] = useState(false);
+
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   useEffect(() => {
     fetchConfig();
@@ -53,8 +56,6 @@ export default function RazorpayConfig() {
   };
 
   const handleDelete = async () => {
-    if (!confirm("Delete Razorpay configuration?")) return;
-
     try {
       await RazorpayConfigService.remove();
       setForm({ keyId: "", keySecret: "", webhookSecret: "" });
@@ -201,7 +202,7 @@ export default function RazorpayConfig() {
 
                 <button
                   type="button"
-                  onClick={handleDelete}
+                  onClick={() => setDeleteOpen(true)}
                   className="bg-red-500 text-white px-6 py-3 rounded-lg font-semibold hover:bg-red-600 focus:outline-none focus:ring-2 focus:ring-red-500 focus:ring-offset-2 transition-all"
                 >
                   Delete
@@ -220,6 +221,16 @@ export default function RazorpayConfig() {
           </div>
         </div>
       </div>
+      <Delete
+        open={deleteOpen}
+        onClose={() => setDeleteOpen(false)}
+        onConfirm={async () => {
+          await handleDelete();
+          setDeleteOpen(false);
+        }}
+        title="Delete Razorpay Configuration?"
+        description="This will permanently remove your Razorpay credentials."
+      />
     </div>
   );
 }
