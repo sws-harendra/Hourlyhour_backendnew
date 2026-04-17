@@ -8,9 +8,13 @@ import {
   Edit,
   Trash,
   Eye,
+  Download,
 } from "lucide-react";
 import { UserService } from "../../../services/user.service";
 import Delete from "../../../components/Delete";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
+
 
 // Mock UserService for demo
 
@@ -37,6 +41,9 @@ const Users = () => {
   const [showView, setShowView] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [showExport, setShowExport] = useState(false);
+  const [exportType, setExportType] = useState("all");
+  const [exportScope, setExportScope] = useState("page");
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -66,11 +73,72 @@ const Users = () => {
   };
 
   useEffect(() => {
+    console.log("IMPORT TRIGGERED"); // 👈 ADD THIS
     fetchUsers();
   }, [page, search, sort, order, limit]);
 
+  {/**-------------------------------- */ }
+  const handleExport = async () => {
+    try {
+      let dataToExport = [];
+
+      if (exportScope === "page") {
+        dataToExport = users;
+      } else {
+        const res = await UserService.getAll({
+          page: 1,
+          limit: 10000,
+          search,
+          sort,
+          order,
+        });
+        dataToExport = res.data;
+      }
+
+      // 🔥 FILTER TYPE
+      if (exportType === "user") {
+        dataToExport = dataToExport.filter((u) => u.userType === "user");
+      } else if (exportType === "provider") {
+        dataToExport = dataToExport.filter(
+          (u) => u.userType === "service_provider"
+        );
+      }
+
+      if (!dataToExport.length) {
+        alert("No data to export");
+        return;
+      }
+
+      const formatted = dataToExport.map((u) => ({
+        ID: u.id,
+        Name: u.name,
+        Phone: u.phone,
+        Email: u.email,
+        Type: u.userType,
+        Status: u.status,
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(formatted);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Users");
+
+      const buffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+
+      const blob = new Blob([buffer], {
+        type: "application/octet-stream",
+      });
+
+      saveAs(blob, "users.xlsx");
+
+      setShowExport(false);
+    } catch (err) {
+      console.error(err);
+      alert("Export failed");
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-linear-to-br bg-linear-to-b from-slate-900 via-slate-800 to-slate-900 p-6">
+    <div className="min-h-screen bg-white p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="bg-white rounded-xl shadow-sm border border-blue-100 p-6 mb-6">
@@ -88,13 +156,26 @@ const Users = () => {
                 </p>
               </div>
             </div>
-            <button
-              onClick={() => setShowAdd(true)}
-              className="flex items-center gap-2 bg-linear-to-r from-blue-600 to-indigo-600 text-white px-5 py-2.5 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg font-medium"
-            >
-              <Plus className="w-5 h-5" />
-              Add User
-            </button>
+            <div className="flex items-center gap-3">
+
+              {/* EXPORT BUTTON */}
+              <button onClick={() => setShowExport(true)}
+                className="flex items-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-lg hover:bg-green-700"
+              >
+                <Download className="w-5 h-5" />
+                Export Data
+              </button>
+
+              {/* ADD USER */}
+              <button
+                onClick={() => setShowAdd(true)}
+                className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-lg hover:bg-blue-700"
+              >
+                <Plus className="w-5 h-5" />
+                Add User
+              </button>
+
+            </div>
           </div>
         </div>
 
@@ -129,7 +210,7 @@ const Users = () => {
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-white cursor-pointer"
               >
                 <option value="name">Name</option>
-                <option value="email">Email</option>
+                <option value="phone">Phone</option>
                 <option value="createdAt">Latest</option>
               </select>
             </div>
@@ -745,6 +826,57 @@ const Users = () => {
         title="Delete User?"
         description="This user will be permanently removed."
       />
+      {showExport && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-[350px] shadow-xl">
+            <h2 className="text-lg font-semibold mb-4">Export Options</h2>
+
+            {/* Scope */}
+            <div className="mb-4">
+              <p className="text-sm font-medium mb-2">Scope</p>
+              <select
+                value={exportScope}
+                onChange={(e) => setExportScope(e.target.value)}
+                className="w-full border px-3 py-2 rounded-lg"
+              >
+                <option value="page">Current Page</option>
+                <option value="full">Full Data</option>
+              </select>
+            </div>
+
+            {/* Type */}
+            <div className="mb-4">
+              <p className="text-sm font-medium mb-2">User Type</p>
+              <select
+                value={exportType}
+                onChange={(e) => setExportType(e.target.value)}
+                className="w-full border px-3 py-2 rounded-lg"
+              >
+                <option value="all">All</option>
+                <option value="user">Users</option>
+                <option value="provider">Providers</option>
+              </select>
+            </div>
+
+            {/* Buttons */}
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowExport(false)}
+                className="px-4 py-2 border rounded-lg"
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={handleExport}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg"
+              >
+                Export
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

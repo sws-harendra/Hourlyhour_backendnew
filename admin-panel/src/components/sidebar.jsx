@@ -21,6 +21,7 @@ import {
   Star,
   Shield,
 } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 const menuItems = [
   {
@@ -107,6 +108,20 @@ export default function Sidebar() {
 
   const toggleMenu = (name) => {
     setOpenMenu(openMenu === name ? null : name);
+  };
+
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    // 🔥 clear auth data
+    localStorage.removeItem("token");   // adjust if different
+    localStorage.removeItem("user");
+
+    // optional
+    sessionStorage.clear();
+
+    // redirect to login
+    navigate("/login");
   };
 
   return (
@@ -198,7 +213,10 @@ export default function Sidebar() {
 
       {/* Footer */}
       <div className="border-t border-slate-700/50 px-4 py-4">
-        <button className="group flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-slate-300 transition-all duration-200 hover:bg-red-500/10 hover:text-red-400">
+        <button
+          onClick={handleLogout}
+          className="group flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-medium text-slate-300 transition-all duration-200 hover:bg-red-500/10 hover:text-red-400"
+        >
           <LogOut
             size={20}
             className="text-slate-400 group-hover:text-red-400 transition-colors"

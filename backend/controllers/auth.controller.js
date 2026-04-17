@@ -212,7 +212,11 @@ const allusers = async (req, res) => {
 
     const whereClause = search
       ? {
-        name: { [Op.like]: `%${search}%` },
+        [Op.or]: [
+          { name: { [Op.like]: `%${search}%` } },
+          { email: { [Op.like]: `%${search}%` } },
+          { phone: { [Op.like]: `%${search}%` } },
+        ],
       }
       : {};
 
