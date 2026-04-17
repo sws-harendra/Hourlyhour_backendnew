@@ -63,7 +63,7 @@ const verifyOtp = async (req, res) => {
       return res.status(400).json({ success: false, message: "OTP required" });
     if (
       (phone === "+911234567890" || phone == "+911111111111") &&
-      otp === "123456"
+      otp === "1234"
     ) {
       let user = await User.findOne({ where: { phone } });
 
