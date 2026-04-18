@@ -784,14 +784,18 @@ const ServiceArea = () => {
           )}
         </div>
       </div>
-      <Delete
-        open={!!deleteId}
-        onClose={() => setDeleteId(null)}
-        onConfirm={confirmDelete}
-        loading={deletingId === deleteId}
-        title="Delete Service Area?"
-        description="This service area will be permanently removed."
-      />
+      <div className="fixed inset-0 z-[99999] pointer-events-none">
+        <div className="pointer-events-auto">
+          <Delete
+            open={!!deleteId}
+            onClose={() => setDeleteId(null)}
+            onConfirm={confirmDelete}
+            loading={deletingId === deleteId}
+            title="Delete Service Area?"
+            description="This service area will be permanently removed."
+          />
+        </div>
+      </div>
     </div>
   );
 };

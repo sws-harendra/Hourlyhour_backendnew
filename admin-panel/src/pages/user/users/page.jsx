@@ -9,6 +9,7 @@ import {
   Trash,
   Eye,
   Download,
+  CalendarDays,
 } from "lucide-react";
 import { UserService } from "../../../services/user.service";
 import Delete from "../../../components/Delete";
@@ -44,6 +45,10 @@ const Users = () => {
   const [showExport, setShowExport] = useState(false);
   const [exportType, setExportType] = useState("all");
   const [exportScope, setExportScope] = useState("page");
+  const [showBookings, setShowBookings] = useState(false);
+  const [selectedArea, setSelectedArea] = useState(null);
+  const [bookings, setBookings] = useState([]);
+  const [bookingLoading, setBookingLoading] = useState(false);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -137,6 +142,51 @@ const Users = () => {
     }
   };
 
+  const fetchBookings = async (id, type) => {
+    try {
+      setBookingLoading(true);
+
+      let url = "";
+
+      if (type === "user") {
+        url = `/api/bookings?userId=${id}`;
+      } else {
+        url = `/api/bookings?providerId=${id}`;
+      }
+
+      const res = await fetch(url);
+      const data = await res.json();
+
+      setBookings(data || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setBookingLoading(false);
+    }
+  };
+
+  const handleViewBookings = async (user) => {
+    setSelectedUser(user);
+    setShowBookings(true);
+
+    await fetchBookings(user.id, user.userType);
+  };
+
+  const groupBookings = (data) => {
+    const grouped = {};
+
+    data.forEach((b) => {
+      const key = b.userName || "Unknown User";
+
+      if (!grouped[key]) {
+        grouped[key] = [];
+      }
+
+      grouped[key].push(b);
+    });
+
+    return grouped;
+  };
   return (
     <div className="min-h-screen bg-white p-6">
       <div className="max-w-7xl mx-auto">
@@ -329,6 +379,10 @@ const Users = () => {
                               setDeleteUserId(u.id);
                               setShowDelete(true);
                             }}
+                          />
+                          <CalendarDays
+                            className="cursor-pointer text-green-600 hover:scale-110"
+                            onClick={() => handleViewBookings(u)}
                           />
                         </div>
                       </td>
@@ -875,6 +929,81 @@ const Users = () => {
                 Export
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/*Bookings */}
+      {showBookings && (
+        <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/50">
+
+          <div className="bg-white w-full max-w-3xl rounded-xl shadow-xl">
+            <div className="mb-4 text-sm text-gray-600">
+              Total Bookings: <span className="font-semibold text-black">{bookings.length}</span>
+            </div>
+            {/* HEADER */}
+            <div className="flex items-center justify-between px-6 py-4 border-b">
+              <h2 className="text-lg font-semibold text-gray-800">
+                Bookings - {selectedUser?.name}
+              </h2>
+
+              <button
+                onClick={() => setShowBookings(false)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                ✕
+              </button>
+            </div>
+
+            {/* CONTENT */}
+            <div className="p-6 max-h-[400px] overflow-y-auto">
+
+              {/* TEMP EMPTY */}
+              {bookingLoading ? (
+                <div className="flex justify-center py-10">
+                  <div className="w-8 h-8 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                </div>
+              ) : bookings.length === 0 ? (
+                <p className="text-gray-500 text-center">No bookings found</p>
+              ) : (
+                Object.entries(groupBookings(bookings)).map(([user, items]) => (
+                  <div key={user} className="mb-4 border rounded-lg p-3">
+
+                    {/* USER HEADER */}
+                    <div className="font-semibold text-gray-800 mb-2">
+                      👤 {user} ({items.length})
+                    </div>
+
+                    {/* BOOKINGS LIST */}
+                    <div className="space-y-2">
+                      {items.map((b, i) => (
+                        <div
+                          key={i}
+                          className="text-sm bg-gray-50 px-3 py-2 rounded flex justify-between"
+                        >
+                          <span>{b.serviceName || "Service"}</span>
+                          <span className="text-gray-500">
+                            {b.date || "Date"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+
+                  </div>
+                ))
+              )}
+
+            </div>
+
+            {/* FOOTER */}
+            <div className="px-6 py-4 border-t flex justify-end">
+              <button
+                onClick={() => setShowBookings(false)}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+              >
+                Close
+              </button>
+            </div>
+
           </div>
         </div>
       )}
