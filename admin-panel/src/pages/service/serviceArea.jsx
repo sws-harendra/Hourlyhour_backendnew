@@ -28,6 +28,10 @@ const ServiceArea = () => {
   const editingLayerRef = useRef(null);
   const [searchText, setSearchText] = useState("");
   const markerRef = useRef(null);
+  const [suggestions, setSuggestions] = useState([]);
+  const [mapLoading, setMapLoading] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const debounceRef = useRef(null);
 
   // Initialize map
   useEffect(() => {
@@ -146,6 +150,9 @@ const ServiceArea = () => {
     mapInstanceRef.current = map;
     featureGroupRef.current = featureGroup;
     drawControlRef.current = drawControl;
+    map.whenReady(() => {
+      map.invalidateSize();
+    });
 
     setTimeout(() => {
       map.invalidateSize();
@@ -156,6 +163,16 @@ const ServiceArea = () => {
       mapInstanceRef.current = null;
     };
   }, []);
+
+  useEffect(() => {
+    if (!message) return;
+
+    const timer = setTimeout(() => {
+      setMessage("");
+    }, 3000); // 3 sec
+
+    return () => clearTimeout(timer);
+  }, [message]);
 
   // Fetch service areas
   const fetchServiceAreas = async () => {
@@ -336,6 +353,7 @@ const ServiceArea = () => {
       setDeleteId(null);
     }
   };
+
   const handleEdit = (area) => {
     if (!mapInstanceRef.current || !featureGroupRef.current) return;
 
@@ -345,7 +363,6 @@ const ServiceArea = () => {
 
     featureGroupRef.current.clearLayers();
 
-    // 🔥 FIX: parse string to object
     const polygonData = JSON.parse(area.polygon);
 
     const geoLayer = L.geoJSON(polygonData, {
@@ -358,20 +375,35 @@ const ServiceArea = () => {
 
     geoLayer.eachLayer((layer) => {
       featureGroupRef.current.addLayer(layer);
-
       editingLayerRef.current = layer;
-
-      if (layer.editing) {
-        layer.editing.enable();
-      }
     });
 
-    mapInstanceRef.current.fitBounds(geoLayer.getBounds());
+    const map = mapInstanceRef.current;
+
+    map.fitBounds(geoLayer.getBounds());
 
     setDrawnPolygon(polygonData);
 
+    // 🔥 IMPORTANT: trigger edit mode via control
     setTimeout(() => {
-      mapInstanceRef.current.invalidateSize();
+      map.invalidateSize();
+
+      if (drawControlRef.current) {
+        map.removeControl(drawControlRef.current);
+
+        const newControl = new L.Control.Draw({
+          position: "topleft",
+          draw: false,
+          edit: {
+            featureGroup: featureGroupRef.current,
+            remove: true,
+          },
+        });
+
+        map.addControl(newControl);
+        drawControlRef.current = newControl;
+      }
+
       window.scrollTo({ top: 0, behavior: "smooth" });
     }, 300);
   };
@@ -388,12 +420,18 @@ const ServiceArea = () => {
   };
 
   const handleSearch = async () => {
-    if (!searchText) return;
+    if (!searchText.trim()) {
+      setMessage("⚠️ Please enter a location");
+      return;
+    }
+
+    setMapLoading(true);
 
     try {
       const res = await fetch(
         `https://nominatim.openstreetmap.org/search?format=json&q=${searchText}`
       );
+
       const data = await res.json();
 
       if (data && data.length > 0) {
@@ -402,29 +440,62 @@ const ServiceArea = () => {
         const map = mapInstanceRef.current;
         if (!map) return;
 
-        // 🔥 Smooth animation
-        map.flyTo([lat, lon], 15, {
-          duration: 1.5,
-        });
+        map.flyTo([lat, lon], 15, { duration: 1.5 });
 
-        // 🔥 Remove old marker
         if (markerRef.current) {
           map.removeLayer(markerRef.current);
         }
 
-        // 🔥 Add new marker
         const marker = L.marker([lat, lon]).addTo(map);
-
         marker.bindPopup(display_name).openPopup();
 
         markerRef.current = marker;
+
+        setShowDropdown(false);
+
+        // ✅ success message (optional)
+        setMessage(`📍 Found: ${display_name}`);
+
+        setTimeout(() => {
+          map.invalidateSize();
+          setMapLoading(false);
+        }, 1200);
       } else {
-        alert("Location not found");
+        setMessage("❌ Location not found");
+        setMapLoading(false);
       }
     } catch (err) {
       console.error(err);
-      alert("Search failed");
+      setMessage("❌ Search failed");
+      setMapLoading(false);
     }
+  };
+
+  const fetchSuggestions = (query) => {
+    if (!query || query.length < 3) {
+      setSuggestions([]);
+      setShowDropdown(false);
+      return;
+    }
+
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+    }
+
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/search?format=json&q=${query}&limit=5`
+        );
+
+        const data = await res.json();
+
+        setSuggestions(data);
+        setShowDropdown(true);
+      } catch (err) {
+        console.error("Suggestion error:", err);
+      }
+    }, 500); // 🔥 delay = no 429
   };
 
 
@@ -456,7 +527,7 @@ const ServiceArea = () => {
             <div className="bg-white rounded-lg shadow-lg overflow-hidden relative">
 
               {/* 🔍 SEARCH BAR */}
-              <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[1000] w-[300px]">
+              <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[1000] w-[350px]">
 
                 <div className="relative">
 
@@ -471,20 +542,73 @@ const ServiceArea = () => {
                     type="text"
                     placeholder="Search location..."
                     value={searchText}
-                    onChange={(e) => setSearchText(e.target.value)}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      setSearchText(value);
+                      fetchSuggestions(value); // 🔥 autocomplete
+                    }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         handleSearch();
                       }
                     }}
-                    className="w-full bg-white pl-10 pr-4 py-2 rounded-full border shadow focus:outline-none"
+                    className="w-full bg-white pl-10 pr-24 py-2 rounded-full border shadow focus:outline-none"
                   />
+
+                  {/* 🔥 BUTTON */}
+                  <button
+                    onClick={handleSearch}
+                    className="absolute right-1 top-1/2 -translate-y-1/2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-full text-sm"
+                  >
+                    Search
+                  </button>
+
+                  {/* 🔽 DROPDOWN */}
+                  {showDropdown && suggestions.length > 0 && (
+                    <div className="absolute mt-2 w-full bg-white border rounded-xl shadow-lg max-h-60 overflow-y-auto z-[1000]">
+                      {suggestions.map((item, index) => (
+                        <div
+                          key={index}
+                          onClick={() => {
+                            setSearchText(item.display_name);
+                            setShowDropdown(false);
+                            handleSearch();
+                          }}
+                          className="px-4 py-2 text-sm cursor-pointer hover:bg-gray-100"
+                        >
+                          {item.display_name}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                </div>
+              </div>
+              {/* MAP */}
+              <div className="relative">
+
+                {/* MAP */}
+                <div className="relative">
+
+                  {/* 🔥 WRAPPER (important) */}
+                  <div className={mapLoading ? "blur-sm" : ""}>
+                    <div ref={mapRef} className="h-[600px] w-full" />
+                  </div>
                 </div>
 
-              </div>
+                {/* 🔥 LOADER */}
+                {mapLoading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-white/40 backdrop-blur-sm z-[500]">
+                    <div className="flex flex-col items-center gap-3">
+                      <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin"></div>
+                      <p className="text-sm font-medium text-gray-700">
+                        Searching location...
+                      </p>
+                    </div>
+                  </div>
+                )}
 
-              {/* MAP */}
-              <div ref={mapRef} className="h-[600px] w-full" />
+              </div>
             </div>
           </div>
 
@@ -553,13 +677,17 @@ const ServiceArea = () => {
 
             {/* Message */}
             {message && (
-              <div
-                className={`p-3 rounded-lg text-sm ${message.includes("✗")
-                  ? "bg-red-50 text-red-700 border border-red-200"
-                  : "bg-green-50 text-green-700 border border-green-200"
-                  }`}
-              >
-                {message}
+              <div className="fixed top-6 right-6 z-[2000] animate-slide-in">
+                <div
+                  className={`px-4 py-3 rounded-lg shadow-lg text-sm font-medium ${message.includes("❌")
+                    ? "bg-red-100 text-red-700 border border-red-300"
+                    : message.includes("⚠️")
+                      ? "bg-yellow-100 text-yellow-700 border border-yellow-300"
+                      : "bg-green-100 text-green-700 border border-green-300"
+                    }`}
+                >
+                  {message}
+                </div>
               </div>
             )}
           </div>
