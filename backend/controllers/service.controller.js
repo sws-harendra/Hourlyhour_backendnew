@@ -1244,6 +1244,209 @@ const deleteRate = async (req, res) => {
     res.status(500).json({ success: false, message: error.message });
   }
 };
+
+/**
+ * 🔄 SYNC RATES TO CATEGORY
+ * Copies rates from source service to all other services in same category
+ */
+const syncRatesToCategory = async (req, res) => {
+  const transaction = await ServiceRate.sequelize.transaction();
+  try {
+    const { serviceId } = req.params;
+    const { mode } = req.body; // 'replace' or 'append'
+
+    const sourceService = await Service.findByPk(serviceId);
+    if (!sourceService) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Source service not found" });
+    }
+
+    // 1. Get source rates
+    const sourceRates = await ServiceRate.findAll({
+      where: { serviceId },
+    });
+
+    if (sourceRates.length === 0) {
+      return res
+        .status(400)
+        .json({ success: false, message: "Source service has no rates" });
+    }
+
+    // 2. Get target services in same category
+    const targetServices = await Service.findAll({
+      where: {
+        categoryId: sourceService.categoryId,
+        id: { [Op.ne]: serviceId },
+      },
+    });
+
+    for (const targetService of targetServices) {
+      // 3. Handle replace mode
+      if (mode === "replace") {
+        await ServiceRate.destroy({
+          where: { serviceId: targetService.id },
+          transaction,
+        });
+      }
+
+      // 4. Create copies
+      const newRates = sourceRates.map((rate) => ({
+        serviceId: targetService.id,
+        title: rate.title,
+        price: rate.price,
+        status: rate.status,
+      }));
+
+      await ServiceRate.bulkCreate(newRates, { transaction });
+
+      // 5. Update heading if source has one
+      if (sourceService.rateListHeading) {
+        await targetService.update(
+          { rateListHeading: sourceService.rateListHeading },
+          { transaction },
+        );
+      }
+    }
+
+    await transaction.commit();
+    res.json({
+      success: true,
+      message: `Successfully synced rates to ${targetServices.length} services`,
+    });
+  } catch (error) {
+    await transaction.rollback();
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * ➕ BULK ADD RATE
+ * Adds a new rate to all services in a category
+ */
+const bulkAddRate = async (req, res) => {
+  const transaction = await ServiceRate.sequelize.transaction();
+  try {
+    const { serviceId, title, price } = req.body;
+
+    const sourceService = await Service.findByPk(serviceId);
+    if (!sourceService) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Service not found" });
+    }
+
+    const allServices = await Service.findAll({
+      where: { categoryId: sourceService.categoryId },
+    });
+
+    const ratesToCreate = allServices.map((service) => ({
+      serviceId: service.id,
+      title,
+      price,
+    }));
+
+    await ServiceRate.bulkCreate(ratesToCreate, { transaction });
+
+    await transaction.commit();
+    res.json({
+      success: true,
+      message: `Rate added to all ${allServices.length} services in category`,
+    });
+  } catch (error) {
+    await transaction.rollback();
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * 📝 BULK UPDATE RATE
+ * Updates rates with matching title across category
+ * (Matching by title because individual services have different IDs)
+ */
+const bulkUpdateRate = async (req, res) => {
+  const transaction = await ServiceRate.sequelize.transaction();
+  try {
+    const { serviceId, oldTitle, title, price, status } = req.body;
+
+    const sourceService = await Service.findByPk(serviceId);
+    if (!sourceService) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Service not found" });
+    }
+
+    const allServices = await Service.findAll({
+      where: { categoryId: sourceService.categoryId },
+      attributes: ["id"],
+    });
+
+    const serviceIds = allServices.map((s) => s.id);
+
+    const [updatedCount] = await ServiceRate.update(
+      { title, price, status },
+      {
+        where: {
+          serviceId: serviceIds,
+          title: oldTitle,
+        },
+        transaction,
+      },
+    );
+
+    await transaction.commit();
+    res.json({
+      success: true,
+      message: `Updated ${updatedCount} rates across category`,
+    });
+  } catch (error) {
+    await transaction.rollback();
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
+/**
+ * 🗑️ BULK DELETE RATE
+ * Deletes rates with matching title across category
+ */
+const bulkDeleteRate = async (req, res) => {
+  const transaction = await ServiceRate.sequelize.transaction();
+  try {
+    const { serviceId, title } = req.body;
+
+    const sourceService = await Service.findByPk(serviceId);
+    if (!sourceService) {
+      return res
+        .status(404)
+        .json({ success: false, message: "Service not found" });
+    }
+
+    const allServices = await Service.findAll({
+      where: { categoryId: sourceService.categoryId },
+      attributes: ["id"],
+    });
+
+    const serviceIds = allServices.map((s) => s.id);
+
+    const deletedCount = await ServiceRate.destroy({
+      where: {
+        serviceId: serviceIds,
+        title: title,
+      },
+      transaction,
+    });
+
+    await transaction.commit();
+    res.json({
+      success: true,
+      message: `Deleted ${deletedCount} rates across category`,
+    });
+  } catch (error) {
+    await transaction.rollback();
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // controllers/service.controller.js
 
 const getRelatedServices = async (req, res) => {
@@ -1348,4 +1551,10 @@ module.exports = {
   assignProviderToGroup,
   getGroupBookings,
   updateGroupStatus,
+
+  // BULK ACTIONS
+  syncRatesToCategory,
+  bulkAddRate,
+  bulkUpdateRate,
+  bulkDeleteRate,
 };

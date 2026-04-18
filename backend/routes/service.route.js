@@ -62,6 +62,20 @@ router.put("/booking/:id/status", service.statusUpdate);
 
 // rate list
 
+// BULK ACTIONS
+router.post(
+  "/rate-list/sync-to-category/:serviceId",
+  adminAuthenticated,
+  service.syncRatesToCategory,
+);
+router.post("/rate-list/bulk-add", adminAuthenticated, service.bulkAddRate);
+router.put("/rate-list/bulk-update", adminAuthenticated, service.bulkUpdateRate);
+router.post(
+  "/rate-list/bulk-delete",
+  adminAuthenticated,
+  service.bulkDeleteRate,
+);
+
 router.get("/rate-list", adminAuthenticated, service.getRates);
 router.post("/add-rate-list", adminAuthenticated, service.createRate);
 router.get("/rate-list/:id", adminAuthenticated, service.getRateById);
