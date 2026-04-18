@@ -116,6 +116,12 @@ const verifyOtp = async (req, res) => {
       });
     } else {
       user.lastLogin = new Date();
+
+      // 🔥 Update userType if provided
+      if (userType && user.userType !== userType) {
+        user.userType = userType;
+      }
+
       await user.save();
     }
     console.log(user);
@@ -810,12 +816,16 @@ module.exports = {
       const userId = req.user.id;
 
       if (!fcmToken) {
-        return res.status(400).json({ success: false, message: "fcmToken is required" });
+        return res
+          .status(400)
+          .json({ success: false, message: "fcmToken is required" });
       }
 
       const user = await User.findByPk(userId);
       if (!user) {
-        return res.status(404).json({ success: false, message: "User not found" });
+        return res
+          .status(404)
+          .json({ success: false, message: "User not found" });
       }
 
       user.fcmToken = fcmToken;
@@ -827,7 +837,9 @@ module.exports = {
       });
     } catch (error) {
       console.error("Error updating FCM token:", error);
-      res.status(500).json({ success: false, message: "Internal server error" });
+      res
+        .status(500)
+        .json({ success: false, message: "Internal server error" });
     }
   },
 };
