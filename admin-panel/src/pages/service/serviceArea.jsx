@@ -7,6 +7,7 @@ import { ServiceAreaService } from '../../services/serviceArea.service';
 import { useNavigate } from "react-router-dom";
 import { Pencil, Search, Trash2 } from "lucide-react";
 import Delete from "../../components/Delete";
+import "leaflet-draw";
 
 const ServiceArea = () => {
   const navigate = useNavigate();
@@ -363,7 +364,18 @@ const ServiceArea = () => {
 
     featureGroupRef.current.clearLayers();
 
-    const polygonData = JSON.parse(area.polygon);
+    let polygonData;
+
+    try {
+      polygonData =
+        typeof area.polygon === "string"
+          ? JSON.parse(area.polygon)
+          : area.polygon;
+    } catch (e) {
+      console.error("Invalid polygon data:", area.polygon);
+      setMessage("❌ Invalid polygon data");
+      return;
+    }
 
     const geoLayer = L.geoJSON(polygonData, {
       style: {
@@ -388,23 +400,31 @@ const ServiceArea = () => {
     setTimeout(() => {
       map.invalidateSize();
 
+      // 🔥 REMOVE OLD CONTROL
       if (drawControlRef.current) {
         map.removeControl(drawControlRef.current);
-
-        const newControl = new L.Control.Draw({
-          position: "topleft",
-          draw: false,
-          edit: {
-            featureGroup: featureGroupRef.current,
-            remove: true,
-          },
-        });
-
-        map.addControl(newControl);
-        drawControlRef.current = newControl;
       }
 
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      // 🔥 CREATE NEW CONTROL
+      const newControl = new L.Control.Draw({
+        position: "topleft",
+        draw: false,
+        edit: {
+          featureGroup: featureGroupRef.current,
+          remove: true,
+        },
+      });
+
+      map.addControl(newControl);
+      drawControlRef.current = newControl;
+
+      // 🔥 THIS IS THE REAL FIX
+      const editHandler = new L.EditToolbar.Edit(map, {
+        featureGroup: featureGroupRef.current,
+      });
+
+      editHandler.enable();   // ✅ FORCE EDIT MODE
+
     }, 300);
   };
 
