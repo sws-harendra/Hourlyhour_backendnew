@@ -46,4 +46,20 @@ export const ServiceService = {
   deleteRate: async (id) => {
     return await api.delete(`/service/rate-list/${id}`);
   },
+
+  // BULK ACTIONS
+  syncRatesToCategory: async (serviceId, mode = "replace") => {
+    return await api.post(`/service/rate-list/sync-to-category/${serviceId}`, {
+      mode,
+    });
+  },
+  bulkAddRate: async (data) => {
+    return await api.post("/service/rate-list/bulk-add", data);
+  },
+  bulkUpdateRate: async (data) => {
+    return await api.put("/service/rate-list/bulk-update", data);
+  },
+  bulkDeleteRate: async (data) => {
+    return await api.post("/service/rate-list/bulk-delete", data);
+  },
 };

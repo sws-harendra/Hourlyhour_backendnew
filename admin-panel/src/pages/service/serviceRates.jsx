@@ -13,7 +13,15 @@ export default function ServiceRates() {
   const [newRates, setNewRates] = useState([{ title: "", price: "" }]);
 
   const [editModal, setEditModal] = useState(false);
-  const [editRate, setEditRate] = useState({ id: "", title: "", price: "" });
+  const [editRate, setEditRate] = useState({
+    id: "",
+    title: "",
+    price: "",
+    oldTitle: "",
+  });
+
+  const [applyToCategory, setApplyToCategory] = useState(false);
+  const [syncLoading, setSyncLoading] = useState(false);
 
   const load = async () => {
     try {
@@ -47,18 +55,31 @@ export default function ServiceRates() {
 
   const handleSubmit = async () => {
     try {
-      await Promise.all(
-        newRates.map((rate) =>
-          ServiceService.addRate({
-            serviceId,
-            title: rate.title,
-            price: rate.price,
-          })
-        )
-      );
+      if (applyToCategory) {
+        await Promise.all(
+          newRates.map((rate) =>
+            ServiceService.bulkAddRate({
+              serviceId,
+              title: rate.title,
+              price: rate.price,
+            })
+          )
+        );
+      } else {
+        await Promise.all(
+          newRates.map((rate) =>
+            ServiceService.addRate({
+              serviceId,
+              title: rate.title,
+              price: rate.price,
+            })
+          )
+        );
+      }
 
       setShowModal(false);
       setNewRates([{ title: "", price: "" }]);
+      setApplyToCategory(false);
       load();
     } catch (error) {
       console.error(error);
@@ -70,33 +91,78 @@ export default function ServiceRates() {
       id: rate.id,
       title: rate.title,
       price: rate.price,
+      oldTitle: rate.title,
     });
     setEditModal(true);
   };
 
   const handleUpdate = async () => {
     try {
-      await ServiceService.updateRate(editRate.id, {
-        title: editRate.title,
-        price: editRate.price,
-      });
+      if (applyToCategory) {
+        await ServiceService.bulkUpdateRate({
+          serviceId,
+          oldTitle: editRate.oldTitle,
+          title: editRate.title,
+          price: editRate.price,
+        });
+      } else {
+        await ServiceService.updateRate(editRate.id, {
+          title: editRate.title,
+          price: editRate.price,
+        });
+      }
 
       setEditModal(false);
+      setApplyToCategory(false);
       load();
     } catch (error) {
       console.error(error);
     }
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this rate?")) return;
+  const handleDelete = async (rate) => {
+    const choice = window.confirm(
+      `Are you sure you want to delete "${rate.title}"?\n\nClick OK to confirm.\nYou will then be asked if you want to delete it from ALL services in this category.`
+    );
+
+    if (!choice) return;
+
+    const isBulk = window.confirm(
+      `Delete "${rate.title}" from ALL services in this category?\n\nOK = Yes, Delete from All\nCancel = No, Delete only from this service`
+    );
 
     try {
-      await ServiceService.deleteRate(id);
+      if (isBulk) {
+        await ServiceService.bulkDeleteRate({
+          serviceId,
+          title: rate.title,
+        });
+      } else {
+        await ServiceService.deleteRate(rate.id);
+      }
       load();
     } catch (error) {
       console.error(error);
     }
+  };
+
+  const handleSyncToCategory = async () => {
+    if (
+      !window.confirm(
+        "Are you sure you want to SYNC these rates to all other services in this category?\n\nThis will REPLACE existing rates in other services."
+      )
+    )
+      return;
+
+    setSyncLoading(true);
+    try {
+      await ServiceService.syncRatesToCategory(serviceId, "replace");
+      alert("Category rates synced successfully!");
+    } catch (error) {
+      console.error(error);
+      alert("Failed to sync category rates.");
+    }
+    setSyncLoading(false);
   };
 
   return (
@@ -108,13 +174,23 @@ export default function ServiceRates() {
           Service Rate List
         </h2>
 
-        <button
-          onClick={() => setShowModal(true)}
-          className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow"
-        >
-          <Plus size={16} />
-          Add Rate
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={handleSyncToCategory}
+            disabled={syncLoading}
+            className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg shadow disabled:opacity-50"
+          >
+            {syncLoading ? "Syncing..." : "Sync to Category"}
+          </button>
+
+          <button
+            onClick={() => setShowModal(true)}
+            className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg shadow"
+          >
+            <Plus size={16} />
+            Add Rate
+          </button>
+        </div>
       </div>
 
       {/* Table */}
@@ -158,7 +234,7 @@ export default function ServiceRates() {
                     </button>
 
                     <button
-                      onClick={() => handleDelete(rate.id)}
+                      onClick={() => handleDelete(rate)}
                       className="p-2 bg-red-100 hover:bg-red-200 rounded"
                     >
                       <Trash2 size={16} className="text-red-600" />
@@ -221,6 +297,22 @@ export default function ServiceRates() {
                   )}
                 </div>
               ))}
+
+              <div className="flex items-center gap-2 mt-4 pt-4 border-t">
+                <input
+                  type="checkbox"
+                  id="applyToCategoryAdd"
+                  checked={applyToCategory}
+                  onChange={(e) => setApplyToCategory(e.target.checked)}
+                  className="w-4 h-4 text-blue-600"
+                />
+                <label
+                  htmlFor="applyToCategoryAdd"
+                  className="text-sm text-gray-700 font-medium"
+                >
+                  Apply to all services in this category
+                </label>
+              </div>
 
               <button
                 onClick={handleAddRow}
@@ -288,6 +380,22 @@ export default function ServiceRates() {
                 }
                 className="w-full border rounded-lg px-3 py-2"
               />
+
+              <div className="flex items-center gap-2 mt-2">
+                <input
+                  type="checkbox"
+                  id="applyToCategoryEdit"
+                  checked={applyToCategory}
+                  onChange={(e) => setApplyToCategory(e.target.checked)}
+                  className="w-4 h-4 text-blue-600"
+                />
+                <label
+                  htmlFor="applyToCategoryEdit"
+                  className="text-sm text-gray-700 font-medium"
+                >
+                  Update in all services in this category (matches by title)
+                </label>
+              </div>
             </div>
 
             <div className="flex justify-end gap-3 border-t px-6 py-4">
