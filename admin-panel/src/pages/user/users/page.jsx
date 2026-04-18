@@ -15,7 +15,7 @@ import { UserService } from "../../../services/user.service";
 import Delete from "../../../components/Delete";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
-
+import { BookingService } from "../../../services/booking.service";
 
 // Mock UserService for demo
 
@@ -49,6 +49,10 @@ const Users = () => {
   const [selectedArea, setSelectedArea] = useState(null);
   const [bookings, setBookings] = useState([]);
   const [bookingLoading, setBookingLoading] = useState(false);
+  const [bookingPage, setBookingPage] = useState(1);
+  const bookingLimit = 10;
+  const totalBookingPages = Math.ceil(bookings.length / bookingLimit);
+
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -146,20 +150,23 @@ const Users = () => {
     try {
       setBookingLoading(true);
 
-      let url = "";
+      const res = await BookingService.getAll({
+        page: 1,
+        limit: 1000,
+      });
 
-      if (type === "user") {
-        url = `/api/bookings?userId=${id}`;
-      } else {
-        url = `/api/bookings?providerId=${id}`;
-      }
+      const rows = res?.data?.data || [];
 
-      const res = await fetch(url);
-      const data = await res.json();
+      const filtered = rows.filter((b) =>
+        type === "service_provider"
+          ? Number(b.providerId) === Number(id)
+          : Number(b.userId) === Number(id)
+      );
 
-      setBookings(data || []);
+      setBookings(filtered);
     } catch (err) {
       console.error(err);
+      setBookings([]);
     } finally {
       setBookingLoading(false);
     }
@@ -168,25 +175,36 @@ const Users = () => {
   const handleViewBookings = async (user) => {
     setSelectedUser(user);
     setShowBookings(true);
+    setBookingPage(1);
 
     await fetchBookings(user.id, user.userType);
   };
 
   const groupBookings = (data) => {
-    const grouped = {};
+    const map = new Map();
 
     data.forEach((b) => {
-      const key = b.userName || "Unknown User";
+      const key = b.groupId || `single-${b.id}`;
 
-      if (!grouped[key]) {
-        grouped[key] = [];
+      if (!map.has(key)) {
+        map.set(key, []);
       }
 
-      grouped[key].push(b);
+      map.get(key).push(b);
     });
 
-    return grouped;
+    return Array.from(map.entries()).map(([key, items]) => ({
+      key,
+      items,
+      isGrouped: String(key).startsWith("single-") ? false : true,
+    }));
   };
+
+  const paginatedBookings = bookings.slice(
+    (bookingPage - 1) * bookingLimit,
+    bookingPage * bookingLimit
+  );
+
   return (
     <div className="min-h-screen bg-white p-6">
       <div className="max-w-7xl mx-auto">
@@ -377,7 +395,6 @@ const Users = () => {
                             className="cursor-pointer text-red-600 hover:scale-110"
                             onClick={() => {
                               setDeleteUserId(u.id);
-                              setShowDelete(true);
                             }}
                           />
                           <CalendarDays
@@ -937,7 +954,7 @@ const Users = () => {
         <div className="fixed inset-0 z-[3000] flex items-center justify-center bg-black/50">
 
           <div className="bg-white w-full max-w-3xl rounded-xl shadow-xl">
-            <div className="mb-4 text-sm text-gray-600">
+            <div className="mb-4  p-3 text-sm text-gray-600">
               Total Bookings: <span className="font-semibold text-black">{bookings.length}</span>
             </div>
             {/* HEADER */}
@@ -965,25 +982,67 @@ const Users = () => {
               ) : bookings.length === 0 ? (
                 <p className="text-gray-500 text-center">No bookings found</p>
               ) : (
-                Object.entries(groupBookings(bookings)).map(([user, items]) => (
-                  <div key={user} className="mb-4 border rounded-lg p-3">
+                groupBookings(paginatedBookings).map(({ key, items, isGrouped }) => (
+                  <div key={key} className="mb-4 border rounded-xl overflow-hidden">
 
-                    {/* USER HEADER */}
-                    <div className="font-semibold text-gray-800 mb-2">
-                      👤 {user} ({items.length})
+                    {/* Header */}
+                    <div className="bg-blue-50 px-4 py-3 border-b flex justify-between items-center">
+                      <div className="font-semibold text-gray-800">
+                        {isGrouped ? `Group #${key}` : `Single Booking`}
+                      </div>
+
+                      <div className="text-sm text-gray-500">
+                        {items.length} Booking{items.length > 1 ? "s" : ""}
+                      </div>
                     </div>
 
-                    {/* BOOKINGS LIST */}
-                    <div className="space-y-2">
+                    {/* Items */}
+                    <div className="divide-y">
                       {items.map((b, i) => (
-                        <div
-                          key={i}
-                          className="text-sm bg-gray-50 px-3 py-2 rounded flex justify-between"
-                        >
-                          <span>{b.serviceName || "Service"}</span>
-                          <span className="text-gray-500">
-                            {b.date || "Date"}
-                          </span>
+                        <div key={i} className="p-4 bg-white">
+
+                          <div className="flex justify-between items-start gap-4">
+
+                            {/* Left */}
+                            <div>
+                              <p className="font-medium text-gray-800">
+                                Booking #{b.id}
+                              </p>
+
+                              <p className="text-sm text-gray-500 mt-1">
+                                📍 {b.location || "No location"}
+                              </p>
+
+                              <p className="text-sm text-gray-500">
+                                📅 {b.bookingDate} | ⏰ {b.bookingTime}
+                              </p>
+                            </div>
+
+                            {/* Right */}
+                            <div className="text-right">
+
+                              <p className="font-semibold text-green-600">
+                                ₹{b.priceAtBooking || 0}
+                              </p>
+
+                              <span
+                                className={`inline-block mt-2 px-2 py-1 rounded-full text-xs font-medium
+                ${b.status === "completed"
+                                    ? "bg-green-100 text-green-700"
+                                    : b.status === "cancelled"
+                                      ? "bg-red-100 text-red-700"
+                                      : b.status === "pending"
+                                        ? "bg-yellow-100 text-yellow-700"
+                                        : "bg-blue-100 text-blue-700"
+                                  }`}
+                              >
+                                {b.status}
+                              </span>
+
+                            </div>
+
+                          </div>
+
                         </div>
                       ))}
                     </div>
@@ -995,13 +1054,41 @@ const Users = () => {
             </div>
 
             {/* FOOTER */}
-            <div className="px-6 py-4 border-t flex justify-end">
+            <div className="px-6 py-4 border-t flex items-center justify-between">
+
+              {/* Pagination */}
+              <div className="flex items-center gap-3">
+
+                <button
+                  onClick={() => setBookingPage((p) => p - 1)}
+                  disabled={bookingPage === 1}
+                  className="px-3 py-2 border rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Prev
+                </button>
+
+                <span className="text-sm text-gray-600">
+                  Page {bookingPage} of {totalBookingPages || 1}
+                </span>
+
+                <button
+                  onClick={() => setBookingPage((p) => p + 1)}
+                  disabled={bookingPage === totalBookingPages || totalBookingPages === 0}
+                  className="px-3 py-2 border rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+
+              </div>
+
+              {/* Close */}
               <button
                 onClick={() => setShowBookings(false)}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
                 Close
               </button>
+
             </div>
 
           </div>
