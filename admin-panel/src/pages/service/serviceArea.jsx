@@ -5,7 +5,7 @@ import "leaflet-draw/dist/leaflet.draw.css";
 import "leaflet-draw";
 import { ServiceAreaService } from '../../services/serviceArea.service';
 import { useNavigate } from "react-router-dom";
-import { Pencil, Trash2 } from "lucide-react";
+import { Pencil, Search, Trash2 } from "lucide-react";
 import Delete from "../../components/Delete";
 
 const ServiceArea = () => {
@@ -26,6 +26,8 @@ const ServiceArea = () => {
   const [editingId, setEditingId] = useState(null);
   const topRef = useRef(null);
   const editingLayerRef = useRef(null);
+  const [searchText, setSearchText] = useState("");
+  const markerRef = useRef(null);
 
   // Initialize map
   useEffect(() => {
@@ -385,6 +387,46 @@ const ServiceArea = () => {
     }
   };
 
+  const handleSearch = async () => {
+    if (!searchText) return;
+
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${searchText}`
+      );
+      const data = await res.json();
+
+      if (data && data.length > 0) {
+        const { lat, lon, display_name } = data[0];
+
+        const map = mapInstanceRef.current;
+        if (!map) return;
+
+        // 🔥 Smooth animation
+        map.flyTo([lat, lon], 15, {
+          duration: 1.5,
+        });
+
+        // 🔥 Remove old marker
+        if (markerRef.current) {
+          map.removeLayer(markerRef.current);
+        }
+
+        // 🔥 Add new marker
+        const marker = L.marker([lat, lon]).addTo(map);
+
+        marker.bindPopup(display_name).openPopup();
+
+        markerRef.current = marker;
+      } else {
+        alert("Location not found");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Search failed");
+    }
+  };
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-6">
@@ -411,7 +453,37 @@ const ServiceArea = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Map Container */}
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+            <div className="bg-white rounded-lg shadow-lg overflow-hidden relative">
+
+              {/* 🔍 SEARCH BAR */}
+              <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[1000] w-[300px]">
+
+                <div className="relative">
+
+                  {/* ICON */}
+                  <Search
+                    size={18}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                  />
+
+                  {/* INPUT */}
+                  <input
+                    type="text"
+                    placeholder="Search location..."
+                    value={searchText}
+                    onChange={(e) => setSearchText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        handleSearch();
+                      }
+                    }}
+                    className="w-full bg-white pl-10 pr-4 py-2 rounded-full border shadow focus:outline-none"
+                  />
+                </div>
+
+              </div>
+
+              {/* MAP */}
               <div ref={mapRef} className="h-[600px] w-full" />
             </div>
           </div>

@@ -301,9 +301,10 @@ const Users = () => {
                       <td className="px-6 py-4 text-sm text-gray-600">
                         <div className="inline-flex gap-4">
                           <Eye
-                            className="cursor-pointer hover:scale-110"
+                            className="cursor-pointer text-gray-600 hover:scale-110"
                             onClick={() => {
-                              setDeleteUserId(u.id);
+                              setSelectedUser(u);
+                              setShowView(true);
                             }}
                           />
 
