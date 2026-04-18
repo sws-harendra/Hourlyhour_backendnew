@@ -213,18 +213,23 @@ const allusers = async (req, res) => {
     const search = req.query.search || "";
     const sort = req.query.sort || "id";
     const order = req.query.order || "DESC";
+    const userType = req.query.userType || "";
 
     const offset = (page - 1) * limit;
 
-    const whereClause = search
-      ? {
-        [Op.or]: [
-          { name: { [Op.like]: `%${search}%` } },
-          { email: { [Op.like]: `%${search}%` } },
-          { phone: { [Op.like]: `%${search}%` } },
-        ],
-      }
-      : {};
+    const whereClause = {};
+
+    if (search) {
+      whereClause[Op.or] = [
+        { name: { [Op.like]: `%${search}%` } },
+        { email: { [Op.like]: `%${search}%` } },
+        { phone: { [Op.like]: `%${search}%` } },
+      ];
+    }
+
+    if (userType) {
+      whereClause.userType = userType;
+    }
 
     const { count, rows } = await User.findAndCountAll({
       where: whereClause,

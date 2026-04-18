@@ -11,10 +11,12 @@ import {
   Trash,
   MapPin,
   X,
+  Star,
+  List,
 } from "lucide-react";
-import { UserService } from "../../../services/user.service";
 import Delete from "../../../components/Delete";
-// Mock UserService for demo
+import { UserService } from "../../../services/user.service";
+import { BookingService } from "../../../services/booking.service";
 
 const ServiceProviders = () => {
   const navigate = useNavigate();
@@ -40,6 +42,11 @@ const ServiceProviders = () => {
     status: "active",
   });
   const [submitting, setSubmitting] = useState(false);
+  const [showBookings, setShowBookings] = useState(false);
+  const [bookingLoading, setBookingLoading] = useState(false);
+  const [bookings, setBookings] = useState([]);
+  const [bookingPage, setBookingPage] = useState(1);
+  const bookingLimit = 10;
 
   useEffect(() => {
     const load = async () => {
@@ -78,6 +85,50 @@ const ServiceProviders = () => {
       setDeleteUserId(null);
     }
   };
+
+  const handleViewBookings = async (provider) => {
+    try {
+      setShowBookings(true);
+      setSelectedProvider(provider);
+      setBookingPage(1);
+      setBookingLoading(true);
+
+      const res = await BookingService.getAll({
+        page: 1,
+        limit: 10000,
+        providerId: provider.id,
+      });
+
+      setBookings(res?.data?.data || []);
+    } catch (err) {
+      console.error(err);
+      setBookings([]);
+    } finally {
+      setBookingLoading(false);
+    }
+  };
+
+  const groupBookings = (data) => {
+    const map = new Map();
+
+    data.forEach((b) => {
+      const key = b.groupId || `single-${b.id}`;
+
+      if (!map.has(key)) {
+        map.set(key, []);
+      }
+
+      map.get(key).push(b);
+    });
+
+    return Array.from(map.entries()).map(([key, items]) => ({
+      key,
+      items,
+      isGrouped: !String(key).startsWith("single-"),
+    }));
+  };
+
+
   return (
     <div className="min-h-screen bg-linear-to-br from-blue-50 to-indigo-50 p-6">
       <div className="max-w-7xl mx-auto">
@@ -261,10 +312,17 @@ const ServiceProviders = () => {
                             onClick={() =>
                               navigate(`/reviews?providerId=${u.id}`)
                             }
-                            className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-600 transition-colors"
+                            className="p-1.5 hover:bg-yellow-100 rounded-lg text-yellow-600 transition-colors"
                             title="View Reviews"
                           >
-                            <Eye size={18} />
+                            <Star size={18} />
+                          </button>
+                          <button
+                            onClick={() => handleViewBookings(u)}
+                            className="p-1.5 hover:bg-blue-50 rounded-lg text-blue-600 transition-colors"
+                            title="View Bookings"
+                          >
+                            <List size={18} />
                           </button>
                           <button
                             onClick={() => {
@@ -483,6 +541,148 @@ const ServiceProviders = () => {
                 {submitting ? "Updating..." : "Update"}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {showBookings && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+
+            {/* Header */}
+            <div className="px-6 py-4 border-b flex items-center justify-between bg-blue-600 text-white">
+              <div>
+                <h3 className="text-lg font-bold">
+                  Provider Bookings
+                </h3>
+                <p className="text-sm text-white/80">
+                  {selectedProvider?.name || "Provider"}
+                </p>
+              </div>
+
+              <button
+                onClick={() => setShowBookings(false)}
+                className="p-2 hover:bg-white/10 rounded-lg"
+              >
+                <X size={20} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-6 overflow-y-auto flex-1">
+
+              {bookingLoading ? (
+                <div className="py-16 text-center">
+                  Loading bookings...
+                </div>
+              ) : bookings.length === 0 ? (
+                <div className="py-16 text-center text-gray-500">
+                  No bookings found
+                </div>
+              ) : (
+                groupBookings(
+                  bookings.slice(
+                    (bookingPage - 1) * bookingLimit,
+                    bookingPage * bookingLimit
+                  )
+                ).map(({ key, items, isGrouped }) => (
+                  <div
+                    key={key}
+                    className="border rounded-xl mb-4 overflow-hidden"
+                  >
+
+                    {/* Group Header */}
+                    <div className="bg-blue-50 px-4 py-3 border-b flex justify-between">
+                      <div className="font-semibold text-gray-800">
+                        {isGrouped ? `Group #${key}` : "Single Booking"}
+                      </div>
+
+                      <div className="text-sm text-gray-500">
+                        {items.length} Booking{items.length > 1 ? "s" : ""}
+                      </div>
+                    </div>
+
+                    {/* Items */}
+                    <div className="divide-y">
+                      {items.map((b) => (
+                        <div key={b.id} className="p-4">
+
+                          <div className="flex justify-between gap-4">
+
+                            <div>
+                              <p className="font-semibold text-gray-800">
+                                Booking #{b.id}
+                              </p>
+
+                              <p className="text-sm font-medium text-purple-600 mt-1">
+                                🛠 {b.service?.title || "Service Not Available"}
+                              </p>
+
+                              <p className="text-sm text-gray-500 mt-1">
+                                📍 {b.location || "No location"}
+                              </p>
+
+                              <p className="text-sm text-gray-500">
+                                📅 {b.bookingDate}
+                              </p>
+
+                              <p className="text-sm text-gray-500">
+                                ⏰ {b.bookingTime}
+                              </p>
+                            </div>
+
+                            <div className="text-right">
+                              <p className="font-semibold text-green-600">
+                                ₹{b.priceAtBooking || 0}
+                              </p>
+
+                              <span className="inline-block mt-2 px-2 py-1 rounded-full text-xs bg-blue-100 text-blue-700">
+                                {b.status}
+                              </span>
+                            </div>
+
+                          </div>
+
+                        </div>
+                      ))}
+                    </div>
+
+                  </div>
+                ))
+              )}
+
+            </div>
+
+            {/* Footer Pagination */}
+            {!bookingLoading && bookings.length > 0 && (
+              <div className="px-6 py-4 border-t flex items-center justify-between">
+
+                <button
+                  onClick={() => setBookingPage((p) => p - 1)}
+                  disabled={bookingPage === 1}
+                  className="px-4 py-2 border rounded-lg disabled:opacity-50"
+                >
+                  Previous
+                </button>
+
+                <span className="text-sm font-medium">
+                  Page {bookingPage} of{" "}
+                  {Math.ceil(bookings.length / bookingLimit)}
+                </span>
+
+                <button
+                  onClick={() => setBookingPage((p) => p + 1)}
+                  disabled={
+                    bookingPage ===
+                    Math.ceil(bookings.length / bookingLimit)
+                  }
+                  className="px-4 py-2 border rounded-lg disabled:opacity-50"
+                >
+                  Next
+                </button>
+
+              </div>
+            )}
+
           </div>
         </div>
       )}

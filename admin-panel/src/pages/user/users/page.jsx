@@ -10,6 +10,7 @@ import {
   Eye,
   Download,
   CalendarDays,
+  List,
 } from "lucide-react";
 import { UserService } from "../../../services/user.service";
 import Delete from "../../../components/Delete";
@@ -22,6 +23,7 @@ import { BookingService } from "../../../services/booking.service";
 const Users = () => {
   const [users, setUsers] = useState([]);
   const [search, setSearch] = useState("");
+  const [userFilter, setUserFilter] = useState("user");
   const [sort, setSort] = useState("name");
   const [order, setOrder] = useState("ASC");
   const [page, setPage] = useState(1);
@@ -31,6 +33,7 @@ const Users = () => {
   const [showAdd, setShowAdd] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [deleteUserId, setDeleteUserId] = useState(null);
+  const [message, setMessage] = useState("");
   const [form, setForm] = useState({
     name: "",
     phone: "",
@@ -46,14 +49,14 @@ const Users = () => {
   const [exportType, setExportType] = useState("all");
   const [exportScope, setExportScope] = useState("page");
   const [showBookings, setShowBookings] = useState(false);
-  const [selectedArea, setSelectedArea] = useState(null);
   const [bookings, setBookings] = useState([]);
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingPage, setBookingPage] = useState(1);
   const [bookingTotalPages, setBookingTotalPages] = useState(1);
   const bookingLimit = 10;
-  const paginatedBookings = bookings;
   const [selectedBookingUser, setSelectedBookingUser] = useState(null);
+  const isProvider =
+    selectedUser?.userType?.toLowerCase()?.includes("provider");
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -63,6 +66,7 @@ const Users = () => {
       search,
       sort,
       order,
+      userType: userFilter === "all" ? "" : userFilter,
     });
     setUsers(data.data);
     setTotalPages(data.pagination.totalPages);
@@ -83,9 +87,15 @@ const Users = () => {
   };
 
   useEffect(() => {
-    console.log("IMPORT TRIGGERED"); // 👈 ADD THIS
     fetchUsers();
-  }, [page, search, sort, order, limit]);
+  }, [page, search, sort, order, limit, userFilter]);
+
+  useEffect(() => {
+    if (!message) return;
+
+    const t = setTimeout(() => setMessage(""), 2500);
+    return () => clearTimeout(t);
+  }, [message]);
 
   {/**-------------------------------- */ }
   const handleExport = async () => {
@@ -115,7 +125,7 @@ const Users = () => {
       }
 
       if (!dataToExport.length) {
-        alert("No data to export");
+        setMessage("No data to export");
         return;
       }
 
@@ -143,7 +153,7 @@ const Users = () => {
       setShowExport(false);
     } catch (err) {
       console.error(err);
-      alert("Export failed");
+      setMessage("Export failed");
     }
   };
 
@@ -156,7 +166,7 @@ const Users = () => {
         limit: bookingLimit,
       };
 
-      if (type === "service_provider") {
+      if (type?.toLowerCase()?.includes("provider")) {
         params.providerId = id;
       } else {
         params.userId = id;
@@ -250,7 +260,56 @@ const Users = () => {
 
         {/* Filters */}
         <div className="bg-white rounded-xl shadow-sm border border-blue-100 p-5 mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">{/* User Type Filter */}
+            <div className="md:col-span-3">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Filter Users
+              </label>
+
+              <div className="flex flex-wrap gap-3">
+
+                <button
+                  onClick={() => {
+                    setUserFilter("user");
+                    setPage(1);
+                  }}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition ${userFilter === "user"
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                >
+                  Users
+                </button>
+
+                <button
+                  onClick={() => {
+                    setUserFilter("service_provider");
+                    setPage(1);
+                  }}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition ${userFilter === "service_provider"
+                    ? "bg-purple-600 text-white"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                >
+                  Service Providers
+                </button>
+
+                <button
+                  onClick={() => {
+                    setUserFilter("all");
+                    setPage(1);
+                  }}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition ${userFilter === "all"
+                    ? "bg-green-600 text-white"
+                    : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                >
+                  All
+                </button>
+
+              </div>
+            </div>
             {/* Search */}
             <div className="md:col-span-1">
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -262,7 +321,10 @@ const Users = () => {
                   type="text"
                   placeholder="Search users..."
                   value={search}
-                  onChange={(e) => setSearch(e.target.value)}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setPage(1);
+                  }}
                   className="w-full pl-10 pr-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all"
                 />
               </div>
@@ -275,7 +337,10 @@ const Users = () => {
               </label>
               <select
                 value={sort}
-                onChange={(e) => setSort(e.target.value)}
+                onChange={(e) => {
+                  setSort(e.target.value);
+                  setPage(1);
+                }}
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-white cursor-pointer"
               >
                 <option value="name">Name</option>
@@ -398,8 +463,8 @@ const Users = () => {
                               setDeleteUserId(u.id);
                             }}
                           />
-                          <CalendarDays
-                            className="cursor-pointer text-green-600 hover:scale-110"
+                          <List
+                            className="cursor-pointer text-blue-600 hover:scale-110"
                             onClick={() => handleViewBookings(u)}
                           />
                         </div>
@@ -411,7 +476,7 @@ const Users = () => {
             </table>
           </div>
           {showEdit && selectedUser && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="fixed inset-0 z-[5000] flex items-center justify-center bg-black/50">
               <div className="bg-white w-full max-w-md rounded-xl shadow-xl border border-gray-200 p-6">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="text-lg font-semibold text-gray-800">
@@ -531,7 +596,9 @@ const Users = () => {
                 <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-6 py-4">
                   <div className="flex items-center justify-between">
                     <h2 className="text-xl font-semibold text-white">
-                      User Details
+                      {isProvider
+                        ? "Provider Details"
+                        : "User Details"}
                     </h2>
                     <button
                       onClick={() => setShowView(false)}
@@ -556,6 +623,51 @@ const Users = () => {
 
                 {/* Content */}
                 <div className="p-6 space-y-4">
+                  {isProvider && (
+                    <div className="mb-2 flex items-center justify-between rounded-xl border border-purple-200 bg-purple-50 px-4 py-3">
+                      <div>
+                        <p className="text-sm text-purple-700 font-medium">
+                          Service Provider Account
+                        </p>
+                        <p className="text-xs text-purple-500">
+                          Can accept & complete bookings
+                        </p>
+                      </div>
+
+                      <span className="px-3 py-1 rounded-full text-xs font-semibold bg-purple-600 text-white">
+                        PROVIDER
+                      </span>
+                    </div>
+                  )}
+                  {isProvider && (
+                    <div className="grid grid-cols-2 gap-3 mb-2">
+
+                      <div className="rounded-xl border bg-blue-50 p-4">
+                        <p className="text-xs text-blue-600 font-medium">
+                          Total Bookings
+                        </p>
+                        <p className="text-2xl font-bold text-blue-800">
+                          <span className="font-semibold text-black">
+                            {bookingTotalPages * bookingLimit}
+                          </span>
+                        </p>
+                      </div>
+
+                      <div className="rounded-xl border bg-green-50 p-4">
+                        <p className="text-xs text-green-600 font-medium">
+                          Completed
+                        </p>
+                        <p className="text-2xl font-bold text-green-800">
+                          {
+                            bookings.filter(
+                              (b) => b.status === "completed"
+                            ).length
+                          }
+                        </p>
+                      </div>
+
+                    </div>
+                  )}
                   {/* User ID */}
                   <div className="flex items-start">
                     <div className="flex-shrink-0 w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center mr-3">
@@ -956,16 +1068,26 @@ const Users = () => {
 
           <div className="bg-white w-full max-w-3xl rounded-xl shadow-xl">
             <div className="mb-4  p-3 text-sm text-gray-600">
-              Total Bookings: <span className="font-semibold text-black">{bookings.length}</span>
+              {isProvider
+                ? "Total Jobs:"
+                : "Total Bookings:"} <span className="font-semibold text-black">
+                {((bookingTotalPages - 1) * bookingLimit) + bookings.length}
+              </span>
             </div>
             {/* HEADER */}
             <div className="flex items-center justify-between px-6 py-4 border-b">
               <h2 className="text-lg font-semibold text-gray-800">
-                Bookings - {selectedUser?.name}
+                {isProvider
+                  ? `Provider Jobs - ${selectedUser?.name}`
+                  : `User Bookings - ${selectedUser?.name}`}
               </h2>
 
               <button
-                onClick={() => setShowBookings(false)}
+                onClick={() => {
+                  setShowBookings(false);
+                  setBookings([]);
+                  setBookingPage(1);
+                }}
                 className="text-gray-500 hover:text-gray-700"
               >
                 ✕
@@ -983,7 +1105,7 @@ const Users = () => {
               ) : bookings.length === 0 ? (
                 <p className="text-gray-500 text-center">No bookings found</p>
               ) : (
-                groupBookings(paginatedBookings).map(({ key, items, isGrouped }) => (
+                groupBookings(bookings).map(({ key, items, isGrouped }) => (
                   <div key={key} className="mb-4 border rounded-xl overflow-hidden">
 
                     {/* Header */}
@@ -1008,6 +1130,9 @@ const Users = () => {
                             <div>
                               <p className="font-medium text-gray-800">
                                 Booking #{b.id}
+                              </p>
+                              <p className="text-sm font-semibold text-purple-600 mt-1">
+                                🛠 {b.service?.title || b.service?.name || b.serviceName || "Service Not Available"}
                               </p>
 
                               <p className="text-sm text-gray-500 mt-1">
@@ -1108,7 +1233,11 @@ const Users = () => {
 
               {/* Close */}
               <button
-                onClick={() => setShowBookings(false)}
+                onClick={() => {
+                  setShowBookings(false);
+                  setBookings([]);
+                  setBookingPage(1);
+                }}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
                 Close
@@ -1117,6 +1246,12 @@ const Users = () => {
             </div>
 
           </div>
+        </div>
+      )}
+
+      {message && (
+        <div className="fixed top-5 right-5 z-[6000] bg-gray-900 text-white px-4 py-2 rounded-lg shadow-lg text-sm">
+          {message}
         </div>
       )}
     </div>
