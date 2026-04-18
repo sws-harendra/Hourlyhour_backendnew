@@ -570,6 +570,8 @@ const allBookings = async (req, res) => {
       limit = 10,
       search = "",
       status = "",
+      userId = "",
+      providerId = "",
       sortBy = "createdAt",
       order = "DESC",
     } = req.query;
@@ -579,6 +581,13 @@ const allBookings = async (req, res) => {
     const offset = (page - 1) * limit;
 
     const where = {};
+    if (userId) {
+      where.userId = userId;
+    }
+
+    if (providerId) {
+      where.providerId = providerId;
+    }
 
     // ✅ Status filter
     if (status) {
@@ -889,7 +898,7 @@ const statusUpdate = async (req, res) => {
       if (booking.appliedWarranty) {
         const warrantyExpiryDate = new Date(
           completedAt.getTime() +
-            booking.appliedWarranty.durationInDays * 24 * 60 * 60 * 1000,
+          booking.appliedWarranty.durationInDays * 24 * 60 * 60 * 1000,
         );
         updateData.warrantyExpiryDate = warrantyExpiryDate;
       } else {
@@ -936,7 +945,7 @@ const updateGroupStatus = async (req, res) => {
         if (booking.appliedWarranty) {
           warrantyExpiryDate = new Date(
             completedAt.getTime() +
-              booking.appliedWarranty.durationInDays * 24 * 60 * 60 * 1000,
+            booking.appliedWarranty.durationInDays * 24 * 60 * 60 * 1000,
           );
         } else {
           // 🔥 Default to 30 days warranty for bookings without explicit warranty

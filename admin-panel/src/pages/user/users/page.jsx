@@ -50,9 +50,10 @@ const Users = () => {
   const [bookings, setBookings] = useState([]);
   const [bookingLoading, setBookingLoading] = useState(false);
   const [bookingPage, setBookingPage] = useState(1);
+  const [bookingTotalPages, setBookingTotalPages] = useState(1);
   const bookingLimit = 10;
-  const totalBookingPages = Math.ceil(bookings.length / bookingLimit);
-
+  const paginatedBookings = bookings;
+  const [selectedBookingUser, setSelectedBookingUser] = useState(null);
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -146,40 +147,43 @@ const Users = () => {
     }
   };
 
-  const fetchBookings = async (id, type) => {
+  const fetchBookings = async (id, type, currentPage = 1) => {
     try {
       setBookingLoading(true);
 
-      const res = await BookingService.getAll({
-        page: 1,
-        limit: 1000,
-      });
+      const params = {
+        page: currentPage,
+        limit: bookingLimit,
+      };
 
-      const rows = res?.data?.data || [];
+      if (type === "service_provider") {
+        params.providerId = id;
+      } else {
+        params.userId = id;
+      }
 
-      const filtered = rows.filter((b) =>
-        type === "service_provider"
-          ? Number(b.providerId) === Number(id)
-          : Number(b.userId) === Number(id)
-      );
+      const res = await BookingService.getAll(params);
 
-      setBookings(filtered);
+      setBookings(res?.data?.data || []);
+      setBookingTotalPages(res?.data?.totalPages || 1);
+
     } catch (err) {
       console.error(err);
       setBookings([]);
+      setBookingTotalPages(1);
     } finally {
       setBookingLoading(false);
     }
   };
-
   const handleViewBookings = async (user) => {
     setSelectedUser(user);
+    setSelectedBookingUser(user);
+
     setShowBookings(true);
     setBookingPage(1);
 
-    await fetchBookings(user.id, user.userType);
+    await fetchBookings(user.id, user.userType, 1);
   };
-
   const groupBookings = (data) => {
     const map = new Map();
 
@@ -200,10 +204,7 @@ const Users = () => {
     }));
   };
 
-  const paginatedBookings = bookings.slice(
-    (bookingPage - 1) * bookingLimit,
-    bookingPage * bookingLimit
-  );
+
 
   return (
     <div className="min-h-screen bg-white p-6">
@@ -1060,7 +1061,19 @@ const Users = () => {
               <div className="flex items-center gap-3">
 
                 <button
-                  onClick={() => setBookingPage((p) => p - 1)}
+                  onClick={async () => {
+                    const newPage = bookingPage - 1;
+
+                    if (newPage < 1) return;
+
+                    setBookingPage(newPage);
+
+                    await fetchBookings(
+                      selectedBookingUser.id,
+                      selectedBookingUser.userType,
+                      newPage
+                    );
+                  }}
                   disabled={bookingPage === 1}
                   className="px-3 py-2 border rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
@@ -1068,12 +1081,24 @@ const Users = () => {
                 </button>
 
                 <span className="text-sm text-gray-600">
-                  Page {bookingPage} of {totalBookingPages || 1}
+                  Page {bookingPage} of {bookingTotalPages}
                 </span>
 
                 <button
-                  onClick={() => setBookingPage((p) => p + 1)}
-                  disabled={bookingPage === totalBookingPages || totalBookingPages === 0}
+                  onClick={async () => {
+                    const newPage = bookingPage + 1;
+
+                    if (newPage > bookingTotalPages) return;
+
+                    setBookingPage(newPage);
+
+                    await fetchBookings(
+                      selectedBookingUser.id,
+                      selectedBookingUser.userType,
+                      newPage
+                    );
+                  }}
+                  disabled={bookingPage === bookingTotalPages || bookingTotalPages === 0}
                   className="px-3 py-2 border rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   Next
