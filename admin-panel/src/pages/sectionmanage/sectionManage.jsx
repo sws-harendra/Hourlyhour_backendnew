@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { Plus, X } from "lucide-react";
 import { sectionService } from "../../services/section.service";
 import { ServiceService } from "../../services/services.service";
+import Delete from "../../components/Delete";
 
 export default function ManageSections() {
   const [sections, setSections] = useState([]);
@@ -13,6 +14,7 @@ export default function ManageSections() {
   const [serviceDropdownOpen, setServiceDropdownOpen] = useState(false);
   const [serviceSearch, setServiceSearch] = useState("");
   const dropdownRef = useRef(null);
+  const [deleteId, setDeleteId] = useState(null);
 
   const [form, setForm] = useState({
     title: "",
@@ -137,8 +139,6 @@ export default function ManageSections() {
   };
 
   const handleDelete = async (id) => {
-    if (!confirm("Are you sure you want to delete this section?")) return;
-
     try {
       await sectionService.deleteSection(id);
       fetchSections();
@@ -146,7 +146,6 @@ export default function ManageSections() {
       alert("Failed to delete section");
     }
   };
-
   /* ================= UI ================= */
 
   const filteredServices = useMemo(() => {
@@ -210,11 +209,10 @@ export default function ManageSections() {
                 </td>
                 <td className="px-4 py-3 text-center">
                   <span
-                    className={`px-2 py-1 rounded text-xs ${
-                      section.isActive
-                        ? "bg-green-100 text-green-700"
-                        : "bg-red-100 text-red-700"
-                    }`}
+                    className={`px-2 py-1 rounded text-xs ${section.isActive
+                      ? "bg-green-100 text-green-700"
+                      : "bg-red-100 text-red-700"
+                      }`}
                   >
                     {section.isActive ? "Active" : "Inactive"}
                   </span>
@@ -227,7 +225,7 @@ export default function ManageSections() {
                     Edit
                   </button>
                   <button
-                    onClick={() => handleDelete(section.id)}
+                    onClick={() => setDeleteId(section.id)}
                     className="text-red-600 hover:underline text-xs"
                   >
                     Delete
@@ -351,13 +349,24 @@ export default function ManageSections() {
                 {loading
                   ? "Saving..."
                   : isEdit
-                  ? "Update Section"
-                  : "Create Section"}
+                    ? "Update Section"
+                    : "Create Section"}
               </button>
             </div>
           </div>
         </div>
       )}
+
+      <Delete
+        open={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        onConfirm={async () => {
+          await handleDelete(deleteId);
+          setDeleteId(null);
+        }}
+        title="Delete Section?"
+        description="This section will be permanently removed."
+      />
     </div>
   );
 }

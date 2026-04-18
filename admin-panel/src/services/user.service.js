@@ -68,4 +68,11 @@ export const UserService = {
       return null;
     }
   },
+  importUsers: (data) => {
+    return api.post("/user/import-users", data, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+  },
 };

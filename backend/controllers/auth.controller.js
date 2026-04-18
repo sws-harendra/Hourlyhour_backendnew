@@ -63,7 +63,7 @@ const verifyOtp = async (req, res) => {
       return res.status(400).json({ success: false, message: "OTP required" });
     if (
       (phone === "+911234567890" || phone == "+911111111111") &&
-      otp === "1234"
+      otp === "12349"
     ) {
       let user = await User.findOne({ where: { phone } });
 
@@ -218,8 +218,12 @@ const allusers = async (req, res) => {
 
     const whereClause = search
       ? {
-          name: { [Op.like]: `%${search}%` },
-        }
+        [Op.or]: [
+          { name: { [Op.like]: `%${search}%` } },
+          { email: { [Op.like]: `%${search}%` } },
+          { phone: { [Op.like]: `%${search}%` } },
+        ],
+      }
       : {};
 
     const { count, rows } = await User.findAndCountAll({

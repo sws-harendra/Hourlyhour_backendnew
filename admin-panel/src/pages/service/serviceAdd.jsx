@@ -7,7 +7,7 @@ import { CommonService } from "../../services/common.service";
 export default function ServiceForm({ open, onClose, data, reload }) {
   const [categories, setCategories] = useState([]);
   const [services, setServices] = useState([]);
-
+  const [error, setError] = useState("");
   const [form, setForm] = useState({
     categoryId: "",
     title: "",
@@ -19,26 +19,26 @@ export default function ServiceForm({ open, onClose, data, reload }) {
     isMostBooked: false,
     relatedServiceIds: [],
     mainimage: "",
-    images: [],  rateListHeading: "", // ✅ ADD THIS
+    images: [], rateListHeading: "", // ✅ ADD THIS
 
   });
 
   const [mainImageFile, setMainImageFile] = useState(null);
   const [galleryFiles, setGalleryFiles] = useState([]);
 
-useEffect(() => {
-  if (data) {
-    console.table(data.relatedServices)
-    setForm({
-      ...data,
-      categoryId: data.categoryId || "",
-      images: data.images || [],
-      relatedServiceIds: data.relatedServices
-        ? data.relatedServices.map((s) => String(s.id)) // 👈 FIX
-        : [],
-    });
-  }
-}, [data]);  const loadServices = async () => {
+  useEffect(() => {
+    if (data) {
+      console.table(data.relatedServices)
+      setForm({
+        ...data,
+        categoryId: data.categoryId || "",
+        images: Array.isArray(data.images) ? data.images : [],
+        relatedServiceIds: data.relatedServices
+          ? data.relatedServices.map((s) => String(s.id)) // 👈 FIX
+          : [],
+      });
+    }
+  }, [data]); const loadServices = async () => {
     const res = await ServiceService.getAllServices({
       page: 1,
       limit: 100, // important for dropdown
@@ -63,6 +63,7 @@ useEffect(() => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
+
   const uploadMainImage = async () => {
     if (!mainImageFile) return null;
     return await CommonService.uploadfile(mainImageFile);
@@ -76,42 +77,92 @@ useEffect(() => {
     }
     return uploaded;
   };
-
-  const handleSubmit = async () => {
-    const formData = new FormData();
-
-    formData.append("categoryId", form.categoryId);
-    formData.append("title", form.title);
-    formData.append("shortDescription", form.shortDescription);
-    formData.append("fullDescription", form.fullDescription);
-    formData.append("price", form.price);
-    formData.append("rateType", form.rateType);
-    formData.append("duration", form.duration);
-    formData.append("isMostBooked", form.isMostBooked);
-    formData.append(
-      "relatedServiceIds",
-      JSON.stringify(form.relatedServiceIds)
-    );
-    formData.append("rateListHeading", form.rateListHeading)
-    // main image
-    if (mainImageFile) {
-      formData.append("mainimage", mainImageFile);
-    }
-
-    // gallery images
-    galleryFiles.forEach((file) => {
-      formData.append("images", file);
+  const resetForm = () => {
+    setForm({
+      categoryId: "",
+      title: "",
+      shortDescription: "",
+      fullDescription: "",
+      price: "",
+      rateType: "fixed",
+      duration: "",
+      isMostBooked: false,
+      relatedServiceIds: [],
+      mainimage: "",
+      images: [],
+      rateListHeading: "",
     });
 
-    if (data?.id) {
-      formData.append("id", data.id);
-      await ServiceService.updateService(data.id, formData);
-    } else {
-      await ServiceService.addService(formData);
-    }
+    setMainImageFile(null);
+    setGalleryFiles([]);
+  };
+  const handleSubmit = async () => {
+    try {
+      setError("");
 
-    reload();
-    onClose();
+      // ✅ VALIDATION
+      if (!form.categoryId) {
+        return setError("Please select a category");
+      }
+
+      if (!form.title.trim()) {
+        return setError("Title is required");
+      }
+
+      if (!form.shortDescription.trim()) {
+        return setError("Short description is required");
+      }
+
+      if (!form.price) {
+        return setError("Price is required");
+      }
+
+      if (!data && !mainImageFile && !form.mainimage) {
+        return setError("Main image is required");
+      }
+
+      const formData = new FormData();
+
+      formData.append("categoryId", form.categoryId);
+      formData.append("title", form.title);
+      formData.append("shortDescription", form.shortDescription);
+      formData.append("fullDescription", form.fullDescription);
+      formData.append("price", form.price);
+      formData.append("rateType", form.rateType);
+      formData.append("duration", form.duration);
+      formData.append("isMostBooked", form.isMostBooked);
+      formData.append(
+        "relatedServiceIds",
+        JSON.stringify(form.relatedServiceIds)
+      );
+      formData.append("rateListHeading", form.rateListHeading);
+
+      if (mainImageFile) {
+        formData.append("mainimage", mainImageFile);
+      }
+
+      galleryFiles.forEach((file) => {
+        formData.append("images", file);
+      });
+
+      // ✅ API CALL
+      if (data?.id) {
+        await ServiceService.updateService(data.id, formData);
+      } else {
+        await ServiceService.addService(formData);
+      }
+      resetForm();
+      reload();
+      onClose();
+    } catch (err) {
+      console.error(err);
+
+      // ✅ SHOW BACKEND ERROR
+      setError(
+        err.response?.data?.message ||
+        "Something went wrong. Please try again."
+      );
+    }
   };
 
   if (!open) return null;
@@ -173,16 +224,16 @@ useEffect(() => {
               rows="2"
             />
           </div>
-<div className="col-span-2">
-  <label className="font-medium">Rate List Heading</label>
-  <input
-    name="rateListHeading"
-    value={form.rateListHeading}
-    onChange={handleChange}
-    className="w-full mt-1 p-3 border rounded-xl"
-    placeholder="Heading for rate List sections"
-  />
-</div>
+          <div className="col-span-2">
+            <label className="font-medium">Rate List Heading</label>
+            <input
+              name="rateListHeading"
+              value={form.rateListHeading}
+              onChange={handleChange}
+              className="w-full mt-1 p-3 border rounded-xl"
+              placeholder="Heading for rate List sections"
+            />
+          </div>
           {/* Full Description */}
           <div className="col-span-2">
             <label className="font-medium">Full Description</label>
@@ -283,21 +334,27 @@ useEffect(() => {
             />
 
             <div className="flex gap-2 mt-2 overflow-x-auto">
-              {form.images?.map((img, i) => (
-                <img
-                  key={i}
-                  src={img}
-                  className="h-20 w-20 rounded-lg object-cover border"
-                />
-              ))}
+              {Array.isArray(form.images) &&
+                form.images.map((img, i) => (
+                  <img
+                    key={i}
+                    src={img}
+                    className="h-20 w-20 rounded-lg object-cover border"
+                  />
+                ))}
             </div>
           </div>
         </div>
-
+        {error && (
+          <div className="mt-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+            {error}
+          </div>
+        )}
         {/* Submit Button */}
         <button
           onClick={handleSubmit}
-          className="mt-6 w-full p-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700"
+          disabled={!form.title || !form.categoryId}
+          className="mt-6 w-full p-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:bg-gray-400"
         >
           {data ? "Update Service" : "Create Service"}
         </button>

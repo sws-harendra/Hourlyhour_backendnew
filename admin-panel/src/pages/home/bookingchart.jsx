@@ -15,7 +15,8 @@ const BookingsChart = ({ data }) => {
   }));
 
   return (
-    <div className="bg-white p-6 rounded-xl shadow">
+    <div className="p-6  shadow bg-slate-800/40 border border-slate-700/50 rounded-3xl  backdrop-blur-xl relative overflow-hidden  text-white ">
+
       <h2 className="text-lg font-semibold mb-4">Bookings (Last 7 Days)</h2>
 
       <ResponsiveContainer width="100%" height={300}>

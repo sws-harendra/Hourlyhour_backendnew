@@ -10,7 +10,7 @@ router.post(
   //   isAdmin("admin"),
   sectionController.createSection
 );
-router.get("/", authenticated, sectionController.getSections); // for homepage
+router.get("/", sectionController.getSections); // for homepage
 router.get("/:id", authenticated, sectionController.getSectionById);
 router.put(
   "/:id",

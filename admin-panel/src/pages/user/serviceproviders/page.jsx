@@ -13,7 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { UserService } from "../../../services/user.service";
-
+import Delete from "../../../components/Delete";
 // Mock UserService for demo
 
 const ServiceProviders = () => {
@@ -28,6 +28,18 @@ const ServiceProviders = () => {
   const [loading, setLoading] = useState(false);
   const [showMap, setShowMap] = useState(false);
   const [selectedProvider, setSelectedProvider] = useState(null);
+  const [deleteUserId, setDeleteUserId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const [showEdit, setShowEdit] = useState(false);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [form, setForm] = useState({
+    name: "",
+    phone: "",
+    email: "",
+    userType: "service_provider",
+    status: "active",
+  });
+  const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -52,6 +64,20 @@ const ServiceProviders = () => {
     load();
   }, [page, search, sort, order, limit]);
 
+  const handleDelete = async () => {
+    try {
+      setDeletingId(deleteUserId);
+      await UserService.delete(deleteUserId);
+
+      // remove from UI instantly
+      setUsers((prev) => prev.filter((u) => u.id !== deleteUserId));
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setDeletingId(null);
+      setDeleteUserId(null);
+    }
+  };
   return (
     <div className="min-h-screen bg-linear-to-br from-blue-50 to-indigo-50 p-6">
       <div className="max-w-7xl mx-auto">
@@ -192,11 +218,10 @@ const ServiceProviders = () => {
                       </td>
                       <td className="px-6 py-4">
                         <span
-                          className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                            u.status === "active"
-                              ? "bg-green-100 text-green-700"
-                              : "bg-gray-100 text-gray-700"
-                          }`}
+                          className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${u.status === "active"
+                            ? "bg-green-100 text-green-700"
+                            : "bg-gray-100 text-gray-700"
+                            }`}
                         >
                           {u.status}
                         </span>
@@ -241,10 +266,28 @@ const ServiceProviders = () => {
                           >
                             <Eye size={18} />
                           </button>
-                          <button className="p-1.5 hover:bg-blue-50 rounded-lg text-blue-600 transition-colors">
+                          <button
+                            onClick={() => {
+                              setSelectedUser(u);
+                              setForm({
+                                name: u.name ?? "",
+                                phone: u.phone ?? "",
+                                email: u.email ?? "",
+                                userType: u.userType ?? "service_provider",
+                                status: u.status ?? "active",
+                              });
+                              setShowEdit(true);
+                            }}
+                            className="p-1.5 hover:bg-blue-50 rounded-lg text-blue-600 transition-colors"
+                          >
                             <Edit size={18} />
                           </button>
-                          <button className="p-1.5 hover:bg-red-50 rounded-lg text-red-600 transition-colors">
+                          <button
+                            onClick={() => {
+                              setDeleteUserId(u.id);
+                            }}
+                            className="p-1.5 hover:bg-red-50 rounded-lg text-red-600 transition-colors"
+                          >
                             <Trash size={18} />
                           </button>
                         </div>
@@ -262,11 +305,10 @@ const ServiceProviders = () => {
               <button
                 onClick={() => setPage(page - 1)}
                 disabled={page === 1}
-                className={`flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg font-medium transition-all ${
-                  page === 1
-                    ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-400"
-                    : "bg-white text-gray-700 hover:bg-gray-50 hover:border-blue-300"
-                }`}
+                className={`flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg font-medium transition-all ${page === 1
+                  ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-400"
+                  : "bg-white text-gray-700 hover:bg-gray-50 hover:border-blue-300"
+                  }`}
               >
                 <ChevronLeft className="w-4 h-4" />
                 Previous
@@ -282,11 +324,10 @@ const ServiceProviders = () => {
               <button
                 onClick={() => setPage(page + 1)}
                 disabled={page === totalPages}
-                className={`flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg font-medium transition-all ${
-                  page === totalPages
-                    ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-400"
-                    : "bg-white text-gray-700 hover:bg-gray-50 hover:border-blue-300"
-                }`}
+                className={`flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg font-medium transition-all ${page === totalPages
+                  ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-400"
+                  : "bg-white text-gray-700 hover:bg-gray-50 hover:border-blue-300"
+                  }`}
               >
                 Next
                 <ChevronRight className="w-4 h-4" />
@@ -352,6 +393,94 @@ const ServiceProviders = () => {
                 className="px-6 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-700 font-semibold hover:bg-gray-100 transition-colors shadow-sm"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      <Delete
+        open={!!deleteUserId}
+        onClose={() => setDeleteUserId(null)}
+        onConfirm={handleDelete}
+        loading={deletingId === deleteUserId}
+        title="Delete User?"
+        description="This user will be permanently removed."
+      />
+
+      {showEdit && selectedUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+          <div className="bg-white w-full max-w-md rounded-xl shadow-xl border p-6">
+            <div className="flex justify-between mb-4">
+              <h3 className="text-lg font-semibold">Edit Provider</h3>
+              <button onClick={() => setShowEdit(false)}>✕</button>
+            </div>
+
+            <div className="space-y-4">
+              <input
+                type="text"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg"
+                placeholder="Name"
+              />
+
+              <input
+                type="text"
+                value={form.phone}
+                onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg"
+                placeholder="Phone"
+              />
+
+              <input
+                type="email"
+                value={form.email}
+                onChange={(e) => setForm({ ...form, email: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg"
+                placeholder="Email"
+              />
+
+              <select
+                value={form.status}
+                onChange={(e) => setForm({ ...form, status: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg"
+              >
+                <option value="active">Active</option>
+                <option value="inactive">Inactive</option>
+                <option value="banned">Banned</option>
+              </select>
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => setShowEdit(false)}
+                className="px-4 py-2 border rounded-lg"
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={async () => {
+                  try {
+                    setSubmitting(true);
+                    await UserService.update(selectedUser.id, form);
+                    setShowEdit(false);
+
+                    setUsers((prev) =>
+                      prev.map((u) =>
+                        u.id === selectedUser.id ? { ...u, ...form } : u
+                      )
+                    );
+                  } catch (e) {
+                    console.error(e);
+                  } finally {
+                    setSubmitting(false);
+                  }
+                }}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg"
+              >
+                {submitting ? "Updating..." : "Update"}
               </button>
             </div>
           </div>

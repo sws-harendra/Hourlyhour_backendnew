@@ -3,8 +3,10 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet-draw/dist/leaflet.draw.css";
 import "leaflet-draw";
-import axios from "axios";
+import { ServiceAreaService } from '../../services/serviceArea.service';
 import { useNavigate } from "react-router-dom";
+import { Pencil, Search, Trash2 } from "lucide-react";
+import Delete from "../../components/Delete";
 
 const ServiceArea = () => {
   const navigate = useNavigate();
@@ -19,9 +21,13 @@ const ServiceArea = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [message, setMessage] = useState("");
   const [drawnPolygon, setDrawnPolygon] = useState(null);
-
-  const API_BASE =
-    import.meta.env.VITE_SERVER_URL || "http://localhost:8008/api";
+  const [deletingId, setDeletingId] = useState(null);
+  const [deleteId, setDeleteId] = useState(null);
+  const [editingId, setEditingId] = useState(null);
+  const topRef = useRef(null);
+  const editingLayerRef = useRef(null);
+  const [searchText, setSearchText] = useState("");
+  const markerRef = useRef(null);
 
   // Initialize map
   useEffect(() => {
@@ -106,15 +112,16 @@ const ServiceArea = () => {
 
     map.on("draw:edited", (e) => {
       const layers = e.layers;
+
       layers.eachLayer((layer) => {
         if (layer instanceof L.Polygon) {
           const latlngs = layer.getLatLngs();
+
           const coordinates = latlngs[0].map((latlng) => [
             latlng.lng,
             latlng.lat,
           ]);
 
-          // Ensure polygon is closed
           if (
             JSON.stringify(coordinates[0]) !==
             JSON.stringify(coordinates[coordinates.length - 1])
@@ -128,11 +135,9 @@ const ServiceArea = () => {
           };
 
           setDrawnPolygon(polygon);
-          setMessage(`✓ Polygon updated with ${coordinates.length - 1} points`);
         }
       });
     });
-
     map.on("draw:deleted", () => {
       setDrawnPolygon(null);
       setMessage("");
@@ -141,6 +146,10 @@ const ServiceArea = () => {
     mapInstanceRef.current = map;
     featureGroupRef.current = featureGroup;
     drawControlRef.current = drawControl;
+
+    setTimeout(() => {
+      map.invalidateSize();
+    }, 200);
 
     return () => {
       map.remove();
@@ -151,9 +160,9 @@ const ServiceArea = () => {
   // Fetch service areas
   const fetchServiceAreas = async () => {
     try {
-      const response = await axios.get(`${API_BASE}/service-area`);
-      if (response.data.success) {
-        setServiceAreas(response.data.data);
+      const response = await ServiceAreaService.getAll();
+      if (response.success) {
+        setServiceAreas(response.data);
       }
     } catch (error) {
       console.error("Error fetching service areas:", error);
@@ -175,34 +184,63 @@ const ServiceArea = () => {
       return;
     }
 
-    if (!drawnPolygon) {
+    if (!editingId && !drawnPolygon) {
       setMessage("⚠️ Please draw a polygon on the map");
       return;
     }
 
     setIsLoading(true);
     try {
+      let updatedPolygon = drawnPolygon;
+
+      if (editingId && editingLayerRef.current) {
+        const latlngs = editingLayerRef.current.getLatLngs();
+
+        const coordinates = latlngs[0].map((latlng) => [
+          latlng.lng,
+          latlng.lat,
+        ]);
+
+        if (
+          JSON.stringify(coordinates[0]) !==
+          JSON.stringify(coordinates[coordinates.length - 1])
+        ) {
+          coordinates.push(coordinates[0]);
+        }
+
+        updatedPolygon = {
+          type: "Polygon",
+          coordinates: [coordinates],
+        };
+      }
+
       const payload = {
         name,
         description,
-        polygon: drawnPolygon,
+        polygon: updatedPolygon || undefined,
         isActive: true,
       };
 
-      const response = await axios.post(`${API_BASE}/service-area`, payload);
+      const response = editingId
+        ? await ServiceAreaService.update(editingId, payload)
+        : await ServiceAreaService.create(payload);
 
-      if (response.data.success) {
-        setMessage(`✓ Service area "${name}" saved successfully!`);
+      if (response.success) {
+        setMessage(
+          editingId
+            ? "✓ Service area updated successfully!"
+            : `✓ Service area "${name}" saved successfully!`
+        );
+
         setName("");
         setDescription("");
         setDrawnPolygon(null);
+        setEditingId(null);
 
-        // Clear map
         if (featureGroupRef.current) {
           featureGroupRef.current.clearLayers();
         }
 
-        // Refresh list
         await fetchServiceAreas();
       }
     } catch (error) {
@@ -221,7 +259,7 @@ const ServiceArea = () => {
     const area = calculatePolygonArea(coordinates);
 
     return (
-      <div className=" border-blue-200 rounded-lg p-4">
+      <div className=" bg-white border-blue-200 rounded-lg p-4">
         <h4 className="font-semibold text-blue-900 mb-2">Polygon Details</h4>
         <div className="grid grid-cols-2 gap-4 text-sm">
           <div>
@@ -265,8 +303,8 @@ const ServiceArea = () => {
       const a =
         Math.sin(dLat / 2) ** 2 +
         Math.cos((lat1 * Math.PI) / 180) *
-          Math.cos((lat2 * Math.PI) / 180) *
-          Math.sin(dLng / 2) ** 2;
+        Math.cos((lat2 * Math.PI) / 180) *
+        Math.sin(dLng / 2) ** 2;
 
       const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
       const distance = R * c;
@@ -277,12 +315,137 @@ const ServiceArea = () => {
     return area / 100;
   };
 
+  const handleDelete = (id) => {
+    setDeleteId(id); // open modal
+  };
+
+  const confirmDelete = async () => {
+    try {
+      setDeletingId(deleteId);
+
+      const response = await ServiceAreaService.delete(deleteId);
+
+      if (response.success) {
+        setServiceAreas((prev) => prev.filter((area) => area.id !== deleteId));
+        setMessage("✓ Service area deleted successfully");
+      }
+    } catch (error) {
+      setMessage("✗ Failed to delete service area");
+    } finally {
+      setDeletingId(null);
+      setDeleteId(null);
+    }
+  };
+  const handleEdit = (area) => {
+    if (!mapInstanceRef.current || !featureGroupRef.current) return;
+
+    setEditingId(area.id);
+    setName(area.name);
+    setDescription(area.description || "");
+
+    featureGroupRef.current.clearLayers();
+
+    // 🔥 FIX: parse string to object
+    const polygonData = JSON.parse(area.polygon);
+
+    const geoLayer = L.geoJSON(polygonData, {
+      style: {
+        color: "#2196F3",
+        weight: 2,
+        fillOpacity: 0.3,
+      },
+    });
+
+    geoLayer.eachLayer((layer) => {
+      featureGroupRef.current.addLayer(layer);
+
+      editingLayerRef.current = layer;
+
+      if (layer.editing) {
+        layer.editing.enable();
+      }
+    });
+
+    mapInstanceRef.current.fitBounds(geoLayer.getBounds());
+
+    setDrawnPolygon(polygonData);
+
+    setTimeout(() => {
+      mapInstanceRef.current.invalidateSize();
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }, 300);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingId(null);
+    setName("");
+    setDescription("");
+    setDrawnPolygon(null);
+
+    if (featureGroupRef.current) {
+      featureGroupRef.current.clearLayers();
+    }
+  };
+
+  const handleSearch = async () => {
+    if (!searchText) return;
+
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?format=json&q=${searchText}`
+      );
+      const data = await res.json();
+
+      if (data && data.length > 0) {
+        const { lat, lon, display_name } = data[0];
+
+        const map = mapInstanceRef.current;
+        if (!map) return;
+
+        // 🔥 Smooth animation
+        map.flyTo([lat, lon], 15, {
+          duration: 1.5,
+        });
+
+        // 🔥 Remove old marker
+        if (markerRef.current) {
+          map.removeLayer(markerRef.current);
+        }
+
+        // 🔥 Add new marker
+        const marker = L.marker([lat, lon]).addTo(map);
+
+        marker.bindPopup(display_name).openPopup();
+
+        markerRef.current = marker;
+      } else {
+        alert("Location not found");
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Search failed");
+    }
+  };
+
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 to-slate-800 p-6">
-      <div className="max-w-7xl mx-auto">
+      <div ref={topRef} className="max-w-7xl mx-auto">
         <h1 className="text-3xl font-bold text-white mb-2">
           Service Area Management
         </h1>
+        {editingId && (
+          <div className="flex items-center justify-between bg-yellow-100 border border-yellow-300 text-yellow-800 px-4 py-2 rounded-lg mb-4">
+            <span>✏️ You are editing a service area</span>
+
+            <button
+              onClick={handleCancelEdit}
+              className="bg-gray-600 text-white px-3 py-1 rounded-md text-sm hover:bg-gray-700 transition"
+            >
+              Cancel
+            </button>
+          </div>
+        )}
         <p className="text-slate-300 mb-6">
           Draw polygons on the map to define service areas
         </p>
@@ -290,7 +453,37 @@ const ServiceArea = () => {
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Map Container */}
           <div className="lg:col-span-2">
-            <div className="bg-white rounded-lg shadow-lg overflow-hidden">
+            <div className="bg-white rounded-lg shadow-lg overflow-hidden relative">
+
+              {/* 🔍 SEARCH BAR */}
+              <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[1000] w-[300px]">
+
+                <div className="relative">
+
+                  {/* ICON */}
+                  <Search
+                    size={18}
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+                  />
+
+                  {/* INPUT */}
+                  <input
+                    type="text"
+                    placeholder="Search location..."
+                    value={searchText}
+                    onChange={(e) => setSearchText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        handleSearch();
+                      }
+                    }}
+                    className="w-full bg-white pl-10 pr-4 py-2 rounded-full border shadow focus:outline-none"
+                  />
+                </div>
+
+              </div>
+
+              {/* MAP */}
               <div ref={mapRef} className="h-[600px] w-full" />
             </div>
           </div>
@@ -345,21 +538,26 @@ const ServiceArea = () => {
 
               <button
                 type="submit"
-                disabled={isLoading || !name || !drawnPolygon}
+                disabled={isLoading || !name || (!editingId && !drawnPolygon)}
                 className="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition"
               >
-                {isLoading ? "Saving..." : "Save Service Area"}
+                {isLoading
+                  ? editingId
+                    ? "Updating..."
+                    : "Saving..."
+                  : editingId
+                    ? "Update Service Area"
+                    : "Save Service Area"}
               </button>
             </form>
 
             {/* Message */}
             {message && (
               <div
-                className={`p-3 rounded-lg text-sm ${
-                  message.includes("✗")
-                    ? "bg-red-50 text-red-700 border border-red-200"
-                    : "bg-green-50 text-green-700 border border-green-200"
-                }`}
+                className={`p-3 rounded-lg text-sm ${message.includes("✗")
+                  ? "bg-red-50 text-red-700 border border-red-200"
+                  : "bg-green-50 text-green-700 border border-green-200"
+                  }`}
               >
                 {message}
               </div>
@@ -394,11 +592,10 @@ const ServiceArea = () => {
                   )}
                   <div className="flex items-center justify-between text-xs">
                     <span
-                      className={`px-2 py-1 rounded ${
-                        area.isActive
-                          ? "bg-green-100 text-green-700"
-                          : "bg-gray-100 text-gray-700"
-                      }`}
+                      className={`px-2 py-1 rounded ${area.isActive
+                        ? "bg-green-100 text-green-700"
+                        : "bg-gray-100 text-gray-700"
+                        }`}
                     >
                       {area.isActive ? "Active" : "Inactive"}
                     </span>
@@ -406,9 +603,30 @@ const ServiceArea = () => {
                       {area.polygon?.coordinates?.[0]?.length - 1 || 0} points
                     </span>
                   </div>
+                  <div className="mt-4 flex gap-2">
+                    {/* Edit Icon */}
+                    <button
+                      onClick={() => handleEdit(area)}
+                      className="w-1/2 flex items-center justify-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-800 transition"
+                    >
+                      <Pencil size={18} />
+                      Edit
+                    </button>
+
+                    {/* Delete Icon */}
+                    <button
+                      onClick={() => handleDelete(area.id)}
+                      className="w-1/2 flex items-center justify-center gap-2 rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700 transition"
+                    >
+                      <Trash2 size={18} />
+                      Delete
+                    </button>
+                  </div>
+
+                  {/* Keep this */}
                   <button
                     onClick={() => navigate(`/service-area/${area.id}/prices`)}
-                    className="mt-4 w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
+                    className="mt-2 w-full rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
                   >
                     Manage Pricing
                   </button>
@@ -418,6 +636,14 @@ const ServiceArea = () => {
           )}
         </div>
       </div>
+      <Delete
+        open={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        onConfirm={confirmDelete}
+        loading={deletingId === deleteId}
+        title="Delete Service Area?"
+        description="This service area will be permanently removed."
+      />
     </div>
   );
 };

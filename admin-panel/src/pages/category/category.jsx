@@ -4,12 +4,14 @@ import { CategoryService } from "../../services/category.service";
 import { useEffect } from "react";
 import { Edit2, Package, Plus, Trash2 } from "lucide-react";
 import CategoryForm from "./categoryAdd";
-
+import Delete from "../../components/Delete";
 export default function Categories() {
   const [openForm, setOpenForm] = useState(false);
   const [selected, setSelected] = useState(null);
   const [categories, setCategories] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [deleteId, setDeleteId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -20,10 +22,20 @@ export default function Categories() {
 
     setLoading(false);
   };
-  const handleDelete = async (id) => {
-    if (!confirm("Delete category?")) return;
-    await CategoryService.deleteCategory(id);
-    load();
+
+  const handleDelete = async () => {
+    try {
+      setDeletingId(deleteId);
+      await CategoryService.deleteCategory(deleteId);
+
+      // instant UI update
+      setCategories((prev) => prev.filter((c) => c.id !== deleteId));
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setDeletingId(null);
+      setDeleteId(null);
+    }
   };
 
   // Load data when component mounts
@@ -153,7 +165,9 @@ export default function Categories() {
                     </button>
 
                     <button
-                      onClick={() => handleDelete(cat.id)}
+                      onClick={() => {
+                        setDeleteId(cat.id);
+                      }}
                       className="flex items-center justify-center gap-2 px-4 py-2.5 bg-red-50 text-red-700 rounded-xl font-medium hover:bg-red-100 transition-colors duration-200"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -173,6 +187,14 @@ export default function Categories() {
           reload={load}
         />
       )}
+      <Delete
+        open={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        onConfirm={handleDelete}
+        loading={deletingId === deleteId}
+        title="Delete Category?"
+        description="This category will be permanently removed."
+      />
     </div>
   );
 }

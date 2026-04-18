@@ -8,8 +8,13 @@ import {
   Edit,
   Trash,
   Eye,
+  Download,
 } from "lucide-react";
 import { UserService } from "../../../services/user.service";
+import Delete from "../../../components/Delete";
+import * as XLSX from "xlsx";
+import { saveAs } from "file-saver";
+
 
 // Mock UserService for demo
 
@@ -24,6 +29,7 @@ const Users = () => {
   const [loading, setLoading] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [deleteUserId, setDeleteUserId] = useState(null);
   const [form, setForm] = useState({
     name: "",
     phone: "",
@@ -35,6 +41,9 @@ const Users = () => {
   const [showView, setShowView] = useState(false);
   const [showEdit, setShowEdit] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
+  const [showExport, setShowExport] = useState(false);
+  const [exportType, setExportType] = useState("all");
+  const [exportScope, setExportScope] = useState("page");
 
   const fetchUsers = async () => {
     setLoading(true);
@@ -49,26 +58,87 @@ const Users = () => {
     setTotalPages(data.pagination.totalPages);
     setLoading(false);
   };
-  const handleDelete = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this user?")) return;
 
+  const handleDelete = async () => {
     try {
-      setDeletingId(id);
-      await UserService.delete(id);
+      setDeletingId(deleteUserId);
+      await UserService.delete(deleteUserId);
       await fetchUsers();
     } catch (e) {
       console.error(e);
     } finally {
       setDeletingId(null);
+      setDeleteUserId(null);
     }
   };
 
   useEffect(() => {
+    console.log("IMPORT TRIGGERED"); // 👈 ADD THIS
     fetchUsers();
   }, [page, search, sort, order, limit]);
 
+  {/**-------------------------------- */ }
+  const handleExport = async () => {
+    try {
+      let dataToExport = [];
+
+      if (exportScope === "page") {
+        dataToExport = users;
+      } else {
+        const res = await UserService.getAll({
+          page: 1,
+          limit: 10000,
+          search,
+          sort,
+          order,
+        });
+        dataToExport = res.data;
+      }
+
+      // 🔥 FILTER TYPE
+      if (exportType === "user") {
+        dataToExport = dataToExport.filter((u) => u.userType === "user");
+      } else if (exportType === "provider") {
+        dataToExport = dataToExport.filter(
+          (u) => u.userType === "service_provider"
+        );
+      }
+
+      if (!dataToExport.length) {
+        alert("No data to export");
+        return;
+      }
+
+      const formatted = dataToExport.map((u) => ({
+        ID: u.id,
+        Name: u.name,
+        Phone: u.phone,
+        Email: u.email,
+        Type: u.userType,
+        Status: u.status,
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(formatted);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Users");
+
+      const buffer = XLSX.write(wb, { bookType: "xlsx", type: "array" });
+
+      const blob = new Blob([buffer], {
+        type: "application/octet-stream",
+      });
+
+      saveAs(blob, "users.xlsx");
+
+      setShowExport(false);
+    } catch (err) {
+      console.error(err);
+      alert("Export failed");
+    }
+  };
+
   return (
-    <div className="min-h-screen bg-linear-to-br bg-linear-to-b from-slate-900 via-slate-800 to-slate-900 p-6">
+    <div className="min-h-screen bg-white p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="bg-white rounded-xl shadow-sm border border-blue-100 p-6 mb-6">
@@ -86,13 +156,26 @@ const Users = () => {
                 </p>
               </div>
             </div>
-            <button
-              onClick={() => setShowAdd(true)}
-              className="flex items-center gap-2 bg-linear-to-r from-blue-600 to-indigo-600 text-white px-5 py-2.5 rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg font-medium"
-            >
-              <Plus className="w-5 h-5" />
-              Add User
-            </button>
+            <div className="flex items-center gap-3">
+
+              {/* EXPORT BUTTON */}
+              <button onClick={() => setShowExport(true)}
+                className="flex items-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-lg hover:bg-green-700"
+              >
+                <Download className="w-5 h-5" />
+                Export Data
+              </button>
+
+              {/* ADD USER */}
+              <button
+                onClick={() => setShowAdd(true)}
+                className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-lg hover:bg-blue-700"
+              >
+                <Plus className="w-5 h-5" />
+                Add User
+              </button>
+
+            </div>
           </div>
         </div>
 
@@ -127,7 +210,7 @@ const Users = () => {
                 className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-white cursor-pointer"
               >
                 <option value="name">Name</option>
-                <option value="email">Email</option>
+                <option value="phone">Phone</option>
                 <option value="createdAt">Latest</option>
               </select>
             </div>
@@ -207,11 +290,10 @@ const Users = () => {
                       </td>
                       <td className="px-6 py-4">
                         <span
-                          className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${
-                            u.status === "active"
-                              ? "bg-green-100 text-green-700"
-                              : "bg-gray-100 text-gray-700"
-                          }`}
+                          className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${u.status === "active"
+                            ? "bg-green-100 text-green-700"
+                            : "bg-gray-100 text-gray-700"
+                            }`}
                         >
                           {u.status}
                         </span>
@@ -219,7 +301,7 @@ const Users = () => {
                       <td className="px-6 py-4 text-sm text-gray-600">
                         <div className="inline-flex gap-4">
                           <Eye
-                            className="cursor-pointer hover:scale-110"
+                            className="cursor-pointer text-gray-600 hover:scale-110"
                             onClick={() => {
                               setSelectedUser(u);
                               setShowView(true);
@@ -243,7 +325,10 @@ const Users = () => {
 
                           <Trash
                             className="cursor-pointer text-red-600 hover:scale-110"
-                            onClick={() => handleDelete(u.id)}
+                            onClick={() => {
+                              setDeleteUserId(u.id);
+                              setShowDelete(true);
+                            }}
                           />
                         </div>
                       </td>
@@ -544,11 +629,10 @@ const Users = () => {
                         Status
                       </p>
                       <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                          selectedUser.status === "active"
-                            ? "bg-green-100 text-green-800"
-                            : "bg-gray-100 text-gray-800"
-                        }`}
+                        className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${selectedUser.status === "active"
+                          ? "bg-green-100 text-green-800"
+                          : "bg-gray-100 text-gray-800"
+                          }`}
                       >
                         {selectedUser.status}
                       </span>
@@ -574,11 +658,10 @@ const Users = () => {
               <button
                 onClick={() => setPage(page - 1)}
                 disabled={page === 1}
-                className={`flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg font-medium transition-all ${
-                  page === 1
-                    ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-400"
-                    : "bg-white text-gray-700 hover:bg-gray-50 hover:border-blue-300"
-                }`}
+                className={`flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg font-medium transition-all ${page === 1
+                  ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-400"
+                  : "bg-white text-gray-700 hover:bg-gray-50 hover:border-blue-300"
+                  }`}
               >
                 <ChevronLeft className="w-4 h-4" />
                 Previous
@@ -594,11 +677,10 @@ const Users = () => {
               <button
                 onClick={() => setPage(page + 1)}
                 disabled={page === totalPages}
-                className={`flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg font-medium transition-all ${
-                  page === totalPages
-                    ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-400"
-                    : "bg-white text-gray-700 hover:bg-gray-50 hover:border-blue-300"
-                }`}
+                className={`flex items-center gap-2 px-4 py-2 border border-gray-300 rounded-lg font-medium transition-all ${page === totalPages
+                  ? "opacity-50 cursor-not-allowed bg-gray-100 text-gray-400"
+                  : "bg-white text-gray-700 hover:bg-gray-50 hover:border-blue-300"
+                  }`}
               >
                 Next
                 <ChevronRight className="w-4 h-4" />
@@ -737,6 +819,65 @@ const Users = () => {
           </div>
         )}
       </div>
+      <Delete
+        open={!!deleteUserId}
+        onClose={() => setDeleteUserId(null)}
+        onConfirm={handleDelete}
+        loading={deletingId === deleteUserId}
+        title="Delete User?"
+        description="This user will be permanently removed."
+      />
+      {showExport && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl p-6 w-[350px] shadow-xl">
+            <h2 className="text-lg font-semibold mb-4">Export Options</h2>
+
+            {/* Scope */}
+            <div className="mb-4">
+              <p className="text-sm font-medium mb-2">Scope</p>
+              <select
+                value={exportScope}
+                onChange={(e) => setExportScope(e.target.value)}
+                className="w-full border px-3 py-2 rounded-lg"
+              >
+                <option value="page">Current Page</option>
+                <option value="full">Full Data</option>
+              </select>
+            </div>
+
+            {/* Type */}
+            <div className="mb-4">
+              <p className="text-sm font-medium mb-2">User Type</p>
+              <select
+                value={exportType}
+                onChange={(e) => setExportType(e.target.value)}
+                className="w-full border px-3 py-2 rounded-lg"
+              >
+                <option value="all">All</option>
+                <option value="user">Users</option>
+                <option value="provider">Providers</option>
+              </select>
+            </div>
+
+            {/* Buttons */}
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowExport(false)}
+                className="px-4 py-2 border rounded-lg"
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={handleExport}
+                className="px-4 py-2 bg-green-600 text-white rounded-lg"
+              >
+                Export
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
