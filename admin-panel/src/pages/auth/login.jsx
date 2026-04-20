@@ -1,6 +1,15 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
+import {
+  Mail,
+  Lock,
+  Eye,
+  EyeOff,
+  Loader2,
+  AlertCircle,
+  ShieldCheck,
+} from "lucide-react";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -8,9 +17,17 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
 
+  const [showPassword, setShowPassword] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState("");
 
   const handleLogin = async (e) => {
     e.preventDefault();
+
+    if (isLoading) return;
+
+    setError("");
+    setIsLoading(true);
 
     try {
       const res = await api.post("/auth/admin-login", {
@@ -19,75 +36,121 @@ export default function Login() {
       });
 
       localStorage.setItem("token", res.data.token);
-
-      navigate("/"); // redirect to dashboard
+      navigate("/");
     } catch (error) {
-      alert(error.response?.data?.message || "Login failed");
+      setError(error.response?.data?.message || "Login failed");
+    } finally {
+      setIsLoading(false);
     }
   };
 
-
   return (
-    <>
+    <div className="min-h-screen bg-[#09090b] flex items-center justify-center p-4 relative overflow-hidden">
 
-      <div className="flex bg-black min-h-screen flex-col justify-center px-6 py-12 lg:px-8">
-        <div className="sm:mx-auto sm:w-full sm:max-w-sm">
-         
-          <h2 className="mt-10 text-center text-2xl/9 font-bold tracking-tight text-white">Sign in to Admin Panel</h2>
+      {/* Glow Background */}
+      <div className="absolute top-[-20%] left-[-10%] w-[50%] h-[50%] bg-indigo-600/20 rounded-full blur-[120px]" />
+      <div className="absolute bottom-[-20%] right-[-10%] w-[50%] h-[50%] bg-purple-600/20 rounded-full blur-[120px]" />
+
+      {/* Card */}
+      <div className="relative z-10 w-full max-w-md bg-white/[0.03] border border-white/10 rounded-2xl p-6 sm:p-8 backdrop-blur-2xl shadow-2xl">
+
+        {/* Header */}
+        <div className="text-center mb-8">
+          <div className="mx-auto w-14 h-14 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 mb-4">
+            <ShieldCheck size={28} />
+          </div>
+
+          <h2 className="text-2xl font-bold text-white">
+            Admin Portal
+          </h2>
+
+          <p className="text-sm text-gray-400 mt-2">
+            Sign in to access dashboard
+          </p>
         </div>
 
-        <div className="mt-10 sm:mx-auto sm:w-full sm:max-w-sm">
-        <form onSubmit={handleLogin} className="space-y-6">
-            <div>
-              <label htmlFor="email" className="block text-sm/6 font-medium text-gray-100">
-                Email address
-              </label>
-              <div className="mt-2">
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  required              onChange={(e) => setEmail(e.target.value)}
+        {/* Error */}
+        {error && (
+          <div className="mb-4 flex gap-2 text-sm bg-red-500/10 border border-red-500/20 text-red-400 px-3 py-2 rounded-lg">
+            <AlertCircle size={16} />
+            {error}
+          </div>
+        )}
 
-                  autoComplete="email"
-                  className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
-                />
-              </div>
+        {/* Form */}
+        <form onSubmit={handleLogin} className="space-y-5">
+
+          {/* Email */}
+          <div>
+            <label className="text-sm text-gray-300 block mb-1">
+              Email Address
+            </label>
+
+            <div className="relative">
+              <Mail
+                size={18}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
+              />
+
+              <input
+                type="email"
+                required
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="admin@example.com"
+                className="w-full pl-10 pr-3 py-2.5 rounded-lg bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
             </div>
+          </div>
 
-            <div>
-              <div className="flex items-center justify-between">
-                <label htmlFor="password" className="block text-sm/6 font-medium text-gray-100">
-                  Password
-                </label>
-                
-              </div>
-              <div className="mt-2">
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  required              onChange={(e) => setPassword(e.target.value)}
+          {/* Password */}
+          <div>
+            <label className="text-sm text-gray-300 block mb-1">
+              Password
+            </label>
 
-                  autoComplete="current-password"
-                  className="block w-full rounded-md bg-white/5 px-3 py-1.5 text-base text-white outline-1 -outline-offset-1 outline-white/10 placeholder:text-gray-500 focus:outline-2 focus:-outline-offset-2 focus:outline-indigo-500 sm:text-sm/6"
-                />
-              </div>
-            </div>
+            <div className="relative">
+              <Lock
+                size={18}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500"
+              />
 
-            <div>
+              <input
+                type={showPassword ? "text" : "password"}
+                required
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••"
+                className="w-full pl-10 pr-10 py-2.5 rounded-lg bg-black/40 border border-white/10 text-white placeholder:text-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+              />
+
               <button
-                type="submit"
-                className="flex w-full justify-center rounded-md bg-indigo-500 px-3 py-1.5 text-sm/6 font-semibold text-white hover:bg-indigo-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-indigo-500"
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
               >
-                Sign in
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
               </button>
             </div>
-          </form>
+          </div>
 
-          
-        </div>
+          {/* Button */}
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full py-2.5 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white font-semibold disabled:opacity-70 flex justify-center items-center gap-2"
+          >
+            {isLoading ? (
+              <>
+                <Loader2 className="animate-spin" size={18} />
+                Signing in...
+              </>
+            ) : (
+              "Sign In"
+            )}
+          </button>
+        </form>
       </div>
-    </>
-  )
+    </div>
+  );
 }
