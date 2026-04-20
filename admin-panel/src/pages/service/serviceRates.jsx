@@ -28,6 +28,9 @@ export default function ServiceRates() {
   const [syncLoading, setSyncLoading] = useState(false);
   const [deleteModal, setDeleteModal] = useState(false);
   const [deleteRate, setDeleteRate] = useState(null);
+  const [saveLoading, setSaveLoading] = useState(false);
+  const [updateLoading, setUpdateLoading] = useState(false);
+  const [deleteLoading, setDeleteLoading] = useState(false);
 
   const load = async () => {
     try {
@@ -60,6 +63,8 @@ export default function ServiceRates() {
   };
 
   const handleSubmit = async () => {
+    if (saveLoading) return;
+    setSaveLoading(true);
     try {
       if (applyToCategory) {
         await Promise.all(
@@ -91,6 +96,8 @@ export default function ServiceRates() {
       load();
     } catch (error) {
       console.error(error);
+    } finally {
+      setSaveLoading(false);
     }
   };
 
@@ -137,6 +144,8 @@ export default function ServiceRates() {
   };
 
   const confirmDelete = async (isBulk = false) => {
+    if (deleteLoading) return;
+    setDeleteLoading(true);
     try {
       if (isBulk) {
         await ServiceService.bulkDeleteRate({
@@ -152,6 +161,8 @@ export default function ServiceRates() {
       load();
     } catch (error) {
       console.error(error);
+    } finally {
+      setDeleteLoading(false);
     }
   };
 
@@ -370,9 +381,10 @@ export default function ServiceRates() {
 
               <button
                 onClick={handleSubmit}
+                disabled={saveLoading}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg"
               >
-                Save Rates
+                {saveLoading ? "Saving..." : "Save Rates"}
               </button>
             </div>
 
@@ -464,7 +476,7 @@ export default function ServiceRates() {
                 onClick={handleUpdate}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg"
               >
-                Update
+                {updateLoading ? "Updating..." : "Update"}
               </button>
             </div>
 
