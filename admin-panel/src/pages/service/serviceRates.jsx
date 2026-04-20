@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Plus, Pencil, Trash2, X } from "lucide-react";
 import { ServiceService } from "../../services/services.service";
 import { useParams } from "react-router-dom";
+import Delete from "../../components/Delete";
 
 export default function ServiceRates() {
   const { id: serviceId } = useParams();
@@ -10,18 +11,23 @@ export default function ServiceRates() {
   const [loading, setLoading] = useState(true);
 
   const [showModal, setShowModal] = useState(false);
-  const [newRates, setNewRates] = useState([{ title: "", price: "" }]);
+  const [newRates, setNewRates] = useState([
+    { title: "", price: "", warranty: "" },
+  ]);
 
   const [editModal, setEditModal] = useState(false);
   const [editRate, setEditRate] = useState({
     id: "",
     title: "",
     price: "",
+    warranty: "",
     oldTitle: "",
   });
 
   const [applyToCategory, setApplyToCategory] = useState(false);
   const [syncLoading, setSyncLoading] = useState(false);
+  const [deleteModal, setDeleteModal] = useState(false);
+  const [deleteRate, setDeleteRate] = useState(null);
 
   const load = async () => {
     try {
@@ -38,7 +44,7 @@ export default function ServiceRates() {
   }, []);
 
   const handleAddRow = () => {
-    setNewRates([...newRates, { title: "", price: "" }]);
+    setNewRates([...newRates, { title: "", price: "", warranty: "" }]);
   };
 
   const handleRemoveRow = (index) => {
@@ -62,6 +68,7 @@ export default function ServiceRates() {
               serviceId,
               title: rate.title,
               price: rate.price,
+              warranty: rate.warranty,
             })
           )
         );
@@ -72,6 +79,7 @@ export default function ServiceRates() {
               serviceId,
               title: rate.title,
               price: rate.price,
+              warranty: rate.warranty,
             })
           )
         );
@@ -91,6 +99,7 @@ export default function ServiceRates() {
       id: rate.id,
       title: rate.title,
       price: rate.price,
+      warranty: rate.warranty || "",
       oldTitle: rate.title,
     });
     setEditModal(true);
@@ -104,11 +113,13 @@ export default function ServiceRates() {
           oldTitle: editRate.oldTitle,
           title: editRate.title,
           price: editRate.price,
+          warranty: editRate.warranty,
         });
       } else {
         await ServiceService.updateRate(editRate.id, {
           title: editRate.title,
           price: editRate.price,
+          warranty: editRate.warranty,
         });
       }
 
@@ -120,26 +131,24 @@ export default function ServiceRates() {
     }
   };
 
-  const handleDelete = async (rate) => {
-    const choice = window.confirm(
-      `Are you sure you want to delete "${rate.title}"?\n\nClick OK to confirm.\nYou will then be asked if you want to delete it from ALL services in this category.`
-    );
+  const handleDelete = (rate) => {
+    setDeleteRate(rate);
+    setDeleteModal(true);
+  };
 
-    if (!choice) return;
-
-    const isBulk = window.confirm(
-      `Delete "${rate.title}" from ALL services in this category?\n\nOK = Yes, Delete from All\nCancel = No, Delete only from this service`
-    );
-
+  const confirmDelete = async (isBulk = false) => {
     try {
       if (isBulk) {
         await ServiceService.bulkDeleteRate({
           serviceId,
-          title: rate.title,
+          title: deleteRate.title,
         });
       } else {
-        await ServiceService.deleteRate(rate.id);
+        await ServiceService.deleteRate(deleteRate.id);
       }
+
+      setDeleteModal(false);
+      setDeleteRate(null);
       load();
     } catch (error) {
       console.error(error);
@@ -167,11 +176,11 @@ export default function ServiceRates() {
 
   return (
     <div className="p-6 bg-white rounded-xl shadow-md">
-      
+
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <h2 className="text-xl font-semibold text-gray-800">
-          Service Rate List
+          Service Rate
         </h2>
 
         <div className="flex gap-2">
@@ -201,6 +210,7 @@ export default function ServiceRates() {
               <th className="py-3 px-4 text-left">ID</th>
               <th className="py-3 px-4 text-left">Title</th>
               <th className="py-3 px-4 text-left">Price</th>
+              <th className="py-3 px-4 text-left">Warranty</th>
               <th className="py-3 px-4 text-center">Actions</th>
             </tr>
           </thead>
@@ -208,13 +218,13 @@ export default function ServiceRates() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan="4" className="text-center py-6">
+                <td colSpan="5" className="text-center py-6">
                   Loading...
                 </td>
               </tr>
             ) : rates.length === 0 ? (
               <tr>
-                <td colSpan="4" className="text-center py-6 text-gray-400">
+                <td colSpan="5" className="text-center py-6 text-gray-400">
                   No rates found
                 </td>
               </tr>
@@ -224,6 +234,10 @@ export default function ServiceRates() {
                   <td className="py-3 px-4">{rate.id}</td>
                   <td className="py-3 px-4">{rate.title}</td>
                   <td className="py-3 px-4 font-medium">₹{rate.price}</td>
+
+                  <td className="py-3 px-4">
+                    {rate.warranty ? `${rate.warranty} Days` : "-"}
+                  </td>
 
                   <td className="py-3 px-4 flex justify-center gap-2">
                     <button
@@ -250,8 +264,8 @@ export default function ServiceRates() {
       {/* ADD MODAL */}
       {showModal && (
         <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50">
-          
-          <div className="bg-white rounded-xl shadow-xl w-[480px] max-h-[80vh] overflow-y-auto">
+
+          <div className="bg-white rounded-xl shadow-xl w-[calc(100%-24px)] sm:w-[480px] mx-3 max-h-[80vh] overflow-y-auto">
 
             <div className="flex justify-between items-center border-b px-6 py-4">
               <h3 className="text-lg font-semibold">Add Service Rates</h3>
@@ -266,7 +280,10 @@ export default function ServiceRates() {
 
             <div className="p-6 space-y-4">
               {newRates.map((rate, index) => (
-                <div key={index} className="flex items-center gap-3">
+                <div
+                  key={index}
+                  className="grid grid-cols-1 sm:grid-cols-12 gap-2 sm:gap-3 items-center bg-gray-50 border border-gray-100 rounded-2xl p-3"
+                >
                   <input
                     type="text"
                     placeholder="Rate Title"
@@ -274,23 +291,43 @@ export default function ServiceRates() {
                     onChange={(e) =>
                       handleChange(index, "title", e.target.value)
                     }
-                    className="flex-1 border rounded-lg px-3 py-2"
+                    className="sm:col-span-6 w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
 
                   <input
-                    type="number"
+                    type="text"
+                    inputMode="numeric"
                     placeholder="Price"
                     value={rate.price}
                     onChange={(e) =>
-                      handleChange(index, "price", e.target.value)
+                      handleChange(
+                        index,
+                        "price",
+                        e.target.value.replace(/\D/g, "")
+                      )
                     }
-                    className="w-28 border rounded-lg px-3 py-2"
+                    className="sm:col-span-3 w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  />
+
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    placeholder="Days"
+                    value={rate.warranty}
+                    onChange={(e) =>
+                      handleChange(
+                        index,
+                        "warranty",
+                        e.target.value.replace(/\D/g, "")
+                      )
+                    }
+                    className="sm:col-span-3 w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
 
                   {newRates.length > 1 && (
                     <button
                       onClick={() => handleRemoveRow(index)}
-                      className="text-red-500"
+                      className="sm:col-span-2 w-full sm:w-auto py-2 px-3 text-red-500 bg-red-50 hover:bg-red-100 rounded-xl flex justify-center"
                     >
                       <X size={18} />
                     </button>
@@ -346,8 +383,7 @@ export default function ServiceRates() {
       {/* EDIT MODAL */}
       {editModal && (
         <div className="fixed inset-0 bg-black/40 flex justify-center items-center z-50">
-
-          <div className="bg-white rounded-xl shadow-xl w-[420px]">
+          <div className="bg-white rounded-2xl shadow-xl w-[calc(100%-24px)] sm:w-[420px] mx-3">
 
             <div className="flex justify-between items-center border-b px-6 py-4">
               <h3 className="text-lg font-semibold">Edit Rate</h3>
@@ -368,17 +404,35 @@ export default function ServiceRates() {
                 onChange={(e) =>
                   setEditRate({ ...editRate, title: e.target.value })
                 }
-                className="w-full border rounded-lg px-3 py-2"
+                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
 
               <input
-                type="number"
+                type="text"
+                inputMode="numeric"
                 placeholder="Price"
                 value={editRate.price}
                 onChange={(e) =>
-                  setEditRate({ ...editRate, price: e.target.value })
+                  setEditRate({
+                    ...editRate,
+                    price: e.target.value.replace(/\D/g, ""),
+                  })
                 }
-                className="w-full border rounded-lg px-3 py-2"
+                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+
+              <input
+                type="text"
+                inputMode="numeric"
+                placeholder="Warranty Days"
+                value={editRate.warranty}
+                onChange={(e) =>
+                  setEditRate({
+                    ...editRate,
+                    warranty: e.target.value.replace(/\D/g, ""),
+                  })
+                }
+                className="w-full px-3 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
 
               <div className="flex items-center gap-2 mt-2">
@@ -416,6 +470,19 @@ export default function ServiceRates() {
 
           </div>
         </div>
+      )}
+
+      {deleteModal && deleteRate && (
+        <Delete
+          open={deleteModal}
+          title={`Delete "${deleteRate.title}" ?`}
+          description="Delete this service rate."
+          onClose={() => {
+            setDeleteModal(false);
+            setDeleteRate(null);
+          }}
+          onConfirm={() => confirmDelete(false)}
+        />
       )}
 
     </div>

@@ -22,6 +22,10 @@ module.exports = (sequelize, DataTypes) => {
         type: DataTypes.FLOAT,
         allowNull: false,
       },
+      warranty: {
+        type: DataTypes.STRING(100),
+        allowNull: true,
+      },
 
       status: {
         type: DataTypes.ENUM("active", "inactive"),

@@ -29,3 +29,12 @@
 .service-map .leaflet-bar {
     z-index: 1 !important;
 }
+
+::-webkit-scrollbar {
+    width: 5px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #d1d5db;
+    border-radius: 20px;
+}

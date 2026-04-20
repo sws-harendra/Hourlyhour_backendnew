@@ -41,6 +41,7 @@ const addService = async (req, res) => {
       price,
       rateType,
       duration,
+      warranty,
       isMostBooked,
       relatedServiceIds, // <-- array
       rateListHeading,
@@ -71,6 +72,7 @@ const addService = async (req, res) => {
       price,
       rateType,
       duration,
+      warranty,
       isMostBooked: isMostBooked === "true" || isMostBooked === true,
       mainimage,
       images,
@@ -113,6 +115,7 @@ const updateService = async (req, res) => {
       price,
       rateType,
       duration,
+      warranty,
       isMostBooked,
       relatedServiceIds,
       rateListHeading,
@@ -133,6 +136,7 @@ const updateService = async (req, res) => {
       price,
       rateType,
       duration,
+      warranty,
       isMostBooked: isMostBooked === "true" || isMostBooked === true,
       rateListHeading,
     };
@@ -1104,12 +1108,12 @@ const getRateList = async (req, res) => {
 
 const createRate = async (req, res) => {
   try {
-    const { serviceId, title, price } = req.body;
-
+    const { serviceId, title, price, warranty } = req.body;
     const rate = await ServiceRate.create({
       serviceId,
       title,
       price,
+      warranty: warranty || null,
     });
 
     res.status(201).json({
@@ -1168,7 +1172,7 @@ UPDATE RATE
 */
 const updateRate = async (req, res) => {
   try {
-    const { title, price, status } = req.body;
+    const { title, price, warranty, status } = req.body;
 
     const rate = await ServiceRate.findByPk(req.params.id);
 
@@ -1182,6 +1186,7 @@ const updateRate = async (req, res) => {
     await rate.update({
       title,
       price,
+      warranty: warranty || null,
       status,
     });
 
@@ -1336,7 +1341,7 @@ const syncRatesToCategory = async (req, res) => {
 const bulkAddRate = async (req, res) => {
   const transaction = await ServiceRate.sequelize.transaction();
   try {
-    const { serviceId, title, price } = req.body;
+    const { serviceId, title, price, warranty } = req.body;
 
     const sourceService = await Service.findByPk(serviceId);
     if (!sourceService) {
@@ -1353,6 +1358,7 @@ const bulkAddRate = async (req, res) => {
       serviceId: service.id,
       title,
       price,
+      warranty: warranty || null,
     }));
 
     await ServiceRate.bulkCreate(ratesToCreate, { transaction });
@@ -1376,7 +1382,7 @@ const bulkAddRate = async (req, res) => {
 const bulkUpdateRate = async (req, res) => {
   const transaction = await ServiceRate.sequelize.transaction();
   try {
-    const { serviceId, oldTitle, title, price, status } = req.body;
+    const { serviceId, oldTitle, title, price, warranty, status } = req.body;
 
     const sourceService = await Service.findByPk(serviceId);
     if (!sourceService) {
@@ -1393,7 +1399,7 @@ const bulkUpdateRate = async (req, res) => {
     const serviceIds = allServices.map((s) => s.id);
 
     const [updatedCount] = await ServiceRate.update(
-      { title, price, status },
+      { title, price, warranty: warranty || null, status },
       {
         where: {
           serviceId: serviceIds,

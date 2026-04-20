@@ -34,6 +34,11 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
     },
 
+    warranty: {
+      type: DataTypes.STRING(100),
+      allowNull: true
+    },
+
     discount: {
       type: DataTypes.FLOAT,
       defaultValue: 0,

@@ -11,7 +11,6 @@ import {
   SlidersHorizontal,
   Star,
   Tag,
-  Shield,
 } from "lucide-react";
 import ServiceForm from "./serviceAdd";
 import { Pencil, Trash2, MoreVertical } from "lucide-react";
@@ -179,6 +178,9 @@ export default function Services() {
                     Duration
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
+                    Warranty (in Days)
+                  </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
                     Status
                   </th>
                   <th className="px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider">
@@ -304,6 +306,11 @@ export default function Services() {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
+                        <span className="text-sm text-gray-700">
+                          {srv.warranty || "-"}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
                         <span
                           className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold ${srv.status === "active"
                             ? "bg-green-100 text-green-800"
@@ -338,15 +345,7 @@ export default function Services() {
                           >
                             <IndianRupee className="w-4 h-4" />
                           </button>
-                          <button
-                            onClick={() =>
-                              navigate(`/services/${srv.id}/warranties`)
-                            }
-                            className="p-2 rounded-lg bg-green-50 hover:bg-green-100 text-green-600"
-                            title="Service Warranty List"
-                          >
-                            <Shield className="w-4 h-4" />
-                          </button>
+
                           {/* Edit */}
                           <button
                             onClick={() => {

@@ -8,6 +8,7 @@ export default function ServiceForm({ open, onClose, data, reload }) {
   const [categories, setCategories] = useState([]);
   const [services, setServices] = useState([]);
   const [error, setError] = useState("");
+  const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState({
     categoryId: "",
     title: "",
@@ -16,6 +17,7 @@ export default function ServiceForm({ open, onClose, data, reload }) {
     price: "",
     rateType: "fixed",
     duration: "",
+    warranty: "",
     isMostBooked: false,
     relatedServiceIds: [],
     mainimage: "",
@@ -29,12 +31,17 @@ export default function ServiceForm({ open, onClose, data, reload }) {
   useEffect(() => {
     if (data) {
       console.table(data.relatedServices)
+
       setForm({
         ...data,
         categoryId: data.categoryId || "",
+        warranty: data.warranty
+          ? String(data.warranty).replace(/[^0-9]/g, "")
+          : "",
+
         images: Array.isArray(data.images) ? data.images : [],
         relatedServiceIds: data.relatedServices
-          ? data.relatedServices.map((s) => String(s.id)) // 👈 FIX
+          ? data.relatedServices.map((s) => String(s.id))
           : [],
       });
     }
@@ -86,6 +93,7 @@ export default function ServiceForm({ open, onClose, data, reload }) {
       price: "",
       rateType: "fixed",
       duration: "",
+      warranty: "",
       isMostBooked: false,
       relatedServiceIds: [],
       mainimage: "",
@@ -98,6 +106,7 @@ export default function ServiceForm({ open, onClose, data, reload }) {
   };
   const handleSubmit = async () => {
     try {
+      setSubmitting(true);
       setError("");
 
       // ✅ VALIDATION
@@ -130,6 +139,10 @@ export default function ServiceForm({ open, onClose, data, reload }) {
       formData.append("price", form.price);
       formData.append("rateType", form.rateType);
       formData.append("duration", form.duration);
+      formData.append(
+        "warranty",
+        form.warranty
+      );
       formData.append("isMostBooked", form.isMostBooked);
       formData.append(
         "relatedServiceIds",
@@ -162,14 +175,16 @@ export default function ServiceForm({ open, onClose, data, reload }) {
         err.response?.data?.message ||
         "Something went wrong. Please try again."
       );
+    } finally {
+      setSubmitting(false);
     }
   };
 
   if (!open) return null;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4">
-      <div className="bg-white overflow-y-auto h-6/6 rounded-2xl w-full max-w-3xl shadow-lg animate-fadeIn p-6 relative">
+    <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4">
+      <div className="bg-white overflow-y-auto max-h-[95vh] rounded-3xl  w-full max-w-5xl shadow-2xl animate-fadeIn relative border border-gray-100 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
         {/* Close Button */}
         <button
           className="absolute top-4 right-4 p-2 bg-gray-100 rounded-full hover:bg-gray-200"
@@ -178,19 +193,24 @@ export default function ServiceForm({ open, onClose, data, reload }) {
           <X className="w-5 h-5 text-gray-600" />
         </button>
 
-        <h2 className="text-2xl font-bold mb-6">
-          {data ? "Edit Service" : "Add New Service"}
-        </h2>
+        <div className="sticky top-0 z-10 bg-blue-600 text-white border-b border-gray-100 px-5 sm:px-8 py-5 rounded-t-3xl">
+          <h2 className="text-xl sm:text-3xl font-bold">
+            {data ? "Edit Service" : "Create New Service"}
+          </h2>
+          <p className="text-sm text-gray-100 mt-1">
+            Manage service details, pricing, photos and warranty.
+          </p>
+        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 px-5 sm:px-8 py-6">
           {/* Category */}
           <div>
-            <label className="font-medium">Category</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Category</label>
             <select
               name="categoryId"
               value={form.categoryId}
               onChange={handleChange}
-              className="w-full mt-1 p-3 border rounded-xl"
+              className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
             >
               <option value="">Select Category</option>
               {categories.map((cat) => (
@@ -203,87 +223,119 @@ export default function ServiceForm({ open, onClose, data, reload }) {
 
           {/* Title */}
           <div>
-            <label className="font-medium">Title</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Title</label>
             <input
               name="title"
               value={form.title}
               onChange={handleChange}
-              className="w-full mt-1 p-3 border rounded-xl"
+              className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
               placeholder="Service title"
             />
           </div>
 
           {/* Short Description */}
           <div className="col-span-2">
-            <label className="font-medium">Short Description</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Short Description</label>
             <textarea
               name="shortDescription"
               value={form.shortDescription}
               onChange={handleChange}
-              className="w-full mt-1 p-3 border rounded-xl"
+              className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
               rows="2"
             />
           </div>
           <div className="col-span-2">
-            <label className="font-medium">Rate List Heading</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Rate List Heading</label>
             <input
               name="rateListHeading"
               value={form.rateListHeading}
               onChange={handleChange}
-              className="w-full mt-1 p-3 border rounded-xl"
+              className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
               placeholder="Heading for rate List sections"
             />
           </div>
           {/* Full Description */}
           <div className="col-span-2">
-            <label className="font-medium">Full Description</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Full Description</label>
             <textarea
               name="fullDescription"
               value={form.fullDescription}
               onChange={handleChange}
-              className="w-full mt-1 p-3 border rounded-xl"
+              className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
               rows="4"
             />
           </div>
 
           {/* Price */}
           <div>
-            <label className="font-medium">Price</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Price</label>
             <input
               name="price"
               type="number"
               value={form.price}
               onChange={handleChange}
-              className="w-full mt-1 p-3 border rounded-xl"
+              className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
               placeholder="Price"
             />
           </div>
 
           {/* Duration */}
           <div>
-            <label className="font-medium">Duration (optional)</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Duration (optional)</label>
             <input
               name="duration"
               value={form.duration}
               onChange={handleChange}
-              className="w-full mt-1 p-3 border rounded-xl"
+              className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
               placeholder="45 min / 1 hour"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
+              Warranty (in Days)
+            </label>
+
+            <input
+              type="number"
+              min="1"
+              name="warranty"
+              value={form.warranty}
+              onChange={handleChange}
+              className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Enter in days"
             />
           </div>
 
           {/* Main Image Upload */}
-          <div>
-            <label className="font-medium">Main Image</label>
-            <input
-              type="file"
-              className="w-full mt-1"
-              onChange={(e) => setMainImageFile(e.target.files[0])}
-            />
+          <div className="md:col-span-1">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Main Image
+            </label>
 
-            {form.mainimage && (
+            <label className="cursor-pointer block border-2 border-dashed border-gray-300 rounded-2xl bg-gray-50 hover:bg-blue-50 hover:border-blue-400 transition-all p-5 text-center">
+              <input
+                type="file"
+                className="hidden"
+                onChange={(e) => setMainImageFile(e.target.files[0])}
+              />
+
+              <div className="text-sm text-gray-500">
+                Click to upload cover image
+              </div>
+
+              <div className="text-xs text-gray-400 mt-1">
+                JPG, PNG recommended
+              </div>
+            </label>
+
+            {(mainImageFile || form.mainimage) && (
               <img
-                src={form.mainimage}
-                className="h-24 w-24 mt-2 rounded-lg object-cover"
+                src={
+                  mainImageFile
+                    ? URL.createObjectURL(mainImageFile)
+                    : form.mainimage
+                }
+                className="h-32 w-full object-cover rounded-2xl mt-3 border"
               />
             )}
           </div>
@@ -295,15 +347,15 @@ export default function ServiceForm({ open, onClose, data, reload }) {
                 setForm({ ...form, isMostBooked: e.target.checked })
               }
             />
-            <label className="font-medium">Mark as Popular Service</label>
+            <label className="block text-sm font-semibold text-gray-700 mb-1">Mark as Popular Service</label>
           </div>
           <div className="col-span-2">
-            <label className="font-medium">
+            <label className="block text-sm font-semibold text-gray-700 mb-1">
               Related Services (Click to add.)
             </label>
             <select
               multiple
-              className="w-full mt-1 p-3 border rounded-xl"
+              className="w-full mt-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:bg-white transition-all"
               value={form.relatedServiceIds}
               onChange={(e) =>
                 setForm({
@@ -324,40 +376,82 @@ export default function ServiceForm({ open, onClose, data, reload }) {
           </div>
 
           {/* Gallery Images */}
-          <div>
-            <label className="font-medium">Gallery Images</label>
-            <input
-              type="file"
-              multiple
-              className="w-full mt-1"
-              onChange={(e) => setGalleryFiles([...e.target.files])}
-            />
+          <div className="md:col-span-2">
+            <label className="block text-sm font-semibold text-gray-700 mb-2">
+              Gallery Images
+            </label>
 
-            <div className="flex gap-2 mt-2 overflow-x-auto">
-              {Array.isArray(form.images) &&
+            <label className="cursor-pointer block border-2 border-dashed border-gray-300 rounded-2xl bg-gray-50 hover:bg-blue-50 hover:border-blue-400 transition-all p-5 text-center">
+              <input
+                type="file"
+                multiple
+                className="hidden"
+                onChange={(e) => setGalleryFiles([...e.target.files])}
+              />
+
+              <div className="text-sm text-gray-500">
+                Click to upload multiple images
+              </div>
+
+              <div className="text-xs text-gray-400 mt-1">
+                Select gallery photos
+              </div>
+            </label>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3 mt-4">
+              {galleryFiles.length > 0
+                ? galleryFiles.map((img, i) => (
+                  <img
+                    key={i}
+                    src={URL.createObjectURL(img)}
+                    className="h-24 w-full object-cover rounded-xl border"
+                  />
+                ))
+                : Array.isArray(form.images) &&
                 form.images.map((img, i) => (
                   <img
                     key={i}
                     src={img}
-                    className="h-20 w-20 rounded-lg object-cover border"
+                    className="h-24 w-full object-cover rounded-xl border"
                   />
                 ))}
             </div>
           </div>
+
         </div>
+
+        {/* Submit Button */}
         {error && (
-          <div className="mt-4 p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-sm">
+          <div className="mx-5 sm:mx-8 mb-4 p-3 rounded-2xl bg-red-50 border border-red-200 text-red-700 text-sm">
             {error}
           </div>
         )}
-        {/* Submit Button */}
-        <button
-          onClick={handleSubmit}
-          disabled={!form.title || !form.categoryId}
-          className="mt-6 w-full p-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 disabled:bg-gray-400"
-        >
-          {data ? "Update Service" : "Create Service"}
-        </button>
+
+        <div className="sticky bottom-0 bg-white border-t border-gray-100 px-5 sm:px-8 py-4 rounded-b-3xl">
+          <div className="flex flex-col sm:flex-row gap-3 sm:justify-end">
+            <button
+              onClick={() => {
+                resetForm();
+                onClose();
+              }}
+              className="w-full sm:w-auto px-6 py-3 rounded-2xl bg-gray-100 hover:bg-gray-200 font-medium text-gray-700 transition-all"
+            >
+              Cancel
+            </button>
+
+            <button
+              onClick={handleSubmit}
+              disabled={!form.title || !form.categoryId || submitting}
+              className="w-full sm:w-auto px-8 py-3 rounded-2xl bg-blue-600 hover:bg-blue-700 disabled:bg-gray-400 text-white font-semibold transition-all shadow-lg"
+            >
+              {submitting
+                ? "Saving..."
+                : data
+                  ? "Update Service"
+                  : "Create Service"}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
