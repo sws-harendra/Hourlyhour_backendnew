@@ -58,6 +58,7 @@ const Users = () => {
   const isProvider =
     selectedUser?.userType?.toLowerCase()?.includes("provider");
 
+
   const fetchUsers = async () => {
     setLoading(true);
     const data = await UserService.getAll({
@@ -217,12 +218,12 @@ const Users = () => {
 
 
   return (
-    <div className="min-h-screen bg-white p-6">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-white p-3 sm:p-4 md:p-6">
+      <div className="max-w-7xl mx-auto w-full">
         {/* Header */}
-        <div className="bg-white rounded-xl shadow-sm border border-blue-100 p-6 mb-6">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
+        <div className="bg-white rounded-xl shadow-sm border border-blue-100 p-4 md:p-6 mb-4 md:mb-6">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full md:w-auto">
               <div className="w-12 h-12 bg-linear-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
                 <User className="w-6 h-6 text-white" />
               </div>
@@ -239,7 +240,7 @@ const Users = () => {
 
               {/* EXPORT BUTTON */}
               <button onClick={() => setShowExport(true)}
-                className="flex items-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-lg hover:bg-green-700"
+                className="flex items-center justify-center gap-2 bg-green-600 text-white px-4 py-2.5 rounded-lg hover:bg-green-700 w-full md:w-auto whitespace-nowrap"
               >
                 <Download className="w-5 h-5" />
                 Export Data
@@ -248,7 +249,7 @@ const Users = () => {
               {/* ADD USER */}
               <button
                 onClick={() => setShowAdd(true)}
-                className="flex items-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-lg hover:bg-blue-700"
+                className="flex items-center justify-center gap-2 bg-blue-600 text-white px-5 py-2.5 rounded-lg hover:bg-blue-700 w-full"
               >
                 <Plus className="w-5 h-5" />
                 Add User
@@ -259,7 +260,7 @@ const Users = () => {
         </div>
 
         {/* Filters */}
-        <div className="bg-white rounded-xl shadow-sm border border-blue-100 p-5 mb-6">
+        <div className="bg-white rounded-xl shadow-sm border border-blue-100 p-4 md:p-5 mb-4 md:mb-6">
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">{/* User Type Filter */}
             <div className="md:col-span-3">
@@ -341,7 +342,7 @@ const Users = () => {
                   setSort(e.target.value);
                   setPage(1);
                 }}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-white cursor-pointer"
+                className="w-full px-3 md:px-4 py-2 md:py-2.5 text-sm md:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-white cursor-pointer"
               >
                 <option value="name">Name</option>
                 <option value="phone">Phone</option>
@@ -357,7 +358,7 @@ const Users = () => {
               <select
                 value={order}
                 onChange={(e) => setOrder(e.target.value)}
-                className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-white cursor-pointer"
+                className="w-full px-3 md:px-4 py-2 md:py-2.5 text-sm md:text-base border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all bg-white cursor-pointer"
               >
                 <option value="ASC">Ascending</option>
                 <option value="DESC">Descending</option>
@@ -367,8 +368,8 @@ const Users = () => {
         </div>
 
         {/* Users Table */}
-        <div className="bg-white rounded-xl shadow-sm border border-blue-100 overflow-hidden">
-          <div className="overflow-x-auto">
+        <div className="bg-white rounded-xl shadow-sm border border-blue-100 overflow-hidden w-full">
+          <div className="overflow-x-auto scrollbar-thin">
             <table className="w-full">
               <thead>
                 <tr className="bg-linear-to-r from-blue-50 to-indigo-50 border-b border-blue-100">

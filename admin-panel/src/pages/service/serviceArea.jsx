@@ -546,18 +546,16 @@ const ServiceArea = () => {
           <div className="lg:col-span-2">
             <div className="bg-white rounded-lg shadow-lg overflow-hidden relative">
 
-              {/* 🔍 SEARCH BAR */}
-              <div className="absolute top-4 left-1/2 transform -translate-x-1/2 z-[1000] w-[350px]">
 
+              {/* 🔍 SEARCH BAR */}
+              <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[2] w-[72%] sm:w-[40px] md:w-[480px] max-w-full px-2">
                 <div className="relative">
 
-                  {/* ICON */}
                   <Search
                     size={18}
                     className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
                   />
 
-                  {/* INPUT */}
                   <input
                     type="text"
                     placeholder="Search location..."
@@ -565,27 +563,25 @@ const ServiceArea = () => {
                     onChange={(e) => {
                       const value = e.target.value;
                       setSearchText(value);
-                      fetchSuggestions(value); // 🔥 autocomplete
+                      fetchSuggestions(value);
                     }}
                     onKeyDown={(e) => {
                       if (e.key === "Enter") {
                         handleSearch();
                       }
                     }}
-                    className="w-full bg-white pl-10 pr-24 py-2 rounded-full border shadow focus:outline-none"
+                    className="w-full h-11 sm:h-12 bg-white/95 pl-10 pr-[92px] text-sm sm:text-base rounded-full border border-gray-200 shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                   />
 
-                  {/* 🔥 BUTTON */}
                   <button
                     onClick={handleSearch}
-                    className="absolute right-1 top-1/2 -translate-y-1/2 bg-blue-600 hover:bg-blue-700 text-white px-4 py-1.5 rounded-full text-sm"
+                    className="absolute right-1 top-1/2 -translate-y-1/2 bg-blue-600 hover:bg-blue-700 text-white px-4 sm:px-5 h-9 sm:h-10 rounded-full text-xs sm:text-sm font-medium transition"
                   >
                     Search
                   </button>
 
-                  {/* 🔽 DROPDOWN */}
                   {showDropdown && suggestions.length > 0 && (
-                    <div className="absolute mt-2 w-full bg-white border rounded-xl shadow-lg max-h-60 overflow-y-auto z-[1000]">
+                    <div className="absolute mt-2 w-full bg-white border border-gray-200 rounded-2xl shadow-xl max-h-64 overflow-y-auto z-[2]">
                       {suggestions.map((item, index) => (
                         <div
                           key={index}
@@ -594,14 +590,13 @@ const ServiceArea = () => {
                             setShowDropdown(false);
                             handleSearch();
                           }}
-                          className="px-4 py-2 text-sm cursor-pointer hover:bg-gray-100"
+                          className="px-4 py-3 text-sm text-gray-700 cursor-pointer hover:bg-blue-50 border-b last:border-b-0"
                         >
                           {item.display_name}
                         </div>
                       ))}
                     </div>
                   )}
-
                 </div>
               </div>
               {/* MAP */}
@@ -612,7 +607,7 @@ const ServiceArea = () => {
 
                   {/* 🔥 WRAPPER (important) */}
                   <div className={mapLoading ? "blur-sm" : ""}>
-                    <div ref={mapRef} className="h-[600px] w-full" />
+                    <div ref={mapRef} className="h-[600px] w-full service-map" />
                   </div>
                 </div>
 

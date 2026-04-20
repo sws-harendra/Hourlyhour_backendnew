@@ -18,7 +18,7 @@ const Home = () => {
   if (!data) return <div>Loading...</div>;
 
   return (
-    <div className=" p-6 space-y-6">
+    <div className=" p-6 space-y-6 bg-slate-900">
       <DashboardCards cards={data.cards} />
       <BookingsChart data={data.charts.bookingsByDay} />
     </div>

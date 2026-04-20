@@ -11,3 +11,21 @@
     scrollbar-width: none;
     /* Firefox */
 }
+
+.service-map,
+.service-map .leaflet-pane,
+.service-map .leaflet-tile-pane,
+.service-map .leaflet-overlay-pane,
+.service-map .leaflet-shadow-pane,
+.service-map .leaflet-marker-pane,
+.service-map .leaflet-tooltip-pane,
+.service-map .leaflet-popup-pane,
+.service-map .leaflet-control-container,
+.service-map .leaflet-top,
+.service-map .leaflet-bottom,
+.service-map .leaflet-left,
+.service-map .leaflet-right,
+.service-map .leaflet-control,
+.service-map .leaflet-bar {
+    z-index: 1 !important;
+}
