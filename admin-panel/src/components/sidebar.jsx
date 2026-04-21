@@ -132,8 +132,8 @@ export default function Sidebar() {
         <div className="relative min-h-[74px] border-b border-white/10 flex items-center justify-center px-4">
           {!collapsed ? (
             <>
-              <div className="absolute left-4 h-10 w-10 flex items-center justify-center rounded-lg bg-white/5">
-                <LayoutDashboard size={20} />
+              <div className="absolute left-4 h-10 w-10 flex items-center justify-center rounded-lg bg-white">
+                <img src="/logo.png" alt="Logo" className="h-full w-full object-contain" />
               </div>
 
               <div className="text-center">
