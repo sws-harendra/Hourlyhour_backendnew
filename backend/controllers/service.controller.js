@@ -1309,6 +1309,7 @@ const syncRatesToCategory = async (req, res) => {
         serviceId: targetService.id,
         title: rate.title,
         price: rate.price,
+        warranty: rate.warranty || null,
         status: rate.status,
       }));
 
@@ -1317,8 +1318,11 @@ const syncRatesToCategory = async (req, res) => {
       // 5. Update heading if source has one
       if (sourceService.rateListHeading) {
         await targetService.update(
-          { rateListHeading: sourceService.rateListHeading },
-          { transaction },
+          {
+            rateListHeading: sourceService.rateListHeading,
+            warranty: sourceService.warranty || null,
+          },
+          { transaction }
         );
       }
     }

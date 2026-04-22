@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { CommonService } from "../../services/common.service";
 import TestimonialService from "../../services/testimonial.service";
+import Delete from "../../components/Delete";
 
 const initialForm = {
   name: "",
@@ -31,6 +32,8 @@ const TestimonialPage = () => {
   const [editId, setEditId] = useState(null);
   const [error, setError] = useState("");
   const [filePreview, setFilePreview] = useState("");
+  const [deleteModal, setDeleteModal] = useState(false);
+  const [deleteId, setDeleteId] = useState(null);
 
   const fetchTestimonials = async () => {
     try {
@@ -142,20 +145,34 @@ const TestimonialPage = () => {
     setShowForm(true);
   };
 
-  const handleDelete = async (id) => {
-    if (!window.confirm("Delete this testimonial?")) return;
+  const handleDelete = (id) => {
+    setDeleteId(id);
+    setDeleteModal(true);
+  };
 
+  const confirmDelete = async () => {
     try {
-      await TestimonialService.remove(id);
-      setTestimonials((prev) => prev.filter((item) => item.id !== id));
-      if (editId === id) {
+      await TestimonialService.remove(deleteId);
+
+      setTestimonials((prev) =>
+        prev.filter((item) => item.id !== deleteId)
+      );
+
+      if (editId === deleteId) {
         resetForm();
       }
+
+      setDeleteModal(false);
+      setDeleteId(null);
     } catch (err) {
       console.error(err);
-      setError(err?.response?.data?.message || "Unable to delete testimonial.");
+      setError(
+        err?.response?.data?.message ||
+        "Unable to delete testimonial."
+      );
     }
   };
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-amber-50 to-orange-100">
@@ -406,6 +423,18 @@ const TestimonialPage = () => {
           </div>
         )}
       </div>
+      {deleteModal && (
+        <Delete
+          open={deleteModal}
+          title="Delete Testimonial?"
+          description="This testimonial will be permanently removed."
+          onClose={() => {
+            setDeleteModal(false);
+            setDeleteId(null);
+          }}
+          onConfirm={confirmDelete}
+        />
+      )}
     </div>
   );
 };

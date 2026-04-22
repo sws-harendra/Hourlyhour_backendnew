@@ -99,7 +99,7 @@ export default function Sidebar() {
   return (
     <>
       <div className="md:hidden fixed top-0 left-0 right-0 z-50 h-16 bg-slate-900 border-b border-white/10 px-4 flex items-center justify-between text-white shadow-xl">
-        <h1 className="font-semibold text-lg">RepairSathi</h1>
+        <h1 className="font-bold text-lg"><span className="text-blue-400">Repair </span><span className="text-orange-400">Saathi</span></h1>
 
         <button
           onClick={() => setMobileOpen(true)}
@@ -137,10 +137,9 @@ export default function Sidebar() {
               </div>
 
               <div className="text-center">
-                <h1 className="font-bold text-lg leading-none">
-                  RepairSathi
-                </h1>
-                <p className="text-xs text-slate-400 mt-1">
+                <h1 className="font-bold text-lg leading-none"><span className="text-blue-400">Repair </span><span className="text-orange-400">Saathi</span></h1>
+
+                <p className="text-xs text-white/80 mt-1">
                   Admin Dashboard
                 </p>
               </div>

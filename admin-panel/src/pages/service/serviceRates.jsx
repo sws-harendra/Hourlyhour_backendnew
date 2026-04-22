@@ -31,6 +31,8 @@ export default function ServiceRates() {
   const [saveLoading, setSaveLoading] = useState(false);
   const [updateLoading, setUpdateLoading] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
+  const [syncModal, setSyncModal] = useState(false);
+  const [syncResult, setSyncResult] = useState(null);
 
   const load = async () => {
     try {
@@ -167,24 +169,32 @@ export default function ServiceRates() {
   };
 
   const handleSyncToCategory = async () => {
-    if (
-      !window.confirm(
-        "Are you sure you want to SYNC these rates to all other services in this category?\n\nThis will REPLACE existing rates in other services."
-      )
-    )
-      return;
-
     setSyncLoading(true);
+
     try {
       await ServiceService.syncRatesToCategory(serviceId, "replace");
-      alert("Category rates synced successfully!");
+
+      setSyncModal(false);
+      setSyncResult({
+        type: "success",
+        title: "Sync Completed",
+        description: "Rates synced to all services successfully.",
+      });
+
+      load();
     } catch (error) {
       console.error(error);
-      alert("Failed to sync category rates.");
-    }
-    setSyncLoading(false);
-  };
 
+      setSyncModal(false);
+      setSyncResult({
+        type: "error",
+        title: "Sync Failed",
+        description: "Unable to sync category rates.",
+      });
+    } finally {
+      setSyncLoading(false);
+    }
+  };
   return (
     <div className="p-6 bg-white rounded-xl shadow-md">
 
@@ -196,7 +206,7 @@ export default function ServiceRates() {
 
         <div className="flex gap-2">
           <button
-            onClick={handleSyncToCategory}
+            onClick={() => setSyncModal(true)}
             disabled={syncLoading}
             className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg shadow disabled:opacity-50"
           >
@@ -497,6 +507,38 @@ export default function ServiceRates() {
         />
       )}
 
+      {syncModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center px-4">
+          <div className="bg-white w-full max-w-md rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in duration-200">
+
+            <div className="p-6 border-b">
+              <h3 className="text-xl font-semibold text-gray-800">
+                Sync to Category
+              </h3>
+              <p className="text-sm text-gray-500 mt-2">
+                This will replace all existing rates in other services of this category.
+              </p>
+            </div>
+
+            <div className="p-6 flex justify-end gap-3">
+              <button
+                onClick={() => setSyncModal(false)}
+                className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200"
+              >
+                Cancel
+              </button>
+
+              <button
+                onClick={handleSyncToCategory}
+                disabled={syncLoading}
+                className="px-4 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white disabled:opacity-50"
+              >
+                {syncLoading ? "Syncing..." : "Confirm Sync"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
