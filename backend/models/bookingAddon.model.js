@@ -13,7 +13,7 @@ module.exports = (sequelize, DataTypes) => {
 
     rateId: {
       type: DataTypes.INTEGER,
-      allowNull: false,
+      allowNull: true,
     },
 
     title: {
@@ -31,7 +31,7 @@ module.exports = (sequelize, DataTypes) => {
     status: {
       type: DataTypes.ENUM("pending", "approved", "rejected"),
       allowNull: false,
-      defaultValue: "pending",
+      defaultValue: "approved",
     },
   });
 

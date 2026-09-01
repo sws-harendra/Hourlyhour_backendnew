@@ -24,6 +24,7 @@ router.get("/assigned", authenticated, booking.getProviderBookings);
 router.get("/warranties", authenticated, booking.getProviderWarranties);
 
 router.post("/add-addon", authenticated, booking.addAddon);
+router.post("/customize", authenticated, booking.customizeBooking);
 router.get("/:id/addons", authenticated, booking.getBookingAddons);
 
 router.post("/approve-addons", authenticated, booking.approveAddons);

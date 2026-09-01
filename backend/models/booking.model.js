@@ -101,6 +101,23 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.INTEGER,
       allowNull: true,
     },
+    customerName: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    customerPhone: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    customerEmail: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    discount: {
+      type: DataTypes.FLOAT,
+      allowNull: true,
+      defaultValue: 0,
+    },
   });
 
   Booking.associate = (models) => {

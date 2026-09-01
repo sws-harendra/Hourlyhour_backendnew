@@ -44,6 +44,7 @@ const generateInvoicePdf = async (
     // ================= ITEMS =================
     let subtotal = 0;
     let totalTax = 0;
+    let totalDiscount = 0;
     const items = [];
 
     cleanBookings.forEach((b) => {
@@ -68,15 +69,16 @@ const generateInvoicePdf = async (
 
       // ADDONS
       (b.addons || []).forEach((a) => {
-        const price = Number(a?.rate?.price || a?.price) || 0;
+        const price = Number(a?.price != null ? a.price : a?.rate?.price) || 0;
         const qty = Number(a?.quantity) || 1;
+        const title = a?.title || a?.rate?.title || "Addon";
 
         if (a.status === "approved") {
           addonTotal += price * qty;
 
           items.push({
             index: items.length + 1,
-            name: `${a?.rate?.title || a?.title || "Addon"} (Addon)`,
+            name: `${title} (Extra/Part)`,
             rateType: "extra",
             provider: providerName,
             providerPhone,
@@ -90,9 +92,11 @@ const generateInvoicePdf = async (
       const bookingTaxPercent =
         Number(b.taxPercentageAtBooking) || Number(defaultTaxPercent) || 0;
       const bookingTax = (bookingSubtotal * bookingTaxPercent) / 100;
+      const discount = Number(b.discount) || 0;
 
       subtotal += bookingSubtotal;
       totalTax += bookingTax;
+      totalDiscount += discount;
     });
 
     // ================= TOTALS =================
@@ -101,9 +105,9 @@ const generateInvoicePdf = async (
       Number(defaultTaxPercent) ||
       0;
     const gstAmount = totalTax;
-    const discount = 0;
+    const discount = totalDiscount;
 
-    const grandTotal = subtotal + gstAmount - discount;
+    const grandTotal = Math.max(0, subtotal + gstAmount - discount);
     const totalReceived = 0;
     const dueAmount = grandTotal - totalReceived;
 
@@ -115,9 +119,9 @@ const generateInvoicePdf = async (
         }`,
         created_at: new Date().toLocaleDateString(),
 
-        name: user?.name || "-",
-        email: user?.email || "-",
-        number: user?.phone || "-",
+        name: cleanBookings[0]?.customerName || user?.name || "-",
+        email: cleanBookings[0]?.customerEmail || user?.email || "-",
+        number: cleanBookings[0]?.customerPhone || user?.phone || "-",
         address: cleanBookings[0]?.location || "-",
 
         provider_name: provider?.name || "-",
@@ -130,7 +134,7 @@ const generateInvoicePdf = async (
         logoSrc,
 
         gst,
-        discount,
+        discount: discount.toFixed(2),
 
         total_amount: subtotal.toFixed(2),
         gst_amount: gstAmount.toFixed(2),
@@ -145,17 +149,17 @@ const generateInvoicePdf = async (
     // ================= GENERATE PDF =================
     const html = compiled(data);
 
-    // browser = await puppeteer.launch({
-    //   headless: true,
-    //   args: ["--no-sandbox", "--disable-setuid-sandbox"],
-    // });
-    const browser = await puppeteer.launch({
-      executablePath: "/usr/bin/chromium-browser",
-      headless: "new",
-
-      // headless: true,
+    browser = await puppeteer.launch({
+      headless: true,
       args: ["--no-sandbox", "--disable-setuid-sandbox"],
     });
+    // const browser = await puppeteer.launch({
+    //   executablePath: "/usr/bin/chromium-browser",
+    //   headless: "new",
+
+    //   // headless: true,
+    //   args: ["--no-sandbox", "--disable-setuid-sandbox"],
+    // });
 
     const page = await browser.newPage();
     await page.setContent(html, { waitUntil: "domcontentloaded" });

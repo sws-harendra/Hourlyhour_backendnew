@@ -11,11 +11,15 @@ const getInvoice = async (req, res) => {
         "basePriceAtBooking",
         "taxPercentageAtBooking",
         "location",
+        "customerName",
+        "customerPhone",
+        "customerEmail",
+        "discount",
       ],
       include: [
         {
           association: "service",
-          attributes: ["title"],
+          attributes: ["title", "rateType"],
         },
         {
           association: "provider",
@@ -27,11 +31,12 @@ const getInvoice = async (req, res) => {
         },
         {
           association: "addons",
-          attributes: ["price", "quantity", "status", "title"],
+          attributes: ["price", "quantity", "status", "title", "rateId"],
           include: [
             {
               association: "rate",
               attributes: ["title", "price"],
+              required: false,
             },
           ],
         },
@@ -62,11 +67,15 @@ const getCombinedInvoice = async (req, res) => {
         "basePriceAtBooking",
         "taxPercentageAtBooking",
         "location",
+        "customerName",
+        "customerPhone",
+        "customerEmail",
+        "discount",
       ],
       include: [
         {
           association: "service",
-          attributes: ["title"],
+          attributes: ["title", "rateType"],
         },
         {
           association: "provider",
@@ -78,11 +87,12 @@ const getCombinedInvoice = async (req, res) => {
         },
         {
           association: "addons",
-          attributes: ["price", "quantity", "status", "title"],
+          attributes: ["price", "quantity", "status", "title", "rateId"],
           include: [
             {
               association: "rate", // ✅ THIS IS KEY
               attributes: ["title", "price"],
+              required: false,
             },
           ],
         },

@@ -115,27 +115,178 @@ const startService = async (req, res) => {
   }
 };
 
+/* ───────────────── HELPER: APPLY BOOKING CUSTOMIZATIONS ───────────────── */
+const applyBookingCustomizations = async (booking, customizations, transaction) => {
+  const {
+    customerName,
+    customerPhone,
+    customerEmail,
+    location,
+    basePriceAtBooking,
+    discount,
+    items,
+  } = customizations;
+
+  if (customerName !== undefined) booking.customerName = customerName;
+  if (customerPhone !== undefined) booking.customerPhone = customerPhone;
+  if (customerEmail !== undefined) booking.customerEmail = customerEmail;
+  if (location !== undefined) booking.location = location;
+  if (basePriceAtBooking !== undefined && !isNaN(Number(basePriceAtBooking))) {
+    booking.basePriceAtBooking = Number(basePriceAtBooking);
+  }
+  if (discount !== undefined && !isNaN(Number(discount))) {
+    booking.discount = Number(discount);
+  }
+
+  if (Array.isArray(items)) {
+    // Remove old addons
+    await BookingAddon.destroy({
+      where: { bookingId: booking.id },
+      transaction,
+    });
+
+    const addonItems = [];
+    for (const item of items) {
+      let title = item.title;
+      let price = item.price !== undefined ? Number(item.price) : undefined;
+      const quantity = Number(item.quantity) || 1;
+      const rateId = item.rateId ? Number(item.rateId) : null;
+
+      if (rateId && (title === undefined || price === undefined)) {
+        const rate = await ServiceRate.findByPk(rateId, { transaction });
+        if (rate) {
+          if (title === undefined) title = rate.title;
+          if (price === undefined) price = Number(rate.price);
+        }
+      }
+
+      addonItems.push({
+        bookingId: booking.id,
+        rateId,
+        title: title || "Extra Item",
+        price: price !== undefined && !isNaN(price) ? price : 0,
+        quantity,
+        status: item.status || "approved",
+      });
+    }
+
+    if (addonItems.length > 0) {
+      await BookingAddon.bulkCreate(addonItems, { transaction });
+    }
+  }
+
+  // Recalculate total price
+  const addons = await BookingAddon.findAll({
+    where: { bookingId: booking.id, status: "approved" },
+    transaction,
+  });
+
+  let addonTotal = 0;
+  for (const a of addons) {
+    addonTotal += (Number(a.price) || 0) * (Number(a.quantity) || 1);
+  }
+
+  const basePrice = Number(booking.basePriceAtBooking) || 0;
+  const taxPercent = Number(booking.taxPercentageAtBooking) || 0;
+  const subtotal = basePrice + addonTotal;
+  const taxAmount = (subtotal * taxPercent) / 100;
+  const discountAmount = Number(booking.discount) || 0;
+
+  booking.priceAtBooking = Math.max(0, subtotal + taxAmount - discountAmount);
+  await booking.save({ transaction });
+
+  return booking;
+};
+
+/* ───────────────── CUSTOMIZE BOOKING (PROVIDER) ───────────────── */
+const customizeBooking = async (req, res) => {
+  const transaction = await sequelize.transaction();
+  try {
+    const providerId = req.user.id;
+    const { bookingId } = req.body;
+
+    if (!bookingId) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: "bookingId is required" });
+    }
+
+    const booking = await Booking.findOne({
+      where: { id: bookingId, providerId },
+      transaction,
+    });
+
+    if (!booking) {
+      await transaction.rollback();
+      return res.status(404).json({ success: false, message: "Booking not found or not assigned to you" });
+    }
+
+    if (["completed", "cancelled"].includes(booking.status)) {
+      await transaction.rollback();
+      return res.status(400).json({ success: false, message: "Cannot modify completed or cancelled booking" });
+    }
+
+    await applyBookingCustomizations(booking, req.body, transaction);
+    await transaction.commit();
+
+    const updatedBooking = await Booking.findByPk(bookingId, {
+      include: [
+        { model: User, as: "user" },
+        { model: Service, as: "service" },
+        {
+          model: BookingAddon,
+          as: "addons",
+          include: [{ model: ServiceRate, as: "rate", required: false }],
+        },
+      ],
+    });
+
+    res.json({
+      success: true,
+      message: "Booking updated successfully",
+      booking: updatedBooking,
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error("Customize booking error:", error);
+    res.status(500).json({ success: false, message: "Failed to customize booking", error: error.message });
+  }
+};
+
 /* ───────────────── COMPLETE SERVICE ───────────────── */
 const completeService = async (req, res) => {
+  const transaction = await sequelize.transaction();
   try {
     const providerId = req.user.id;
     const { bookingId, otp } = req.body;
 
+    if (!bookingId) {
+      await transaction.rollback();
+      return res.status(400).json({ message: "Booking ID is required" });
+    }
+
     const booking = await Booking.findOne({
       where: { id: bookingId, providerId },
+      transaction,
+      lock: transaction.LOCK.UPDATE,
     });
 
     if (!booking) {
+      await transaction.rollback();
       return res.status(404).json({ message: "Booking not found" });
     }
 
-    if (booking.status !== "on_the_way") {
+    if (booking.status !== "on_the_way" && booking.status !== "confirmed") {
+      await transaction.rollback();
       return res.status(400).json({ message: "Invalid booking state" });
     }
 
     if (booking.completionOtp !== otp) {
+      await transaction.rollback();
       return res.status(400).json({ message: "Invalid OTP" });
     }
+
+    // Apply any final customizations if passed in body
+    await applyBookingCustomizations(booking, req.body, transaction);
 
     const groupId = booking.groupId;
 
@@ -146,6 +297,7 @@ const completeService = async (req, res) => {
         providerId,
       },
       include: [{ model: Warranty, as: "appliedWarranty" }],
+      transaction,
     });
 
     for (const b of bookingsInGroup) {
@@ -165,16 +317,18 @@ const completeService = async (req, res) => {
         expiryDate.setDate(expiryDate.getDate() + 30);
         b.warrantyExpiryDate = expiryDate;
       }
-      await b.save();
+      await b.save({ transaction });
     }
+
+    await transaction.commit();
 
     res.json({
       success: true,
-
       message: "Service completed successfully",
       groupId,
     });
   } catch (error) {
+    await transaction.rollback();
     console.error("Complete service error:", error);
 
     res.status(500).json({ message: "Internal server error" });
@@ -520,49 +674,51 @@ const addAddon = async (req, res) => {
     /* 🔹 ADD NEW ADDONS */
     if (items && items.length > 0) {
       for (const item of items) {
-        const rate = await ServiceRate.findByPk(item.rateId, { transaction });
+        let title = item.title;
+        let price = item.price !== undefined ? Number(item.price) : undefined;
+        const quantity = Number(item.quantity) || 1;
+        const rateId = item.rateId ? Number(item.rateId) : null;
 
-        if (!rate) continue;
+        if (rateId && (title === undefined || price === undefined)) {
+          const rate = await ServiceRate.findByPk(rateId, { transaction });
+          if (rate) {
+            if (title === undefined) title = rate.title;
+            if (price === undefined) price = Number(rate.price);
+          }
+        }
 
         addonItems.push({
           bookingId,
-          rateId: rate.id,
-          title: rate.title,
-          price: rate.price,
-          quantity: item.quantity || 1,
+          rateId,
+          title: title || "Extra Item",
+          price: price !== undefined && !isNaN(price) ? price : 0,
+          quantity,
+          status: item.status || "approved",
         });
       }
 
-      await BookingAddon.bulkCreate(
-        addonItems.map((item) => ({
-          ...item,
-          status: "pending",
-        })),
-        { transaction },
-      );
+      await BookingAddon.bulkCreate(addonItems, { transaction });
     }
 
     /* 🔹 RECALCULATE TOTAL */
     const addons = await BookingAddon.findAll({
-      where: { bookingId },
+      where: { bookingId, status: "approved" },
       transaction,
     });
 
     let addonTotal = 0;
-
     for (const addon of addons) {
-      addonTotal += addon.price * addon.quantity;
+      addonTotal += (Number(addon.price) || 0) * (Number(addon.quantity) || 1);
     }
 
-    /* 🔹 GET ORIGINAL SERVICE PRICE */
-    const service = await Service.findByPk(booking.serviceId, { transaction });
+    const basePrice = Number(booking.basePriceAtBooking) || 0;
+    const taxPercent = Number(booking.taxPercentageAtBooking) || 0;
+    const subtotal = basePrice + addonTotal;
+    const taxAmount = (subtotal * taxPercent) / 100;
+    const discountAmount = Number(booking.discount) || 0;
 
-    const serviceBasePrice = service?.price || 0;
-
-    /* 🔹 FINAL PRICE */
-    // booking.priceAtBooking = serviceBasePrice + addonTotal;
-
-    // await booking.save({ transaction });
+    booking.priceAtBooking = Math.max(0, subtotal + taxAmount - discountAmount);
+    await booking.save({ transaction });
 
     await transaction.commit();
 
@@ -595,17 +751,18 @@ const getBookingAddons = async (req, res) => {
           model: ServiceRate,
           as: "rate",
           attributes: ["id", "title", "price"],
+          required: false,
         },
       ],
     });
     const formatted = addons.map((a) => ({
+      id: a.id,
       rateId: a.rateId,
       quantity: a.quantity,
-      title: a.rate?.title,
-      price: a.rate?.price,
-      status: a.status, // <-- add this
+      title: a.title || a.rate?.title || "Addon",
+      price: a.price != null ? a.price : (a.rate?.price || 0),
+      status: a.status,
     }));
-    console.log(formatted, id);
     res.json({
       success: true,
       data: formatted,
@@ -633,17 +790,22 @@ const approveAddons = async (req, res) => {
 
     const booking = await Booking.findByPk(bookingId);
 
-    let total = booking.basePriceAtBooking;
-
+    let addonTotal = 0;
     const approvedAddons = await BookingAddon.findAll({
       where: { bookingId, status: "approved" },
     });
 
     for (const a of approvedAddons) {
-      total += a.price * a.quantity;
+      addonTotal += (Number(a.price) || 0) * (Number(a.quantity) || 1);
     }
 
-    booking.priceAtBooking = total;
+    const basePrice = Number(booking.basePriceAtBooking) || 0;
+    const taxPercent = Number(booking.taxPercentageAtBooking) || 0;
+    const subtotal = basePrice + addonTotal;
+    const taxAmount = (subtotal * taxPercent) / 100;
+    const discountAmount = Number(booking.discount) || 0;
+
+    booking.priceAtBooking = Math.max(0, subtotal + taxAmount - discountAmount);
     await booking.save();
   } else {
     for (const addon of addons) {
@@ -746,6 +908,7 @@ module.exports = {
   startService,
   getProviderBookings,
   completeService,
+  customizeBooking,
   getUserBookings,
   cancelBooking,
   rescheduleBooking,
