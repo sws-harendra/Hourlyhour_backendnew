@@ -166,7 +166,7 @@ const applyBookingCustomizations = async (booking, customizations, transaction) 
         title: title || "Extra Item",
         price: price !== undefined && !isNaN(price) ? price : 0,
         quantity,
-        status: item.status || "approved",
+        status: item.status || "pending",
       });
     }
 
@@ -212,6 +212,7 @@ const customizeBooking = async (req, res) => {
 
     const booking = await Booking.findOne({
       where: { id: bookingId, providerId },
+      include: [{ model: User, as: "user", attributes: ["id", "fcmToken"] }],
       transaction,
     });
 
@@ -228,6 +229,20 @@ const customizeBooking = async (req, res) => {
     await applyBookingCustomizations(booking, req.body, transaction);
     await transaction.commit();
 
+    // Send Push Notification to User about additional services requested
+    if (booking.user && booking.user.fcmToken) {
+      sendNotification({
+        token: booking.user.fcmToken,
+        title: "Additional Services Requested",
+        body: "Your service provider has added extra services/items. Please open the app and tap 'Approve' to confirm.",
+        data: {
+          type: "addons_pending",
+          bookingId: String(bookingId),
+          groupId: String(booking.groupId),
+        },
+      }).catch((err) => console.error("Notification error:", err));
+    }
+
     const updatedBooking = await Booking.findByPk(bookingId, {
       include: [
         { model: User, as: "user" },
@@ -242,7 +257,7 @@ const customizeBooking = async (req, res) => {
 
     res.json({
       success: true,
-      message: "Booking updated successfully",
+      message: "Booking updated and sent to customer for approval",
       booking: updatedBooking,
     });
   } catch (error) {
@@ -285,8 +300,19 @@ const completeService = async (req, res) => {
       return res.status(400).json({ message: "Invalid OTP" });
     }
 
-    // Apply any final customizations if passed in body
-    await applyBookingCustomizations(booking, req.body, transaction);
+    // Check if there are unapproved pending addons
+    const pendingCount = await BookingAddon.count({
+      where: { bookingId: booking.id, status: "pending" },
+      transaction,
+    });
+
+    if (pendingCount > 0) {
+      await transaction.rollback();
+      return res.status(400).json({
+        message:
+          "Additional services/items are pending customer approval. Please ask the customer to tap 'Approve' in their app first.",
+      });
+    }
 
     const groupId = booking.groupId;
 
