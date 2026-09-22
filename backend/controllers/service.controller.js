@@ -614,7 +614,7 @@ const allBookings = async (req, res) => {
         {
           model: User,
           as: "user",
-          attributes: ["id", "name", "email"],
+          attributes: ["id", "name", "email", "phone"],
           required: false,
         },
         {

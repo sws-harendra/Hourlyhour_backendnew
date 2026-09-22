@@ -67,9 +67,17 @@ function App() {
           <Route
             path="/booking/allbookings/:id"
             element={<BookingDetail />}
-          />{" "}
+          />
+          <Route
+            path="/booking/:id"
+            element={<BookingDetail />}
+          />
           <Route
             path="/booking/group/:groupId"
+            element={<CombinedBookingDetail />}
+          />
+          <Route
+            path="/combined-booking/:groupId"
             element={<CombinedBookingDetail />}
           />
           <Route path="/notifications" element={<Notifications />} />
