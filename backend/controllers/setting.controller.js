@@ -24,6 +24,8 @@ exports.saveSetting = async (req, res) => {
       driverAssignType,
       platformfee,
       tax,
+      paymentQrCode,
+      paymentUpiId,
     } = req.body;
 
     if (
@@ -45,6 +47,8 @@ exports.saveSetting = async (req, res) => {
       assignType: driverAssignType,
       platformfee,
       tax,
+      paymentQrCode: paymentQrCode !== undefined ? paymentQrCode : null,
+      paymentUpiId: paymentUpiId !== undefined ? paymentUpiId : null,
     });
 
     res.json({

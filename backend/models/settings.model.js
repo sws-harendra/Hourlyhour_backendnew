@@ -35,6 +35,16 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: false,
         defaultValue: 0,
       },
+      paymentQrCode: {
+        type: DataTypes.STRING(1000),
+        allowNull: true,
+        defaultValue: null,
+      },
+      paymentUpiId: {
+        type: DataTypes.STRING(255),
+        allowNull: true,
+        defaultValue: null,
+      },
     },
     {
       tableName: "app_settings",

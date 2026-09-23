@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   Settings,
   Save,
@@ -8,21 +8,31 @@ import {
   IndianRupee,
   Percent,
   User,
+  QrCode,
+  Upload,
+  Trash2,
+  Image as ImageIcon,
 } from "lucide-react";
 import AppSettingService from "../../services/setting.service";
+import { CommonService } from "../../services/common.service";
 
 export default function AppSetting() {
   const [form, setForm] = useState({
     adminCommissionPercent: "",
-    minimumBalance: "",driverAssignType:"",
+    minimumBalance: "",
+    driverAssignType: "",
     platformfee: "",
-    tax: ""
+    tax: "",
+    paymentQrCode: "",
+    paymentUpiId: "",
   });
 
   const [loading, setLoading] = useState(false);
+  const [uploadingQr, setUploadingQr] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState("");
   const [initialLoad, setInitialLoad] = useState(true);
+  const qrFileInputRef = useRef(null);
 
   useEffect(() => {
     loadSetting();
@@ -35,10 +45,11 @@ export default function AppSetting() {
         setForm({
           adminCommissionPercent: res.data.data.adminCommissionPercent ?? "",
           minimumBalance: res.data.data.minimumBalance ?? "",
-          driverAssignType: res.data.data.driverAssignType??"",
-          tax: res.data.data.tax??"",
-          platformfee: res.data.data.platformfee ?? ""
-
+          driverAssignType: res.data.data.assignType ?? res.data.data.driverAssignType ?? "auto",
+          tax: res.data.data.tax ?? "",
+          platformfee: res.data.data.platformfee ?? "",
+          paymentQrCode: res.data.data.paymentQrCode ?? "",
+          paymentUpiId: res.data.data.paymentUpiId ?? "",
         });
       }
     } catch (err) {
@@ -55,6 +66,49 @@ export default function AppSetting() {
     setError("");
   };
 
+  const handleQrUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate image format
+    if (!file.type.startsWith("image/")) {
+      setError("Please select a valid image file (PNG, JPG, JPEG, WEBP).");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    setUploadingQr(true);
+    setError("");
+    try {
+      const res = await CommonService.uploadfile(formData);
+      const uploadedUrl = res.data?.url;
+      if (uploadedUrl) {
+        setForm((prev) => ({ ...prev, paymentQrCode: uploadedUrl }));
+        setSaved(false);
+      } else {
+        setError("Failed to obtain uploaded image URL.");
+      }
+    } catch (err) {
+      console.error("QR Upload failed", err);
+      setError("Failed to upload QR code image. Please try again.");
+    } finally {
+      setUploadingQr(false);
+      if (qrFileInputRef.current) {
+        qrFileInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleRemoveQr = () => {
+    setForm((prev) => ({ ...prev, paymentQrCode: "" }));
+    setSaved(false);
+    if (qrFileInputRef.current) {
+      qrFileInputRef.current.value = "";
+    }
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
@@ -64,9 +118,11 @@ export default function AppSetting() {
       await AppSettingService.save({
         adminCommissionPercent: Number(form.adminCommissionPercent),
         minimumBalance: Number(form.minimumBalance),
-        driverAssignType: form.driverAssignType,
+        driverAssignType: form.driverAssignType || "auto",
         platformfee: Number(form.platformfee),
         tax: Number(form.tax),
+        paymentQrCode: form.paymentQrCode || null,
+        paymentUpiId: form.paymentUpiId || null,
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
@@ -88,6 +144,11 @@ export default function AppSetting() {
       setForm({
         adminCommissionPercent: "",
         minimumBalance: "",
+        driverAssignType: "auto",
+        platformfee: "",
+        tax: "",
+        paymentQrCode: "",
+        paymentUpiId: "",
       });
       setSaved(false);
     } catch (err) {
@@ -182,31 +243,7 @@ export default function AppSetting() {
               Percentage of commission charged on transactions
             </p>
           </div>
-{/* <div className="space-y-2">
-            <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-              <IndianRupee className="w-4 h-4 text-gray-500" />
-              Platform Fee
-            </label>
-            <div className="relative">
-              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500 font-medium">
-                ₹
-              </span>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                name="platformfee"
-                value={form.platformfee}
-                onChange={handleChange}
-                className="w-full border border-gray-300 rounded-lg pl-10 pr-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none"
-                placeholder="e.g., 20"
-                required
-              />
-            </div>
-            <p className="text-xs text-gray-500 ml-1">
-              Any platform fee that will be added to final amount of order.
-            </p>
-          </div> */}
+
           <div className="space-y-2">
             <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
               <IndianRupee className="w-4 h-4 text-gray-500" />
@@ -232,6 +269,7 @@ export default function AppSetting() {
               Any platform fee that will be added to final amount of order.
             </p>
           </div>
+
           {/* Minimum Balance */}
           <div className="space-y-2">
             <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
@@ -258,28 +296,133 @@ export default function AppSetting() {
               Minimum balance users must maintain in their accounts
             </p>
           </div>
-         <div className="space-y-2">
-          
-            {/* Driver Assign Type */}
-<div className="space-y-2">
-  <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
-    Driver Assign Type
-  </label>
 
-  <select
-    name="driverAssignType"
-    value={form.driverAssignType}
-    onChange={handleChange}
-    className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none"
-  >
-    <option value="manual">Manual</option>
-    <option value="auto">Automatic</option>
-  </select>
+          {/* Driver Assign Type */}
+          <div className="space-y-2">
+            <label className="flex items-center gap-2 text-sm font-semibold text-gray-700">
+              Driver Assign Type
+            </label>
 
-  <p className="text-xs text-gray-500 ml-1">
-    Select how drivers will be assigned to rides
-  </p>
-</div>
+            <select
+              name="driverAssignType"
+              value={form.driverAssignType}
+              onChange={handleChange}
+              className="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none"
+            >
+              <option value="manual">Manual</option>
+              <option value="auto">Automatic</option>
+            </select>
+
+            <p className="text-xs text-gray-500 ml-1">
+              Select how drivers will be assigned to rides
+            </p>
+          </div>
+
+          {/* Payment QR Code Section */}
+          <div className="border border-gray-200 rounded-xl p-5 bg-gray-50/70 space-y-4">
+            <div className="flex items-center justify-between">
+              <label className="flex items-center gap-2 text-sm font-semibold text-gray-800">
+                <QrCode className="w-4 h-4 text-blue-600" />
+                Payment QR Code
+              </label>
+              {form.paymentQrCode && (
+                <span className="text-xs bg-green-100 text-green-700 font-medium px-2 py-0.5 rounded-full">
+                  Active QR Configured
+                </span>
+              )}
+            </div>
+
+            <p className="text-xs text-gray-500">
+              Upload your official payment QR code (e.g. UPI, PhonePe, Google Pay, Paytm) so it can be updated and retrieved across the platform.
+            </p>
+
+            {/* Hidden File Input */}
+            <input
+              type="file"
+              ref={qrFileInputRef}
+              accept="image/*"
+              className="hidden"
+              onChange={handleQrUpload}
+            />
+
+            {/* QR Code Preview or Upload Box */}
+            {form.paymentQrCode ? (
+              <div className="flex flex-col sm:flex-row items-center gap-5 p-4 bg-white border border-gray-200 rounded-lg">
+                <div className="relative group p-2 bg-gray-50 border rounded-lg flex items-center justify-center">
+                  <img
+                    src={form.paymentQrCode}
+                    alt="Payment QR Code"
+                    className="w-36 h-36 object-contain rounded"
+                  />
+                </div>
+                <div className="flex-1 space-y-2 text-center sm:text-left">
+                  <p className="text-sm font-medium text-gray-800 flex items-center gap-1.5 justify-center sm:justify-start">
+                    <ImageIcon className="w-4 h-4 text-blue-500" /> Current Payment QR
+                  </p>
+                  <p className="text-xs text-gray-500 break-all max-w-md">
+                    {form.paymentQrCode}
+                  </p>
+                  <div className="flex items-center gap-2 pt-2 justify-center sm:justify-start">
+                    <button
+                      type="button"
+                      disabled={uploadingQr}
+                      onClick={() => qrFileInputRef.current?.click()}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md border border-gray-300 bg-white hover:bg-gray-50 text-gray-700 transition-colors shadow-sm disabled:opacity-50"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      {uploadingQr ? "Uploading..." : "Replace QR"}
+                    </button>
+                    <button
+                      type="button"
+                      disabled={uploadingQr}
+                      onClick={handleRemoveQr}
+                      className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-md border border-red-200 bg-red-50 hover:bg-red-100 text-red-600 transition-colors"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div
+                onClick={() => !uploadingQr && qrFileInputRef.current?.click()}
+                className="border-2 border-dashed border-gray-300 hover:border-blue-500 hover:bg-blue-50/40 rounded-lg p-6 flex flex-col items-center justify-center cursor-pointer transition-all bg-white"
+              >
+                {uploadingQr ? (
+                  <div className="flex flex-col items-center gap-2 py-4">
+                    <div className="w-6 h-6 border-2 border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+                    <span className="text-xs font-medium text-gray-600">Uploading QR Code image...</span>
+                  </div>
+                ) : (
+                  <>
+                    <div className="p-3 bg-blue-50 text-blue-600 rounded-full mb-2">
+                      <Upload className="w-6 h-6" />
+                    </div>
+                    <span className="text-sm font-semibold text-gray-700">Click to upload Payment QR Code</span>
+                    <span className="text-xs text-gray-400 mt-1">PNG, JPG, JPEG or WEBP (Max 5MB)</span>
+                  </>
+                )}
+              </div>
+            )}
+
+            {/* Optional UPI ID / VPA field */}
+            <div className="space-y-1.5 pt-2">
+              <label className="text-xs font-semibold text-gray-700 flex items-center gap-1">
+                UPI ID / VPA (Optional)
+              </label>
+              <input
+                type="text"
+                name="paymentUpiId"
+                value={form.paymentUpiId}
+                onChange={handleChange}
+                placeholder="e.g. repairsathi@okhdfcbank"
+                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all outline-none"
+              />
+              <p className="text-[11px] text-gray-500">
+                Provide a UPI handle if you want to allow users/partners to copy UPI ID alongside scanning the QR code.
+              </p>
+            </div>
           </div>
           {/* Action Buttons */}
           <div className="flex items-center gap-3 pt-4 border-t border-gray-200">
