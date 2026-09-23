@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Search, ChevronDown } from "lucide-react";
+import { Search, ChevronDown, Info, MapPin } from "lucide-react";
 
 export default function SearchableSelect({ 
   options, 
@@ -7,6 +7,8 @@ export default function SearchableSelect({
   value, 
   onChange, 
   onSearch,
+  onOptionAction,
+  onOptionLocation,
   placeholder = "Select an option...", 
   searchPlaceholder = "Search...",
   loading = false 
@@ -71,6 +73,75 @@ export default function SearchableSelect({
     }
   };
 
+  const renderOptionItem = (option) => {
+    const isSelected = option.id === value || option.value === value;
+    return (
+      <div
+        key={option.id || option.value}
+        className={`w-full px-4 py-2.5 hover:bg-blue-50 transition-colors flex items-center justify-between group ${
+          isSelected ? "bg-blue-50/80 border-l-4 border-blue-600" : ""
+        }`}
+      >
+        <button
+          type="button"
+          onClick={() => {
+            onChange(option.id || option.value);
+            setIsOpen(false);
+            setSearch("");
+            if (onSearch) onSearch("");
+          }}
+          className="flex-1 text-left flex flex-col min-w-0"
+        >
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className="font-medium text-gray-900 truncate">{option.label}</span>
+            {option.badge && (
+              <span
+                className={`text-[10px] px-1.5 py-0.5 rounded-full font-bold uppercase tracking-wider ${
+                  option.badgeColor || "bg-amber-100 text-amber-800 border border-amber-200"
+                }`}
+              >
+                {option.badge}
+              </span>
+            )}
+          </div>
+          {option.sublabel && (
+            <span className="text-xs text-gray-500 truncate">{option.sublabel}</span>
+          )}
+        </button>
+
+        <div className="flex items-center gap-1 ml-2 shrink-0">
+          {onOptionLocation && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOptionLocation(option);
+              }}
+              title="View Current Location"
+              className="p-1.5 text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-lg transition-colors"
+            >
+              <MapPin className="w-4 h-4" />
+            </button>
+          )}
+
+          {onOptionAction && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onOptionAction(option);
+              }}
+              title="View Details"
+              className="p-1.5 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+            >
+              <Info className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="relative w-full" ref={containerRef}>
       <button
@@ -106,8 +177,8 @@ export default function SearchableSelect({
             </div>
           </div>
 
-          <div className="max-h-60 overflow-y-auto">
-            {loading && options.length === 0 ? (
+          <div className="max-h-60 overflow-y-auto divide-y divide-gray-50">
+            {loading && (!options || options.length === 0) ? (
               <div className="p-4 text-center text-gray-500 text-sm italic">Searching...</div>
             ) : (groups ? filteredOptions.length === 0 : filteredOptions.length === 0) ? (
               <div className="p-4 text-center text-gray-500 text-sm italic">No results found</div>
@@ -118,51 +189,11 @@ export default function SearchableSelect({
                     <div className="px-4 py-2 text-xs font-semibold uppercase tracking-wide text-gray-500 bg-gray-50">
                       {group.label}
                     </div>
-                    {group.options.map((option) => (
-                      <button
-                        key={option.id || option.value}
-                        type="button"
-                        onClick={() => {
-                          onChange(option.id || option.value);
-                          setIsOpen(false);
-                          setSearch("");
-                          if (onSearch) onSearch("");
-                        }}
-                        className={`w-full px-4 py-2 text-left hover:bg-blue-50 transition-colors flex flex-col ${
-                          (option.id === value || option.value === value)
-                            ? "bg-blue-50 border-l-4 border-blue-500"
-                            : ""
-                        }`}
-                      >
-                        <span className="font-medium text-gray-900">{option.label}</span>
-                        {option.sublabel && (
-                          <span className="text-xs text-gray-500">{option.sublabel}</span>
-                        )}
-                      </button>
-                    ))}
+                    {group.options.map((option) => renderOptionItem(option))}
                   </div>
                 ))
               ) : (
-                filteredOptions.map((option) => (
-                  <button
-                    key={option.id || option.value}
-                    type="button"
-                    onClick={() => {
-                      onChange(option.id || option.value);
-                      setIsOpen(false);
-                      setSearch("");
-                      if (onSearch) onSearch(""); // Reset search on parent if needed
-                    }}
-                    className={`w-full px-4 py-2 text-left hover:bg-blue-50 transition-colors flex flex-col ${
-                      (option.id === value || option.value === value) ? "bg-blue-50 border-l-4 border-blue-500" : ""
-                    }`}
-                  >
-                    <span className="font-medium text-gray-900">{option.label}</span>
-                    {option.sublabel && (
-                      <span className="text-xs text-gray-500">{option.sublabel}</span>
-                    )}
-                  </button>
-                ))
+                filteredOptions.map((option) => renderOptionItem(option))
               )
             )}
           </div>

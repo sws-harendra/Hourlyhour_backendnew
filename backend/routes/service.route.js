@@ -75,6 +75,11 @@ router.post(
   adminAuthenticated,
   service.bulkDeleteRate,
 );
+router.post(
+  "/rate-list/bulk-delete-selected",
+  adminAuthenticated,
+  service.bulkDeleteRatesByIds,
+);
 
 router.get("/rate-list", adminAuthenticated, service.getRates);
 router.post("/add-rate-list", adminAuthenticated, service.createRate);

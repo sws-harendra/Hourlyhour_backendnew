@@ -62,4 +62,7 @@ export const ServiceService = {
   bulkDeleteRate: async (data) => {
     return await api.post("/service/rate-list/bulk-delete", data);
   },
+  bulkDeleteRatesByIds: async (ids) => {
+    return await api.post("/service/rate-list/bulk-delete-selected", { ids });
+  },
 };

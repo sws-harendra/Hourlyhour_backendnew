@@ -7,9 +7,10 @@ export const BookingService = {
     return { data };
   },
 
-  assignProvider: async (id, providerId) => {
+  assignProvider: async (id, providerId, forceAssign = false) => {
     const { data } = await api.post(`/service/booking/${id}/assign-provider`, {
       providerId,
+      forceAssign,
     });
     return data;
   },
@@ -33,8 +34,11 @@ export const BookingService = {
     return api.get(`/service/booking/group/${groupId}`);
   },
 
-  assignProviderToGroup(groupId, providerId) {
-    return api.put(`/service/booking/group/${groupId}/assign`, { providerId });
+  assignProviderToGroup(groupId, providerId, forceAssign = false) {
+    return api.put(`/service/booking/group/${groupId}/assign`, {
+      providerId,
+      forceAssign,
+    });
   },
   updateGroupStatus(groupId, status) {
     return api.put(`/service/booking/group/${groupId}/status`, { status });

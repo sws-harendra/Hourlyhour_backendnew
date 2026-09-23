@@ -57,9 +57,9 @@ export default function CombinedBookingDetail() {
     }
   };
 
-  const handleAssignAll = async () => {
+  const handleAssignAll = async (force = false) => {
     try {
-      await BookingService.assignProviderToGroup(groupId, selectedProvider);
+      await BookingService.assignProviderToGroup(groupId, selectedProvider, force);
 
       // Automatically update status to confirmed if group is pending
       const isAnyPending = bookings.some((b) => b.status === "pending");
@@ -69,8 +69,20 @@ export default function CombinedBookingDetail() {
 
       alert("Provider assigned to all bookings!");
       fetchGroup();
-    } catch {
-      alert("Failed to assign");
+      fetchProviders();
+    } catch (err) {
+      console.error("Group assignment error:", err);
+      const resData = err?.response?.data;
+      if (err?.response?.status === 409 && resData?.conflict) {
+        const proceed = window.confirm(
+          `⚠️ WARNING: ${resData.message}\n\nDo you still want to force assign this group of bookings to this provider?`
+        );
+        if (proceed) {
+          return handleAssignAll(true);
+        }
+      } else {
+        alert(resData?.message || "Failed to assign provider");
+      }
     }
   };
 

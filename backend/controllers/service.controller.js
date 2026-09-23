@@ -761,7 +761,7 @@ const bookingDetail = async (req, res) => {
 const assignProvider = async (req, res) => {
   try {
     const bookingId = req.params.id;
-    const { providerId } = req.body;
+    const { providerId, forceAssign } = req.body;
 
     if (!providerId) {
       return res.status(400).json({ message: "providerId is required" });
@@ -774,6 +774,35 @@ const assignProvider = async (req, res) => {
       ],
     });
     if (!booking) return res.status(404).json({ message: "Booking not found" });
+
+    // Check if the service provider already has an active/ongoing booking
+    if (!forceAssign) {
+      const activeBooking = await Booking.findOne({
+        where: {
+          providerId,
+          id: { [Op.ne]: bookingId },
+          ...(booking.groupId ? { groupId: { [Op.ne]: booking.groupId } } : {}),
+          status: { [Op.in]: ["confirmed", "on_the_way", "pending"] },
+        },
+        include: [{ model: Service, as: "service", attributes: ["id", "title"] }],
+        order: [["id", "DESC"]],
+      });
+
+      if (activeBooking) {
+        return res.status(409).json({
+          success: false,
+          conflict: true,
+          message: `This service provider is already assigned to active booking #${activeBooking.id}${
+            activeBooking.service?.title ? ` (${activeBooking.service.title})` : ""
+          } with status "${activeBooking.status}".`,
+          activeBooking: {
+            id: activeBooking.id,
+            status: activeBooking.status,
+            serviceTitle: activeBooking.service?.title,
+          },
+        });
+      }
+    }
 
     booking.providerId = providerId;
     await booking.save();
@@ -821,7 +850,7 @@ const assignProvider = async (req, res) => {
 const assignProviderToGroup = async (req, res) => {
   try {
     const { groupId } = req.params;
-    const { providerId } = req.body;
+    const { providerId, forceAssign } = req.body;
 
     if (!providerId) {
       return res.status(400).json({ message: "providerId is required" });
@@ -837,6 +866,34 @@ const assignProviderToGroup = async (req, res) => {
 
     if (!bookings.length) {
       return res.status(404).json({ message: "Group not found" });
+    }
+
+    // Check if provider has active bookings in any OTHER group
+    if (!forceAssign) {
+      const activeBooking = await Booking.findOne({
+        where: {
+          providerId,
+          groupId: { [Op.ne]: groupId },
+          status: { [Op.in]: ["confirmed", "on_the_way", "pending"] },
+        },
+        include: [{ model: Service, as: "service", attributes: ["id", "title"] }],
+        order: [["id", "DESC"]],
+      });
+
+      if (activeBooking) {
+        return res.status(409).json({
+          success: false,
+          conflict: true,
+          message: `This service provider is already assigned to active booking #${activeBooking.id}${
+            activeBooking.service?.title ? ` (${activeBooking.service.title})` : ""
+          } with status "${activeBooking.status}".`,
+          activeBooking: {
+            id: activeBooking.id,
+            status: activeBooking.status,
+            serviceTitle: activeBooking.service?.title,
+          },
+        });
+      }
     }
 
     await Booking.update({ providerId }, { where: { groupId } });
@@ -1466,6 +1523,41 @@ const bulkDeleteRate = async (req, res) => {
   }
 };
 
+/**
+ * 🗑️ BULK DELETE RATES BY IDS
+ * Deletes multiple rates given an array of rate IDs
+ */
+const bulkDeleteRatesByIds = async (req, res) => {
+  const transaction = await ServiceRate.sequelize.transaction();
+  try {
+    const { ids } = req.body;
+
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "No rate IDs provided for deletion",
+      });
+    }
+
+    const deletedCount = await ServiceRate.destroy({
+      where: {
+        id: ids,
+      },
+      transaction,
+    });
+
+    await transaction.commit();
+    res.json({
+      success: true,
+      message: `Successfully deleted ${deletedCount} rates`,
+      deletedCount,
+    });
+  } catch (error) {
+    await transaction.rollback();
+    res.status(500).json({ success: false, message: error.message });
+  }
+};
+
 // controllers/service.controller.js
 
 const getRelatedServices = async (req, res) => {
@@ -1576,4 +1668,5 @@ module.exports = {
   bulkAddRate,
   bulkUpdateRate,
   bulkDeleteRate,
+  bulkDeleteRatesByIds,
 };

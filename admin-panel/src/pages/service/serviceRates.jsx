@@ -9,6 +9,9 @@ export default function ServiceRates() {
 
   const [rates, setRates] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkDeleteModal, setBulkDeleteModal] = useState(false);
+  const [bulkDeleteLoading, setBulkDeleteLoading] = useState(false);
 
   const [showModal, setShowModal] = useState(false);
   const [newRates, setNewRates] = useState([
@@ -38,6 +41,7 @@ export default function ServiceRates() {
     try {
       const res = await ServiceService.getByService(serviceId);
       setRates(res.data.data || []);
+      setSelectedIds([]); // reset selection when reloaded
     } catch (error) {
       console.error(error);
     }
@@ -47,6 +51,35 @@ export default function ServiceRates() {
   useEffect(() => {
     load();
   }, []);
+
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      setSelectedIds(rates.map((r) => r.id));
+    } else {
+      setSelectedIds([]);
+    }
+  };
+
+  const handleSelectOne = (id) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkDeleteConfirm = async () => {
+    if (bulkDeleteLoading || selectedIds.length === 0) return;
+    setBulkDeleteLoading(true);
+    try {
+      await ServiceService.bulkDeleteRatesByIds(selectedIds);
+      setBulkDeleteModal(false);
+      setSelectedIds([]);
+      load();
+    } catch (error) {
+      console.error("Failed to delete selected rates:", error);
+    } finally {
+      setBulkDeleteLoading(false);
+    }
+  };
 
   const handleAddRow = () => {
     setNewRates([...newRates, { title: "", price: "", warranty: "" }]);
@@ -200,11 +233,28 @@ export default function ServiceRates() {
 
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold text-gray-800">
-          Service Rate
-        </h2>
+        <div className="flex items-center gap-3">
+          <h2 className="text-xl font-semibold text-gray-800">
+            Service Rate
+          </h2>
+          {selectedIds.length > 0 && (
+            <span className="text-xs px-2.5 py-1 rounded-full bg-blue-50 text-blue-700 font-medium border border-blue-200">
+              {selectedIds.length} selected
+            </span>
+          )}
+        </div>
 
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {selectedIds.length > 0 && (
+            <button
+              onClick={() => setBulkDeleteModal(true)}
+              className="flex items-center gap-2 bg-red-600 hover:bg-red-700 text-white px-3.5 py-2 rounded-lg shadow font-medium text-sm transition-colors"
+            >
+              <Trash2 size={16} />
+              Delete Selected ({selectedIds.length})
+            </button>
+          )}
+
           <button
             onClick={() => setSyncModal(true)}
             disabled={syncLoading}
@@ -228,6 +278,15 @@ export default function ServiceRates() {
         <table className="w-full text-sm">
           <thead className="bg-gray-100 text-gray-700">
             <tr>
+              <th className="py-3 px-4 w-12 text-center">
+                <input
+                  type="checkbox"
+                  checked={rates.length > 0 && selectedIds.length === rates.length}
+                  onChange={handleSelectAll}
+                  aria-label="Select all rates"
+                  className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+                />
+              </th>
               <th className="py-3 px-4 text-left">ID</th>
               <th className="py-3 px-4 text-left">Title</th>
               <th className="py-3 px-4 text-left">Price</th>
@@ -239,44 +298,61 @@ export default function ServiceRates() {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan="5" className="text-center py-6">
+                <td colSpan="6" className="text-center py-6">
                   Loading...
                 </td>
               </tr>
             ) : rates.length === 0 ? (
               <tr>
-                <td colSpan="5" className="text-center py-6 text-gray-400">
+                <td colSpan="6" className="text-center py-6 text-gray-400">
                   No rates found
                 </td>
               </tr>
             ) : (
-              rates.map((rate) => (
-                <tr key={rate.id} className="border-t hover:bg-gray-50">
-                  <td className="py-3 px-4">{rate.id}</td>
-                  <td className="py-3 px-4">{rate.title}</td>
-                  <td className="py-3 px-4 font-medium">₹{rate.price}</td>
+              rates.map((rate) => {
+                const isSelected = selectedIds.includes(rate.id);
+                return (
+                  <tr
+                    key={rate.id}
+                    className={`border-t transition-colors ${
+                      isSelected ? "bg-blue-50/70 hover:bg-blue-50" : "hover:bg-gray-50"
+                    }`}
+                  >
+                    <td className="py-3 px-4 text-center">
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => handleSelectOne(rate.id)}
+                        aria-label={`Select rate ${rate.title}`}
+                        className="w-4 h-4 text-blue-600 rounded border-gray-300 focus:ring-blue-500 cursor-pointer"
+                      />
+                    </td>
+                    <td className="py-3 px-4 text-gray-600">{rate.id}</td>
+                    <td className="py-3 px-4 font-medium text-gray-900">{rate.title}</td>
+                    <td className="py-3 px-4 font-semibold text-gray-900">₹{rate.price}</td>
 
-                  <td className="py-3 px-4">
-                    {rate.warranty ? `${rate.warranty} Days` : "-"}
-                  </td>
+                    <td className="py-3 px-4">
+                      {rate.warranty ? `${rate.warranty} Days` : "-"}
+                    </td>
 
-                  <td className="py-3 px-4 flex justify-center gap-2">
-                    <button
-                      onClick={() => handleEditClick(rate)}
-                      className="p-2 bg-blue-100 hover:bg-blue-200 rounded"
-                    >
-                      <Pencil size={16} className="text-blue-600" />
-                    </button>
+                    <td className="py-3 px-4 flex justify-center gap-2">
+                      <button
+                        onClick={() => handleEditClick(rate)}
+                        className="p-2 bg-blue-100 hover:bg-blue-200 rounded"
+                      >
+                        <Pencil size={16} className="text-blue-600" />
+                      </button>
 
-                    <button
-                      onClick={() => handleDelete(rate)}
-                      className="p-2 bg-red-100 hover:bg-red-200 rounded"
-                    >
-                      <Trash2 size={16} className="text-red-600" />
-                    </button>
-                  </td>
-                </tr>
-              ))
+                      <button
+                        onClick={() => handleDelete(rate)}
+                        className="p-2 bg-red-100 hover:bg-red-200 rounded"
+                      >
+                        <Trash2 size={16} className="text-red-600" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>
@@ -504,6 +580,17 @@ export default function ServiceRates() {
             setDeleteRate(null);
           }}
           onConfirm={() => confirmDelete(false)}
+        />
+      )}
+
+      {bulkDeleteModal && (
+        <Delete
+          open={bulkDeleteModal}
+          title={`Delete ${selectedIds.length} Selected Rate${selectedIds.length > 1 ? "s" : ""}?`}
+          description={`Are you sure you want to delete ${selectedIds.length} selected rate item${selectedIds.length > 1 ? "s" : ""} at once? This action cannot be undone.`}
+          loading={bulkDeleteLoading}
+          onClose={() => setBulkDeleteModal(false)}
+          onConfirm={handleBulkDeleteConfirm}
         />
       )}
 

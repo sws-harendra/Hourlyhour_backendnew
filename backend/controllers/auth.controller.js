@@ -307,6 +307,16 @@ const allServiceProvider = async (req, res) => {
             )`),
             "totalReviews",
           ],
+          [
+            User.sequelize.literal(`(
+              SELECT COUNT(*)
+              FROM Bookings
+              WHERE
+                Bookings.providerId = User.id
+                AND Bookings.status IN ('confirmed', 'on_the_way', 'pending')
+            )`),
+            "activeBookingsCount",
+          ],
         ],
       },
     });
