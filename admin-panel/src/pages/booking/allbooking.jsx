@@ -187,6 +187,7 @@ export default function AllBooking() {
                   "Time",
                   "Location",
                   "Amount",
+                  "Payment",
                   "Status",
                   "Actions",
                 ].map((h) => (
@@ -203,7 +204,7 @@ export default function AllBooking() {
               {loading ? (
                 [...Array(10)].map((_, i) => (
                   <tr key={i}>
-                    {[...Array(9)].map((__, j) => (
+                    {[...Array(10)].map((__, j) => (
                       <td key={j} className="px-6 py-4">
                         <div className="h-4 bg-slate-200 rounded animate-pulse"></div>
                       </td>
@@ -212,7 +213,7 @@ export default function AllBooking() {
                 ))
               ) : bookings.length === 0 ? (
                 <tr>
-                  <td colSpan="9" className="text-center py-10 text-slate-500">
+                  <td colSpan="10" className="text-center py-10 text-slate-500">
                     No bookings found
                   </td>
                 </tr>
@@ -232,7 +233,7 @@ export default function AllBooking() {
                     !isGrouped && (
                       <tr key={`space-${group[0].id}`}>
                         <td
-                          colSpan="9"
+                          colSpan="10"
                           className="h-4 bg-slate-100 border-0"
                         ></td>
                       </tr>
@@ -244,7 +245,7 @@ export default function AllBooking() {
                         key={`group-${group[0].groupId}`}
                         className=" bg-blue-100"
                       >
-                        <td colSpan="9" className="px-6  py-4">
+                        <td colSpan="10" className="px-6  py-4">
                           <div className="flex justify-between items-center">
                             <span className="font-semibold text-blue-700">
                               Group #{group[0].groupId} ({group.length})
@@ -296,6 +297,34 @@ export default function AllBooking() {
                         <td className="px-6 py-4">{b.location}</td>
                         <td className="px-6 py-4 font-semibold">
                           ₹{PriceUtils.calculateBookingTotal(b)}{" "}
+                        </td>
+                        <td className="px-6 py-4">
+                          <div className="flex flex-col gap-1 items-start">
+                            {b.paymentMethod === "cash" ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-800">
+                                💵 Cash
+                              </span>
+                            ) : b.paymentMethod === "online" ? (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800">
+                                📱 Online (QR)
+                              </span>
+                            ) : (
+                              <span className="inline-flex items-center px-2 py-0.5 rounded text-xs text-slate-500 bg-slate-100">
+                                Pending
+                              </span>
+                            )}
+                            {b.cashProofImage && (
+                              <a
+                                href={b.cashProofImage}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-xs text-emerald-600 hover:text-emerald-800 underline font-medium flex items-center gap-0.5"
+                                title="View Cash Proof Photo"
+                              >
+                                View Proof
+                              </a>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4">{b.status}</td>
 

@@ -28,6 +28,7 @@ router.post("/customize", authenticated, booking.customizeBooking);
 router.get("/:id/addons", authenticated, booking.getBookingAddons);
 
 router.post("/approve-addons", authenticated, booking.approveAddons);
+router.post("/payment-method", authenticated, booking.setPaymentMethod);
 router.post("/reschedule", authenticated, booking.rescheduleBooking);
 router.delete("/:id", booking.deleteBooking);
 module.exports = router;

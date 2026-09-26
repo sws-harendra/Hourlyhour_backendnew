@@ -272,7 +272,7 @@ const completeService = async (req, res) => {
   const transaction = await sequelize.transaction();
   try {
     const providerId = req.user.id;
-    const { bookingId, otp } = req.body;
+    const { bookingId, otp, paymentMethod, cashProofImage } = req.body;
 
     if (!bookingId) {
       await transaction.rollback();
@@ -314,6 +314,16 @@ const completeService = async (req, res) => {
       });
     }
 
+    // Determine final payment method (either passed by provider or already set by user)
+    const finalPaymentMethod = paymentMethod || booking.paymentMethod || "cash";
+
+    if (finalPaymentMethod === "cash" && !cashProofImage && !booking.cashProofImage) {
+      await transaction.rollback();
+      return res.status(400).json({
+        message: "Please upload cash payment proof image before completing.",
+      });
+    }
+
     const groupId = booking.groupId;
 
     /* 🔹 COMPLETE ALL BOOKINGS IN GROUP */
@@ -326,9 +336,17 @@ const completeService = async (req, res) => {
       transaction,
     });
 
+    const completionDate = new Date();
+
     for (const b of bookingsInGroup) {
       b.status = "completed";
-      b.completedAt = new Date();
+      b.completedAt = completionDate;
+      b.paymentMethod = finalPaymentMethod;
+      b.paymentStatus = "paid";
+      b.paidAt = completionDate;
+      if (cashProofImage) {
+        b.cashProofImage = cashProofImage;
+      }
 
       // 🔥 Set warranty expiry date - use warranty duration if available, else 30 days default
       if (b.warrantyId && b.appliedWarranty) {
@@ -352,12 +370,60 @@ const completeService = async (req, res) => {
       success: true,
       message: "Service completed successfully",
       groupId,
+      paymentMethod: finalPaymentMethod,
+      cashProofImage: cashProofImage || booking.cashProofImage,
     });
   } catch (error) {
     await transaction.rollback();
     console.error("Complete service error:", error);
 
     res.status(500).json({ message: "Internal server error" });
+  }
+};
+
+/* ───────────────── SET PAYMENT METHOD (USER) ───────────────── */
+const setPaymentMethod = async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const { bookingId, paymentMethod } = req.body;
+
+    if (!bookingId || !paymentMethod) {
+      return res.status(400).json({
+        message: "bookingId and paymentMethod ('cash' or 'online') are required",
+      });
+    }
+
+    if (!["cash", "online"].includes(paymentMethod)) {
+      return res.status(400).json({
+        message: "Invalid paymentMethod. Allowed: 'cash', 'online'",
+      });
+    }
+
+    const booking = await Booking.findOne({
+      where: { id: bookingId, userId },
+    });
+
+    if (!booking) {
+      return res.status(404).json({ message: "Booking not found" });
+    }
+
+    const whereClause = booking.groupId
+      ? { groupId: booking.groupId }
+      : { id: booking.id };
+
+    await Booking.update(
+      { paymentMethod },
+      { where: whereClause },
+    );
+
+    res.json({
+      success: true,
+      message: "Payment method updated successfully",
+      paymentMethod,
+    });
+  } catch (error) {
+    console.error("Set payment method error:", error);
+    res.status(500).json({ message: "Failed to update payment method" });
   }
 };
 // exports.verifyCompletionOtp = async (req, res) => {
@@ -944,4 +1010,5 @@ module.exports = {
   approveAddons,
   getProviderWarranties,
   deleteBooking,
+  setPaymentMethod,
 };

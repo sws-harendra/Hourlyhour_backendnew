@@ -495,6 +495,86 @@ export default function BookingDetail() {
                 </div>
               </div>
             </div>
+
+            {/* Payment Information */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="px-6 py-4 border-b border-gray-200 bg-gray-50 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-900">
+                  Payment Information
+                </h2>
+                <span
+                  className={`text-xs px-2.5 py-1 rounded-full font-bold uppercase tracking-wider ${
+                    booking.paymentStatus === "paid"
+                      ? "bg-emerald-100 text-emerald-800"
+                      : "bg-amber-100 text-amber-800"
+                  }`}
+                >
+                  {booking.paymentStatus || "pending"}
+                </span>
+              </div>
+              <div className="p-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                      Payment Method
+                    </div>
+                    <div className="text-gray-900 font-semibold flex items-center gap-1.5">
+                      {booking.paymentMethod === "cash" ? (
+                        <>
+                          <span className="text-base">💵</span> Cash on Delivery
+                        </>
+                      ) : booking.paymentMethod === "online" ? (
+                        <>
+                          <span className="text-base">📱</span> Online (UPI / QR)
+                        </>
+                      ) : (
+                        <span className="text-gray-400">Not selected yet</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-gray-50 rounded-lg border border-gray-100">
+                    <div className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1">
+                      Payment Status
+                    </div>
+                    <div className="text-gray-900 font-semibold capitalize">
+                      {booking.paymentStatus || "Pending"}
+                      {booking.paidAt && (
+                        <span className="text-xs text-gray-500 block font-normal">
+                          Paid: {new Date(booking.paidAt).toLocaleString()}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Cash Payment Proof Picture */}
+                {booking.cashProofImage && (
+                  <div className="pt-3 border-t border-gray-100">
+                    <div className="text-xs font-medium text-gray-700 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                      <span className="text-base">📷</span> Cash Payment Proof (Uploaded by Provider)
+                    </div>
+                    <div className="relative group inline-block">
+                      <a
+                        href={booking.cashProofImage}
+                        target="_blank"
+                        rel="noreferrer"
+                        title="Click to view full photo"
+                      >
+                        <img
+                          src={booking.cashProofImage}
+                          alt="Cash Payment Proof"
+                          className="h-40 w-auto max-w-xs object-cover rounded-xl border border-gray-200 shadow-xs hover:opacity-90 transition-opacity"
+                        />
+                        <div className="mt-1 text-xs text-blue-600 hover:text-blue-800 font-medium">
+                          ↗ Click to view full image
+                        </div>
+                      </a>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
             {/* Schedule & Location */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
               <div className="px-6 py-4 border-b border-gray-200 bg-gray-50">

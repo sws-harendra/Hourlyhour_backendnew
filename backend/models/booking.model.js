@@ -118,6 +118,24 @@ module.exports = (sequelize, DataTypes) => {
       allowNull: true,
       defaultValue: 0,
     },
+    paymentMethod: {
+      type: DataTypes.ENUM("cash", "online", "pending"),
+      allowNull: false,
+      defaultValue: "pending",
+    },
+    paymentStatus: {
+      type: DataTypes.ENUM("pending", "paid", "failed"),
+      allowNull: false,
+      defaultValue: "pending",
+    },
+    cashProofImage: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
+    paidAt: {
+      type: DataTypes.DATE,
+      allowNull: true,
+    },
   });
 
   Booking.associate = (models) => {
