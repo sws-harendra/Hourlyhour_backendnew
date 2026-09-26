@@ -285,19 +285,37 @@ const completeService = async (req, res) => {
       lock: transaction.LOCK.UPDATE,
     });
 
+    console.log("[completeService] Incoming payload:", {
+      bookingId,
+      otp,
+      paymentMethod,
+      cashProofImage: cashProofImage ? "PROVIDED" : "NONE",
+      providerId,
+    });
+
     if (!booking) {
       await transaction.rollback();
       return res.status(404).json({ message: "Booking not found" });
     }
 
+    console.log("[completeService] Booking in DB:", {
+      id: booking.id,
+      status: booking.status,
+      completionOtp: booking.completionOtp,
+      paymentMethod: booking.paymentMethod,
+      cashProofImage: booking.cashProofImage ? "EXISTS" : "NONE",
+    });
+
     if (booking.status !== "on_the_way" && booking.status !== "confirmed") {
       await transaction.rollback();
-      return res.status(400).json({ message: "Invalid booking state" });
+      console.log(`[completeService] 400: Invalid booking state: "${booking.status}"`);
+      return res.status(400).json({ message: `Invalid booking state (${booking.status})` });
     }
 
-    if (booking.completionOtp !== otp) {
+    if (String(booking.completionOtp || "").trim() !== String(otp || "").trim()) {
       await transaction.rollback();
-      return res.status(400).json({ message: "Invalid OTP" });
+      console.log(`[completeService] 400: OTP mismatch. Expected "${booking.completionOtp}", received "${otp}"`);
+      return res.status(400).json({ message: "Invalid OTP. Please check the code provided by customer." });
     }
 
     // Check if there are unapproved pending addons
@@ -308,6 +326,7 @@ const completeService = async (req, res) => {
 
     if (pendingCount > 0) {
       await transaction.rollback();
+      console.log(`[completeService] 400: ${pendingCount} pending addons unapproved`);
       return res.status(400).json({
         message:
           "Additional services/items are pending customer approval. Please ask the customer to tap 'Approve' in their app first.",
@@ -319,6 +338,7 @@ const completeService = async (req, res) => {
 
     if (finalPaymentMethod === "cash" && !cashProofImage && !booking.cashProofImage) {
       await transaction.rollback();
+      console.log("[completeService] 400: Missing cashProofImage");
       return res.status(400).json({
         message: "Please upload cash payment proof image before completing.",
       });
