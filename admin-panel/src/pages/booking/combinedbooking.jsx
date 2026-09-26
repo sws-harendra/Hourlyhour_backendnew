@@ -225,7 +225,7 @@ export default function CombinedBookingDetail() {
           </p>
 
           <button
-            onClick={handleAssignAll}
+            onClick={() => handleAssignAll(false)}
             className="w-full bg-green-600 text-white py-2 rounded"
           >
             Assign All

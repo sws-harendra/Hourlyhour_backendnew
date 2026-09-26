@@ -10,7 +10,7 @@ export const BookingService = {
   assignProvider: async (id, providerId, forceAssign = false) => {
     const { data } = await api.post(`/service/booking/${id}/assign-provider`, {
       providerId,
-      forceAssign,
+      forceAssign: Boolean(forceAssign),
     });
     return data;
   },
@@ -37,7 +37,7 @@ export const BookingService = {
   assignProviderToGroup(groupId, providerId, forceAssign = false) {
     return api.put(`/service/booking/group/${groupId}/assign`, {
       providerId,
-      forceAssign,
+      forceAssign: Boolean(forceAssign),
     });
   },
   updateGroupStatus(groupId, status) {
