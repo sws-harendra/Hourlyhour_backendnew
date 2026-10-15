@@ -18,6 +18,10 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.STRING,
       allowNull: true,
     },
+    icon: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
   });
 
   Category.associate = (models) => {

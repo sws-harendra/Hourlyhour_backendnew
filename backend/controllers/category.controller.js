@@ -7,12 +7,12 @@ const {
 
 const addCategory = async (req, res) => {
   try {
-    const { name, description, image } = req.body;
+    const { name, description, image, icon } = req.body;
 
     const exists = await Category.findOne({ where: { name } });
     if (exists) return res.status(400).json({ message: "Category exists" });
 
-    const category = await Category.create({ name, description, image });
+    const category = await Category.create({ name, description, image, icon });
 
     return res.status(201).json({
       message: "Category created successfully",
@@ -25,12 +25,12 @@ const addCategory = async (req, res) => {
 
 const updateCategory = async (req, res) => {
   try {
-    const { id, name, description, image } = req.body;
+    const { id, name, description, image, icon } = req.body;
 
     const category = await Category.findByPk(id);
     if (!category) return res.status(404).json({ message: "Not found" });
 
-    await category.update({ name, description, image });
+    await category.update({ name, description, image, icon });
 
     return res.json({ message: "Updated", category });
   } catch (err) {
