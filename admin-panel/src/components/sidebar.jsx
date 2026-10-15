@@ -37,7 +37,6 @@ const menuItems = [
     children: [
       { name: "Web Overview", path: "/web" },
       { name: "Requests from Web", path: "/web/requests" },
-      { name: "Web Category", path: "/web/categories" },
     ],
   },
   {

@@ -13,18 +13,13 @@ import WebService from "../../services/web.service";
 
 export default function WebOverviewPage() {
   const [requests, setRequests] = useState([]);
-  const [categories, setCategories] = useState([]);
-  const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [reqRes, catRes] = await Promise.all([
-          WebService.getWebRequests(),
-          WebService.getWebCategories(),
-        ]);
+        const reqRes = await WebService.getWebRequests();
         setRequests(reqRes.data || []);
-        setCategories(catRes.data || []);
       } catch (e) {
         console.error(e);
       } finally {
@@ -113,33 +108,7 @@ export default function WebOverviewPage() {
           </div>
         </Link>
 
-        {/* Card 2: Web Categories */}
-        <Link
-          to="/web/categories"
-          className="group relative rounded-3xl bg-slate-900/90 border border-slate-800 hover:border-emerald-500/50 p-6 transition-all duration-300 hover:-translate-y-1 shadow-xl flex flex-col justify-between"
-        >
-          <div>
-            <div className="flex items-center justify-between mb-4">
-              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-600 text-white flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:scale-110 transition-transform">
-                <Layers className="w-7 h-7" />
-              </div>
-              <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                {categories.length} Categories
-              </span>
-            </div>
-            <h2 className="text-xl font-bold text-white group-hover:text-emerald-400 transition">
-              Web Categories
-            </h2>
-            <p className="text-sm text-slate-400 mt-1.5 leading-relaxed">
-              Organize and display appliance service categories on the website. Configure URL slugs, taglines, banner images, and homepage featured highlights.
-            </p>
-          </div>
-
-          <div className="mt-6 pt-4 border-t border-slate-800 flex items-center justify-between text-sm font-semibold text-emerald-400 group-hover:text-emerald-300">
-            <span>Manage Web Categories</span>
-            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
-          </div>
-        </Link>
+        
       </div>
 
       {/* Recent Web Requests Preview */}
