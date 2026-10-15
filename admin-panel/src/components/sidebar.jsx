@@ -24,10 +24,22 @@ import {
   MapPin,
   ShieldCheck,
   CalendarCheck,
+  Globe,
+  Inbox,
+  Layers,
 } from "lucide-react";
 
 const menuItems = [
   { name: "Dashboard", icon: LayoutDashboard, path: "/" },
+  {
+    name: "Web",
+    icon: Globe,
+    children: [
+      { name: "Web Overview", path: "/web" },
+      { name: "Requests from Web", path: "/web/requests" },
+      { name: "Web Category", path: "/web/categories" },
+    ],
+  },
   {
     name: "Users",
     icon: Users,
@@ -86,6 +98,9 @@ export default function Sidebar() {
   };
 
   const childIcons = {
+    "Web Overview": Globe,
+    "Requests from Web": Inbox,
+    "Web Category": Layers,
     "All Users": User,
     "Service Providers": Briefcase,
     Reviews: MessageSquare,
