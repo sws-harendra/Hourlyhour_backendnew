@@ -27,6 +27,7 @@ import {
   Globe,
   Inbox,
   Layers,
+  BookOpen,
 } from "lucide-react";
 
 const menuItems = [
@@ -37,6 +38,7 @@ const menuItems = [
     children: [
       { name: "Web Overview", path: "/web" },
       { name: "Requests from Web", path: "/web/requests" },
+      { name: "Blog", path: "/web/blogs" },
     ],
   },
   {
@@ -99,6 +101,7 @@ export default function Sidebar() {
   const childIcons = {
     "Web Overview": Globe,
     "Requests from Web": Inbox,
+    "Blog": BookOpen,
     "Web Category": Layers,
     "All Users": User,
     "Service Providers": Briefcase,

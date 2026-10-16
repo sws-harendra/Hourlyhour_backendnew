@@ -1,4 +1,4 @@
-require("dotenv").config();
+﻿require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const morgan = require("morgan");
@@ -55,6 +55,7 @@ app.use("/api/section", require("./routes/section.route"));
 app.use("/api/dashboard", require("./routes/dashboard.route"));
 app.use("/api/serviceRequest", require("./routes/servicerequest.route"));
 app.use("/api/web-requests", require("./routes/webrequest.route"));
+app.use("/api/blogs", require("./routes/blog.route"));
 app.use("/api/webRequests", require("./routes/webrequest.route"));
 app.use("/api/invoice", require("./routes/invoice.route"));
 app.use("/api/testimonial", require("./routes/testimonial.route"));
@@ -69,5 +70,6 @@ initSocket(server, allowedOrigins);
 
 /* ===== START SERVER ===== */
 server.listen(port, () => {
-  console.log(`🚀 Server running on http://localhost:${port}`);
+  console.log(`ðŸš€ Server running on http://localhost:${port}`);
 });
+

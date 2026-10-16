@@ -27,6 +27,7 @@ import ServiceAreaPricingByService from "./pages/service/serviceAreaPricingBySer
 import Notifications from "./pages/notifications/Notifications";
 import WebOverviewPage from "./pages/web/webOverview";
 import WebRequestsPage from "./pages/web/webRequests";
+import WebBlogsPage from "./pages/web/webBlogs";
 import { Toaster } from "react-hot-toast";
 
 function App() {
@@ -47,7 +48,8 @@ function App() {
         >
           <Route path="/" element={<Home />} />
           <Route path="/web" element={<WebOverviewPage />} />
-          <Route path="/web/requests" element={<WebRequestsPage />} />          <Route path="/category" element={<Category />} />
+          <Route path="/web/requests" element={<WebRequestsPage />} />
+          <Route path="/web/blogs" element={<WebBlogsPage />} />          <Route path="/category" element={<Category />} />
           <Route path="/service" element={<Service />} />
           <Route path="/testimonial" element={<TestimonialPage />} />
           <Route path="/services/:id/rates" element={<ServiceRates />} />
