@@ -12,7 +12,17 @@ const app = express();
 const server = http.createServer(app);
 
 const port = process.env.PORT || 8008;
-const allowedOrigins = ["http://localhost:5172", process.env.CLIENT_URL];
+const allowedOrigins = [
+  "http://localhost:5172",
+  "http://localhost:5173",
+  "http://localhost:3000",
+  "http://localhost:3005",
+  "http://127.0.0.1:3000",
+  "http://127.0.0.1:5173",
+  "https://repairsaathi.com",
+  "https://www.repairsaathi.com",
+  process.env.CLIENT_URL,
+].filter(Boolean);
 
 // Middleware
 app.use(
@@ -44,6 +54,8 @@ app.use("/api/settings", require("./routes/setting.route"));
 app.use("/api/section", require("./routes/section.route"));
 app.use("/api/dashboard", require("./routes/dashboard.route"));
 app.use("/api/serviceRequest", require("./routes/servicerequest.route"));
+app.use("/api/web-requests", require("./routes/webrequest.route"));
+app.use("/api/webRequests", require("./routes/webrequest.route"));
 app.use("/api/invoice", require("./routes/invoice.route"));
 app.use("/api/testimonial", require("./routes/testimonial.route"));
 app.use("/api/review", require("./routes/review.route"));

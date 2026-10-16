@@ -635,7 +635,7 @@ export default function WebRequestsPage() {
                 </h4>
                 <div className="space-y-3 text-sm">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div>
+                    <div className="flex-1">
                       <span className="text-xs text-slate-500">Requested Appliance / Service</span>
                       <p className="font-bold text-white text-base">{selectedRequest.serviceName}</p>
                     </div>
@@ -643,6 +643,42 @@ export default function WebRequestsPage() {
                       Category: {selectedRequest.category}
                     </span>
                   </div>
+
+                  {/* Multi-Appliance Cart Breakdown if available */}
+                  {(() => {
+                    let apps = [];
+                    if (Array.isArray(selectedRequest.appliances)) {
+                      apps = selectedRequest.appliances;
+                    } else if (typeof selectedRequest.appliances === "string") {
+                      try { apps = JSON.parse(selectedRequest.appliances); } catch {}
+                    }
+                    if (!apps || apps.length === 0) return null;
+
+                    return (
+                      <div className="mt-2 pt-3 border-t border-slate-800">
+                        <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-2">
+                          Selected Appliances &amp; Requirements ({apps.length}):
+                        </span>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                          {apps.map((app, idx) => (
+                            <div key={idx} className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex flex-col justify-between">
+                              <div className="font-semibold text-white text-xs flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-blue-400 shrink-0"></span>
+                                {app.name || "Appliance"}
+                              </div>
+                              <div className="mt-2 flex flex-wrap gap-1">
+                                {(app.requirements || []).map((req, rIdx) => (
+                                  <span key={rIdx} className="text-[11px] px-2 py-0.5 rounded-md bg-blue-500/15 text-blue-300 border border-blue-500/30 font-medium">
+                                    ✓ {req}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                   <div>
                     <span className="text-xs text-slate-500">Problem Description / Message</span>
