@@ -19,8 +19,8 @@ const allowedOrigins = [
   "http://localhost:3005",
   "http://127.0.0.1:3000",
   "http://127.0.0.1:5173",
-  "https://repairsaathi.com",
-  "https://www.repairsaathi.com",
+  "https://repairsaathi.in",
+  "https://admin.repairsaathi.in",
   process.env.CLIENT_URL,
 ].filter(Boolean);
 
