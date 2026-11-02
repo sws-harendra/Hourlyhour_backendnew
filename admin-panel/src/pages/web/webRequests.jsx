@@ -29,6 +29,7 @@ export default function WebRequestsPage() {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [dateFilter, setDateFilter] = useState("");
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -56,6 +57,7 @@ export default function WebRequestsPage() {
       const res = await WebService.getWebRequests({
         status: statusFilter,
         search,
+        date: dateFilter,
       });
       setRequests(res.data || []);
     } catch (err) {
@@ -68,7 +70,7 @@ export default function WebRequestsPage() {
 
   useEffect(() => {
     loadRequests();
-  }, [statusFilter]);
+  }, [statusFilter, dateFilter]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -377,20 +379,48 @@ export default function WebRequestsPage() {
           ))}
         </div>
 
-        {/* Search */}
-        <form
-          onSubmit={handleSearchSubmit}
-          className="relative w-full md:w-80"
-        >
-          <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-          <input
-            type="text"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search by customer, phone, service..."
-            className="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-xl pl-10 pr-4 py-2 text-sm text-white placeholder-slate-500 transition outline-none"
-          />
-        </form>
+        {/* Date Filter & Search */}
+        <div className="flex flex-wrap sm:flex-nowrap items-center gap-3 w-full md:w-auto">
+          {/* Date Filter */}
+          <div className="flex items-center gap-1.5 w-full sm:w-auto">
+            <div className="relative w-full sm:w-auto">
+              <Calendar className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+              <input
+                type="date"
+                value={dateFilter}
+                onChange={(e) => setDateFilter(e.target.value)}
+                className="w-full sm:w-auto bg-slate-950 border border-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-xl pl-9 pr-3 py-2 text-sm text-white placeholder-slate-500 transition outline-none"
+                style={{ colorScheme: "dark" }}
+                title="Filter by date"
+              />
+            </div>
+            {dateFilter && (
+              <button
+                type="button"
+                onClick={() => setDateFilter("")}
+                className="px-2.5 py-2 text-xs font-medium text-slate-400 hover:text-white bg-slate-800/80 hover:bg-slate-800 rounded-xl border border-slate-700/60 transition whitespace-nowrap"
+                title="Clear date filter"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+
+          {/* Search */}
+          <form
+            onSubmit={handleSearchSubmit}
+            className="relative w-full sm:w-72 md:w-80"
+          >
+            <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input
+              type="text"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Search by customer, phone, service..."
+              className="w-full bg-slate-950 border border-slate-800 focus:border-blue-500 focus:ring-1 focus:ring-blue-500 rounded-xl pl-10 pr-4 py-2 text-sm text-white placeholder-slate-500 transition outline-none"
+            />
+          </form>
+        </div>
       </div>
 
       {/* Data Table */}

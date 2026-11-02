@@ -5,23 +5,63 @@ const { Op } = require("sequelize");
 
 exports.getAllWebRequests = async (req, res) => {
   try {
-    const { status, search } = req.query;
+    const { status, search, date } = req.query;
     const where = {};
 
     if (status && status !== "all") {
       where.status = status;
     }
 
+    const conditions = [];
+
     if (search && search.trim() !== "") {
       const q = `%${search.trim()}%`;
-      where[Op.or] = [
-        { customerName: { [Op.like]: q } },
-        { phone: { [Op.like]: q } },
-        { email: { [Op.like]: q } },
-        { serviceName: { [Op.like]: q } },
-        { message: { [Op.like]: q } },
-        { inquiryId: { [Op.like]: q } },
+      conditions.push({
+        [Op.or]: [
+          { customerName: { [Op.like]: q } },
+          { phone: { [Op.like]: q } },
+          { email: { [Op.like]: q } },
+          { serviceName: { [Op.like]: q } },
+          { message: { [Op.like]: q } },
+          { inquiryId: { [Op.like]: q } },
+        ],
+      });
+    }
+
+    if (date && date.trim() !== "") {
+      const d = date.trim();
+      const startOfDay = new Date(`${d}T00:00:00.000Z`);
+      const endOfDay = new Date(`${d}T23:59:59.999Z`);
+
+      const now = new Date();
+      const todayStr = now.toISOString().slice(0, 10);
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowStr = tomorrow.toISOString().slice(0, 10);
+
+      const dateOrClauses = [
+        db.Sequelize.where(
+          db.Sequelize.fn("DATE", db.Sequelize.col("createdAt")),
+          d
+        ),
+        { createdAt: { [Op.between]: [startOfDay, endOfDay] } },
+        { preferredDate: { [Op.like]: `%${d}%` } },
       ];
+
+      if (d === todayStr) {
+        dateOrClauses.push({ preferredDate: { [Op.like]: "%Today%" } });
+      }
+      if (d === tomorrowStr) {
+        dateOrClauses.push({ preferredDate: { [Op.like]: "%Tomorrow%" } });
+      }
+
+      conditions.push({ [Op.or]: dateOrClauses });
+    }
+
+    if (conditions.length === 1) {
+      Object.assign(where, conditions[0]);
+    } else if (conditions.length > 1) {
+      where[Op.and] = conditions;
     }
 
     let records = await WebRequest.findAll({

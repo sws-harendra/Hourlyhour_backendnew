@@ -59,6 +59,33 @@ export const WebService = {
           i.id?.toLowerCase().includes(q)
       );
     }
+    if (filters.date) {
+      const d = filters.date.trim();
+      const now = new Date();
+      const todayIso = now.toISOString().slice(0, 10);
+      const todayLocal = now.toLocaleDateString("en-CA");
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const tomorrowIso = tomorrow.toISOString().slice(0, 10);
+      const tomorrowLocal = tomorrow.toLocaleDateString("en-CA");
+
+      items = items.filter((i) => {
+        const createdUtc = i.createdAt ? new Date(i.createdAt).toISOString().slice(0, 10) : "";
+        const createdLocal = i.createdAt ? new Date(i.createdAt).toLocaleDateString("en-CA") : "";
+        const prefDate = (i.preferredDate || "").trim();
+
+        if (createdUtc === d || createdLocal === d || prefDate === d || prefDate.includes(d)) {
+          return true;
+        }
+        if ((d === todayIso || d === todayLocal) && prefDate.toLowerCase().includes("today")) {
+          return true;
+        }
+        if ((d === tomorrowIso || d === tomorrowLocal) && prefDate.toLowerCase().includes("tomorrow")) {
+          return true;
+        }
+        return false;
+      });
+    }
     return { success: true, data: items };
   },
 
