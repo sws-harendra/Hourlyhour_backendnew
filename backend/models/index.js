@@ -44,6 +44,19 @@ Object.keys(db).forEach((modelName) => {
   }
 });
 
+// Auto-ensure 'icon' column exists in Categories table (safe non-destructive sync)
+(async () => {
+  try {
+    const [cols] = await sequelize.query("SHOW COLUMNS FROM `Categories` LIKE 'icon'");
+    if (!cols || cols.length === 0) {
+      await sequelize.query("ALTER TABLE `Categories` ADD COLUMN `icon` VARCHAR(255) NULL AFTER `image`");
+      console.log("Auto-migrated: Added 'icon' column to Categories table.");
+    }
+  } catch (_) {
+    // Ignore if DB connection not ready yet or table doesn't exist
+  }
+})();
+
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;
 

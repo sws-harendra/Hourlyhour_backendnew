@@ -45,13 +45,39 @@ const getAllCategories = async (req, res) => {
     const limit = parseInt(req.query.limit) || 10;
     const offset = (page - 1) * limit;
 
-    const { count, rows } = await Category.findAndCountAll({
-      include: [{ model: Service, as: "services" }],
-      order: [["id", "DESC"]],
-      limit,
-      offset,
-      distinct: true, // IMPORTANT when using include
-    });
+    let result;
+    try {
+      result = await Category.findAndCountAll({
+        include: [{ model: Service, as: "services" }],
+        order: [["id", "DESC"]],
+        limit,
+        offset,
+        distinct: true, // IMPORTANT when using include
+      });
+    } catch (queryErr) {
+      // Safe fallback if 'icon' column hasn't been added to database yet
+      if (queryErr.message && queryErr.message.includes("Category.icon")) {
+        result = await Category.findAndCountAll({
+          attributes: [
+            "id",
+            "name",
+            "description",
+            "image",
+            "createdAt",
+            "updatedAt",
+          ],
+          include: [{ model: Service, as: "services" }],
+          order: [["id", "DESC"]],
+          limit,
+          offset,
+          distinct: true,
+        });
+      } else {
+        throw queryErr;
+      }
+    }
+
+    const { count, rows } = result;
 
     const allServices = rows.flatMap((category) => category.services || []);
     const areaPriceMap = await getAreaPriceMap(
