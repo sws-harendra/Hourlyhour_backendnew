@@ -19,6 +19,33 @@ const {
   serializeServiceWithAreaPrice,
 } = require("../helpers/serviceAreaPricing");
 
+const normalizePhone = (rawPhone) => {
+  if (!rawPhone) return "";
+  const trimmed = String(rawPhone).trim();
+  const digitsOnly = trimmed.replace(/\D/g, "");
+  if (digitsOnly.length >= 10) {
+    const last10 = digitsOnly.slice(-10);
+    return `+91${last10}`;
+  }
+  return trimmed;
+};
+
+const getPhoneVariants = (rawPhone) => {
+  if (!rawPhone) return [];
+  const trimmed = String(rawPhone).trim();
+  const digitsOnly = trimmed.replace(/\D/g, "");
+  const last10 = digitsOnly.length >= 10 ? digitsOnly.slice(-10) : digitsOnly;
+  const variants = new Set([
+    trimmed,
+    digitsOnly,
+    last10,
+    `+91${last10}`,
+    `91${last10}`,
+    `+${digitsOnly}`,
+  ]);
+  return Array.from(variants).filter(Boolean);
+};
+
 const sendOtp = async (req, res) => {
   try {
     const { phone } = req.body;
@@ -26,24 +53,33 @@ const sendOtp = async (req, res) => {
       return res
         .status(400)
         .json({ success: false, message: "Phone required" });
-    if (phone === "+911234567890" || phone === "+911111111111") {
+
+    const phoneVariants = getPhoneVariants(phone);
+    const normalizedPhone = normalizePhone(phone);
+
+    if (
+      phoneVariants.includes("+911234567890") ||
+      phoneVariants.includes("+911111111111")
+    ) {
       return res.json({
         success: true,
         message: "Test OTP sent successfully",
-        otp: "123456", // optional — can be hidden in production
+        otp: "123456",
       });
     }
 
     const otp = generateOTP();
     await Otp.create({
-      phone: phone,
+      phone: normalizedPhone,
       otp,
-      type: "login", // or register
-      expiresAt: new Date(Date.now() + 5 * 60 * 1000), // 5 minutes expiry
+      type: "login",
+      expiresAt: new Date(Date.now() + 5 * 60 * 1000),
     });
-    const sent = await sendOtptoPhone(phone, otp);
 
-    console.log(otp);
+    const tenDigitPhone = normalizedPhone.replace(/\D/g, "").slice(-10);
+    const sent = await sendOtptoPhone(tenDigitPhone, otp);
+
+    console.log(`OTP for ${normalizedPhone}: ${otp}`);
     res.json({ success: true, message: "OTP sent successfully" });
   } catch (error) {
     console.error("Error sending OTP:", error);
@@ -61,36 +97,55 @@ const verifyOtp = async (req, res) => {
 
     if (!otp)
       return res.status(400).json({ success: false, message: "OTP required" });
+
+    const phoneVariants = getPhoneVariants(phone);
+    const normalizedPhone = normalizePhone(phone);
+
     if (
-      (phone === "+911234567890" || phone == "+911111111111") &&
+      (phoneVariants.includes("+911234567890") || phoneVariants.includes("+911111111111")) &&
       otp === "1234"
     ) {
-      let user = await User.findOne({ where: { phone } });
+      let user = await User.findOne({
+        where: {
+          phone: { [Op.in]: phoneVariants },
+        },
+      });
 
       if (!user) {
         user = await User.create({
-          phone,
-          userType,
+          phone: normalizedPhone,
+          userType: userType || "user",
           lastLogin: new Date(),
         });
+      } else {
+        user.lastLogin = new Date();
+        await user.save();
       }
 
-      const token = jwt.sign({ id: user.id, phone }, process.env.JWT_SECRET, {
-        expiresIn: "7d",
-      });
+      const token = jwt.sign(
+        { id: user.id, phone: user.phone || normalizedPhone },
+        process.env.JWT_SECRET,
+        {
+          expiresIn: "90d",
+        },
+      );
 
       return res.json({
         success: true,
         token,
-        profileCompleted: true,
+        profileCompleted: user.name && user.name.trim().length > 0 ? true : false,
         userType: user.userType,
         message: "OTP verified successfully (test)",
       });
     }
 
-    // 🔹 Find last OTP
+    // 🔹 Find last OTP (matches across any phone format variant)
     const otpRecord = await Otp.findOne({
-      where: { phone, otp, used: false },
+      where: {
+        phone: { [Op.in]: phoneVariants },
+        otp,
+        used: false,
+      },
       order: [["createdAt", "DESC"]],
     });
 
@@ -105,14 +160,19 @@ const verifyOtp = async (req, res) => {
     otpRecord.used = true;
     await otpRecord.save();
 
-    let user = await User.findOne({ where: { phone } });
+    // 🔹 Find user by any phone variant
+    let user = await User.findOne({
+      where: {
+        phone: { [Op.in]: phoneVariants },
+      },
+    });
 
     // 🔹 If new user → create user
     if (!user) {
       user = await User.create({
-        phone,
+        phone: normalizedPhone,
         lastLogin: new Date(),
-        userType: userType,
+        userType: userType || "user",
       });
     } else {
       user.lastLogin = new Date();
@@ -122,11 +182,20 @@ const verifyOtp = async (req, res) => {
         user.userType = userType;
       }
 
+      // If user phone had legacy format, update to normalized if no conflict
+      if (user.phone !== normalizedPhone) {
+        const conflict = await User.findOne({
+          where: { phone: normalizedPhone, id: { [Op.ne]: user.id } },
+        });
+        if (!conflict) {
+          user.phone = normalizedPhone;
+        }
+      }
+
       await user.save();
     }
-    console.log(user);
-    let profileCompleted = true;
 
+    let profileCompleted = true;
     if (user.userType == "service_provider") {
       if (
         !user.name ||
@@ -136,14 +205,17 @@ const verifyOtp = async (req, res) => {
       ) {
         profileCompleted = false;
       }
+    } else {
+      if (!user.name || !String(user.name).trim()) {
+        profileCompleted = false;
+      }
     }
-    console.log("profileCompleted", profileCompleted);
 
     const token = jwt.sign(
-      { id: user.id, phone: phone },
+      { id: user.id, phone: user.phone || normalizedPhone },
       process.env.JWT_SECRET,
       {
-        expiresIn: "7d",
+        expiresIn: "90d",
       },
     );
 
@@ -185,6 +257,10 @@ const userData = async (req, res) => {
         user.name == undefined ||
         user.address == undefined
       ) {
+        profileCompleted = false;
+      }
+    } else {
+      if (!user.name || !String(user.name).trim()) {
         profileCompleted = false;
       }
     }
@@ -397,29 +473,61 @@ const editProfile = async (req, res) => {
     // Find user
     const user = await User.findByPk(userId);
     if (!user) {
-      return res.status(404).json({ message: "User not found" });
+      return res.status(404).json({ success: false, message: "User not found" });
     }
 
     // Fields allowed to update
     const { name, email, address, gender, bio } = req.body;
 
-    // Prepare updated values
-    let updatedData = {
-      name,
-      email,
-      address,
-      gender,
-      bio,
-    };
+    const updatedData = {};
+
+    if (name !== undefined) {
+      updatedData.name = name ? String(name).trim() : null;
+    }
+
+    if (email !== undefined) {
+      const cleanEmail = email ? String(email).trim() : "";
+      if (cleanEmail) {
+        const existingEmail = await User.findOne({
+          where: {
+            email: cleanEmail,
+            id: { [Op.ne]: userId },
+          },
+        });
+        if (existingEmail) {
+          return res.status(400).json({
+            success: false,
+            message: "This email is already in use by another account",
+          });
+        }
+        updatedData.email = cleanEmail;
+      } else {
+        // Set null to prevent MySQL unique index conflict on multiple empty strings
+        updatedData.email = null;
+      }
+    }
+
+    if (address !== undefined && address !== null) {
+      updatedData.address = String(address).trim();
+    }
+    if (gender !== undefined) {
+      updatedData.gender = gender ? String(gender).trim() : null;
+    }
+    if (bio !== undefined) {
+      updatedData.bio = bio ? String(bio).trim() : null;
+    }
 
     // If profile picture uploaded
     if (req.file) {
       // Delete previous file if exists
       if (user.profilePicture) {
-        const oldPath = path.join(__dirname, "../uploads", user.profilePicture);
-        if (fs.existsSync(oldPath)) {
-          fs.unlinkSync(oldPath);
-        }
+        try {
+          const oldFileName = path.basename(user.profilePicture);
+          const oldPath = path.join(__dirname, "../uploads", oldFileName);
+          if (fs.existsSync(oldPath)) {
+            fs.unlinkSync(oldPath);
+          }
+        } catch (_) {}
       }
 
       updatedData.profilePicture = `${process.env.BACKEND_URL}/uploads/${req.file.filename}`;
@@ -428,15 +536,20 @@ const editProfile = async (req, res) => {
     // Update DB
     await user.update(updatedData);
 
+    const refreshedUser = await User.findByPk(userId, {
+      include: [{ model: Address, as: "addresses" }],
+    });
+
     return res.status(200).json({
       message: "Profile updated successfully",
-      user,
+      user: refreshedUser || user,
       success: true,
     });
   } catch (error) {
     console.log("Update Error:", error);
     return res.status(500).json({
-      message: "Something went wrong",
+      success: false,
+      message: error?.errors?.[0]?.message || "Something went wrong while updating profile",
       error: error.message,
     });
   }
