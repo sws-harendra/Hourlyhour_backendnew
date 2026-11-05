@@ -50,6 +50,15 @@ import {
   Layers,
   ArrowUpDown,
   MoreVertical,
+  Highlighter,
+  Subscript,
+  Superscript,
+  Indent,
+  Outdent,
+  Maximize2,
+  Sliders,
+  Palette,
+  Type,
 } from "lucide-react";
 import BlogService from "../../services/blog.service";
 import Delete from "../../components/Delete";
@@ -105,6 +114,32 @@ export default function WebBlogsPage() {
   const [showLinkModal, setShowLinkModal] = useState(false);
   const [linkUrl, setLinkUrl] = useState("");
   const [linkText, setLinkText] = useState("");
+
+  // Word Typography & Styling State
+  const [showColorPicker, setShowColorPicker] = useState(false);
+  const [activeTextColor, setActiveTextColor] = useState("#ffffff");
+  const [showHighlightPicker, setShowHighlightPicker] = useState(false);
+  const [activeHighlightColor, setActiveHighlightColor] = useState("#fef08a");
+
+  // In-Content Image Management State
+  const [imageModalOpen, setImageModalOpen] = useState(false);
+  const [imageModalMode, setImageModalMode] = useState("insert"); // "insert" | "edit"
+  const [imageTab, setImageTab] = useState("upload"); // "upload" | "url"
+  const [imageUploading, setImageUploading] = useState(false);
+  const [selectedImgEl, setSelectedImgEl] = useState(null);
+  const [imageConfig, setImageConfig] = useState({
+    url: "",
+    alt: "",
+    caption: "",
+    align: "center", // "center" | "left" | "right" | "full"
+    width: 60, // percentage (15 to 100)
+    angle: 0, // degrees (-180 to 180)
+    radius: 12, // px
+    shadow: "medium", // "none" | "soft" | "medium" | "hard"
+  });
+
+  const savedRangeRef = useRef(null);
+  const inContentFileInputRef = useRef(null);
 
   // Tag input state
   const [tagInput, setTagInput] = useState("");
@@ -304,14 +339,58 @@ export default function WebBlogsPage() {
     setIsEditorOpen(true);
   };
 
+  // Continuous selection range tracker
+  const saveCurrentSelection = () => {
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0) {
+      const range = sel.getRangeAt(0);
+      if (editorRef.current && editorRef.current.contains(range.commonAncestorContainer)) {
+        savedRangeRef.current = range.cloneRange();
+      }
+    }
+  };
+
+  const restoreSelection = () => {
+    if (savedRangeRef.current) {
+      const sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(savedRangeRef.current);
+    }
+  };
+
   // Synchronize contentEditable div with formData.content
   useEffect(() => {
     if (isEditorOpen && editorRef.current && activeTab === "editor") {
       if (editorRef.current.innerHTML !== formData.content) {
         editorRef.current.innerHTML = formData.content || "";
       }
+      try {
+        document.execCommand("styleWithCSS", false, true);
+      } catch (e) {}
     }
   }, [isEditorOpen, activeTab]);
+
+  // Global listeners for selection and popover clicks
+  useEffect(() => {
+    const handleSelectionChange = () => {
+      saveCurrentSelection();
+    };
+    const handleClickOutsidePickers = (e) => {
+      if (showColorPicker && !e.target.closest(".color-picker-container")) {
+        setShowColorPicker(false);
+      }
+      if (showHighlightPicker && !e.target.closest(".highlight-picker-container")) {
+        setShowHighlightPicker(false);
+      }
+    };
+
+    document.addEventListener("selectionchange", handleSelectionChange);
+    window.addEventListener("mousedown", handleClickOutsidePickers);
+    return () => {
+      document.removeEventListener("selectionchange", handleSelectionChange);
+      window.removeEventListener("mousedown", handleClickOutsidePickers);
+    };
+  }, [showColorPicker, showHighlightPicker]);
 
   // Handle contentEditable changes
   const handleEditorInput = () => {
@@ -323,10 +402,406 @@ export default function WebBlogsPage() {
   // Rich Text Commands (Word-like ribbon formatting)
   const execCmd = (command, value = null) => {
     if (activeTab !== "editor") setActiveTab("editor");
+    if (editorRef.current) editorRef.current.focus();
+    restoreSelection();
     document.execCommand(command, false, value);
     if (editorRef.current) {
       editorRef.current.focus();
       handleEditorInput();
+    }
+  };
+
+  // Word-like Font Family Selector
+  const applyFontFamily = (family) => {
+    if (activeTab !== "editor") setActiveTab("editor");
+    if (editorRef.current) editorRef.current.focus();
+    restoreSelection();
+    document.execCommand("fontName", false, family);
+    if (editorRef.current) {
+      const fontTags = editorRef.current.querySelectorAll(`font[face="${family}"]`);
+      fontTags.forEach((el) => {
+        const span = document.createElement("span");
+        span.style.fontFamily = family;
+        span.innerHTML = el.innerHTML;
+        el.parentNode.replaceChild(span, el);
+      });
+      handleEditorInput();
+    }
+  };
+
+  // Word-like Font Size Selector
+  const applyFontSize = (size) => {
+    if (activeTab !== "editor") setActiveTab("editor");
+    if (editorRef.current) editorRef.current.focus();
+    restoreSelection();
+    document.execCommand("fontSize", false, "7");
+    if (editorRef.current) {
+      const fontTags = editorRef.current.querySelectorAll('font[size="7"]');
+      fontTags.forEach((el) => {
+        const span = document.createElement("span");
+        span.style.fontSize = size;
+        span.innerHTML = el.innerHTML;
+        el.parentNode.replaceChild(span, el);
+      });
+      const spanTags = editorRef.current.querySelectorAll('span[style*="xxx-large"]');
+      spanTags.forEach((el) => {
+        el.style.fontSize = size;
+      });
+      handleEditorInput();
+    }
+  };
+
+  // Word-like Font Color Picker
+  const applyTextColor = (color) => {
+    if (activeTab !== "editor") setActiveTab("editor");
+    if (editorRef.current) editorRef.current.focus();
+    restoreSelection();
+    document.execCommand("foreColor", false, color);
+    setActiveTextColor(color);
+    setShowColorPicker(false);
+    handleEditorInput();
+  };
+
+  // Word-like Text Highlighter
+  const applyHighlightColor = (color) => {
+    if (activeTab !== "editor") setActiveTab("editor");
+    if (editorRef.current) editorRef.current.focus();
+    restoreSelection();
+    if (!color || color === "transparent") {
+      document.execCommand("removeFormat", false, null);
+    } else {
+      if (!document.execCommand("hiliteColor", false, color)) {
+        document.execCommand("backColor", false, color);
+      }
+    }
+    setActiveHighlightColor(color);
+    setShowHighlightPicker(false);
+    handleEditorInput();
+  };
+
+  // Generate HTML for in-content image
+  const generateImageHTML = (config) => {
+    const { url, alt, caption, align, width, angle, radius, shadow } = config;
+
+    let floatStyle = "none";
+    let marginStyle = "20px auto";
+    let displayStyle = "block";
+    let clearStyle = "both";
+    let maxWidth = `${width}%`;
+
+    if (align === "left") {
+      floatStyle = "left";
+      marginStyle = "10px 24px 16px 0";
+      clearStyle = "none";
+      maxWidth = `${Math.min(width, 50)}%`;
+    } else if (align === "right") {
+      floatStyle = "right";
+      marginStyle = "10px 0 16px 24px";
+      clearStyle = "none";
+      maxWidth = `${Math.min(width, 50)}%`;
+    } else if (align === "full") {
+      floatStyle = "none";
+      marginStyle = "24px 0";
+      clearStyle = "both";
+      maxWidth = "100%";
+    } else {
+      floatStyle = "none";
+      marginStyle = "20px auto";
+      clearStyle = "both";
+      maxWidth = `${width}%`;
+    }
+
+    let shadowCss = "none";
+    if (shadow === "soft") shadowCss = "0 4px 15px rgba(0,0,0,0.15)";
+    else if (shadow === "medium") shadowCss = "0 10px 25px -5px rgba(0,0,0,0.3)";
+    else if (shadow === "hard") shadowCss = "0 20px 35px -5px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.1)";
+
+    const figcaptionHTML = caption && caption.trim()
+      ? `<figcaption style="font-size: 13px; color: #94a3b8; margin-top: 8px; text-align: center; font-style: italic;">${caption.trim()}</figcaption>`
+      : "";
+
+    return `<figure class="blog-img-box" data-align="${align}" data-width="${width}" data-angle="${angle}" data-radius="${radius}" data-shadow="${shadow}" style="display: ${displayStyle}; float: ${floatStyle}; margin: ${marginStyle}; max-width: ${maxWidth}; width: ${maxWidth}; text-align: center; clear: ${clearStyle};">
+  <div style="display: inline-block; width: 100%; text-align: center;">
+    <img src="${url}" alt="${alt || ""}" data-angle="${angle}" data-align="${align}" data-width="${width}" data-radius="${radius}" data-shadow="${shadow}" style="width: 100%; height: auto; transform: rotate(${angle}deg); border-radius: ${radius}px; box-shadow: ${shadowCss}; display: block; margin: 0 auto; transition: transform 0.2s;" />
+  </div>
+  ${figcaptionHTML}
+</figure><p><br></p>`;
+  };
+
+  // Open modal to insert new image
+  const handleOpenInsertImage = () => {
+    saveCurrentSelection();
+    setImageModalMode("insert");
+    setImageTab("upload");
+    setImageConfig({
+      url: "",
+      alt: "",
+      caption: "",
+      align: "center",
+      width: 60,
+      angle: 0,
+      radius: 12,
+      shadow: "medium",
+    });
+    setImageModalOpen(true);
+  };
+
+  // Insert image at current cursor selection
+  const handleInsertImage = () => {
+    if (!imageConfig.url) {
+      toast.error("Please upload an image or provide an image URL");
+      return;
+    }
+
+    if (editorRef.current) {
+      editorRef.current.focus();
+      let inserted = false;
+      if (savedRangeRef.current) {
+        try {
+          restoreSelection();
+          const html = generateImageHTML(imageConfig);
+          inserted = document.execCommand("insertHTML", false, html);
+        } catch (e) {
+          console.warn("Could not insert at range, appending to end", e);
+        }
+      }
+
+      if (!inserted) {
+        const html = generateImageHTML(imageConfig);
+        editorRef.current.innerHTML += html;
+      }
+
+      handleEditorInput();
+    }
+
+    setImageModalOpen(false);
+    toast.success("Image added to blog article!");
+  };
+
+  // Save modal changes to selected image
+  const handleSaveImageChanges = () => {
+    if (selectedImgEl) {
+      updateSelectedImageAttributes(imageConfig);
+      toast.success("Image adjustments updated!");
+    }
+    setImageModalOpen(false);
+  };
+
+  // Update existing image attributes dynamically
+  const updateSelectedImageAttributes = (newAttrs) => {
+    if (!selectedImgEl) return;
+    const merged = { ...imageConfig, ...newAttrs };
+    setImageConfig(merged);
+
+    const figure = selectedImgEl.closest("figure.blog-img-box");
+    const target = selectedImgEl;
+
+    target.setAttribute("data-angle", merged.angle);
+    target.setAttribute("data-align", merged.align);
+    target.setAttribute("data-width", merged.width);
+    target.setAttribute("data-radius", merged.radius);
+    target.setAttribute("data-shadow", merged.shadow);
+    target.style.transform = `rotate(${merged.angle}deg)`;
+    target.style.borderRadius = `${merged.radius}px`;
+
+    let shadowCss = "none";
+    if (merged.shadow === "soft") shadowCss = "0 4px 15px rgba(0,0,0,0.15)";
+    else if (merged.shadow === "medium") shadowCss = "0 10px 25px -5px rgba(0,0,0,0.3)";
+    else if (merged.shadow === "hard") shadowCss = "0 20px 35px -5px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.1)";
+    target.style.boxShadow = shadowCss;
+
+    if (merged.alt !== undefined) target.alt = merged.alt;
+    if (merged.url && target.src !== merged.url) target.src = merged.url;
+
+    if (figure) {
+      figure.setAttribute("data-align", merged.align);
+      figure.setAttribute("data-width", merged.width);
+      figure.setAttribute("data-angle", merged.angle);
+      figure.setAttribute("data-radius", merged.radius);
+      figure.setAttribute("data-shadow", merged.shadow);
+
+      let maxWidth = `${merged.width}%`;
+      if (merged.align === "left") {
+        figure.style.float = "left";
+        figure.style.margin = "10px 24px 16px 0";
+        figure.style.clear = "none";
+        maxWidth = `${Math.min(merged.width, 50)}%`;
+      } else if (merged.align === "right") {
+        figure.style.float = "right";
+        figure.style.margin = "10px 0 16px 24px";
+        figure.style.clear = "none";
+        maxWidth = `${Math.min(merged.width, 50)}%`;
+      } else if (merged.align === "full") {
+        figure.style.float = "none";
+        figure.style.margin = "24px 0";
+        figure.style.clear = "both";
+        maxWidth = "100%";
+      } else {
+        figure.style.float = "none";
+        figure.style.margin = "20px auto";
+        figure.style.clear = "both";
+        maxWidth = `${merged.width}%`;
+      }
+
+      figure.style.maxWidth = maxWidth;
+      figure.style.width = maxWidth;
+      figure.style.display = "block";
+      figure.style.textAlign = "center";
+
+      let figcaption = figure.querySelector("figcaption");
+      if (merged.caption && merged.caption.trim()) {
+        if (!figcaption) {
+          figcaption = document.createElement("figcaption");
+          figcaption.style.fontSize = "13px";
+          figcaption.style.color = "#94a3b8";
+          figcaption.style.marginTop = "8px";
+          figcaption.style.textAlign = "center";
+          figcaption.style.fontStyle = "italic";
+          figure.appendChild(figcaption);
+        }
+        figcaption.innerText = merged.caption.trim();
+      } else if (figcaption) {
+        figcaption.remove();
+      }
+    }
+
+    handleEditorInput();
+  };
+
+  // Handle clicking inside the editor canvas
+  const handleEditorClick = (e) => {
+    const target = e.target;
+    if (target && target.tagName === "IMG") {
+      let figure = target.closest("figure.blog-img-box");
+      if (!figure) {
+        figure = document.createElement("figure");
+        figure.className = "blog-img-box";
+        figure.style.display = "block";
+        figure.style.margin = "20px auto";
+        figure.style.maxWidth = "60%";
+        figure.style.width = "60%";
+        figure.style.textAlign = "center";
+        figure.style.clear = "both";
+
+        const div = document.createElement("div");
+        div.style.display = "inline-block";
+        div.style.width = "100%";
+        div.style.textAlign = "center";
+
+        target.parentNode.insertBefore(figure, target);
+        div.appendChild(target);
+        figure.appendChild(div);
+      }
+
+      const angle = parseInt(target.getAttribute("data-angle") || "0", 10);
+      const align = target.getAttribute("data-align") || (figure?.style.float === "left" ? "left" : figure?.style.float === "right" ? "right" : figure?.style.width === "100%" ? "full" : "center");
+      const width = parseInt(target.getAttribute("data-width") || (figure ? parseInt(figure.style.width, 10) || "60" : "60"), 10);
+      const radius = parseInt(target.getAttribute("data-radius") || parseInt(target.style.borderRadius, 10) || "12", 10);
+      const shadow = target.getAttribute("data-shadow") || "medium";
+      const alt = target.alt || "";
+      const figcaption = figure ? figure.querySelector("figcaption") : null;
+      const caption = figcaption ? figcaption.innerText : "";
+
+      if (editorRef.current) {
+        editorRef.current.querySelectorAll("img").forEach((img) => {
+          img.style.outline = "";
+          img.style.outlineOffset = "";
+        });
+      }
+
+      target.style.outline = "3px solid #10b981";
+      target.style.outlineOffset = "4px";
+
+      setSelectedImgEl(target);
+      setImageConfig({
+        url: target.src,
+        alt,
+        caption,
+        align: align || "center",
+        width: width || 60,
+        angle: isNaN(angle) ? 0 : angle,
+        radius: isNaN(radius) ? 12 : radius,
+        shadow: shadow || "medium",
+      });
+      handleEditorInput();
+    } else {
+      if (selectedImgEl && !e.target.closest(".image-control-dock") && !e.target.closest(".image-modal-container")) {
+        selectedImgEl.style.outline = "";
+        selectedImgEl.style.outlineOffset = "";
+        setSelectedImgEl(null);
+      }
+    }
+  };
+
+  // Double click image to open modal directly
+  const handleEditorDoubleClick = (e) => {
+    if (e.target && e.target.tagName === "IMG") {
+      setImageModalMode("edit");
+      setImageModalOpen(true);
+    }
+  };
+
+  // Pressing delete or backspace when an image is selected
+  const handleEditorKeyDown = (e) => {
+    if (selectedImgEl && (e.key === "Delete" || e.key === "Backspace")) {
+      e.preventDefault();
+      handleDeleteSelectedImage();
+    }
+  };
+
+  // Delete selected image
+  const handleDeleteSelectedImage = () => {
+    if (!selectedImgEl) return;
+    const figure = selectedImgEl.closest("figure.blog-img-box");
+    if (figure) {
+      figure.remove();
+    } else {
+      selectedImgEl.remove();
+    }
+    setSelectedImgEl(null);
+    handleEditorInput();
+    setImageModalOpen(false);
+    toast.success("Image removed from article");
+  };
+
+  // Upload image in modal
+  const handleModalImageUpload = async (file) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please upload an image file (PNG, JPG, WEBP)");
+      return;
+    }
+
+    try {
+      setImageUploading(true);
+      const res = await BlogService.uploadImage(file);
+      if (res && res.url) {
+        setImageConfig((prev) => ({ ...prev, url: res.url }));
+        if (selectedImgEl && imageModalMode === "edit") {
+          updateSelectedImageAttributes({ url: res.url });
+        }
+        toast.success("Image uploaded!");
+      } else {
+        toast.error("Failed to get uploaded image URL");
+      }
+    } catch (err) {
+      console.error("Modal image upload error:", err);
+      try {
+        const reader = new FileReader();
+        reader.onload = (uploadEvent) => {
+          const dataUrl = uploadEvent.target.result;
+          setImageConfig((prev) => ({ ...prev, url: dataUrl }));
+          if (selectedImgEl && imageModalMode === "edit") {
+            updateSelectedImageAttributes({ url: dataUrl });
+          }
+          toast.success("Image loaded!");
+        };
+        reader.readAsDataURL(file);
+      } catch (fallbackErr) {
+        toast.error("Could not load image");
+      }
+    } finally {
+      setImageUploading(false);
     }
   };
 
@@ -449,6 +924,17 @@ export default function WebBlogsPage() {
       return;
     }
 
+    // Clean any temporary editor selection styling on images
+    if (editorRef.current) {
+      editorRef.current.querySelectorAll("img").forEach((img) => {
+        img.style.outline = "";
+        img.style.outlineOffset = "";
+      });
+    }
+    setSelectedImgEl(null);
+
+    const latestContent = editorRef.current ? editorRef.current.innerHTML : formData.content;
+
     // Default image if empty
     const finalImage =
       formData.image ||
@@ -456,6 +942,7 @@ export default function WebBlogsPage() {
 
     const payload = {
       ...formData,
+      content: latestContent,
       image: finalImage,
       status: targetStatus || formData.status,
     };
@@ -1047,11 +1534,12 @@ export default function WebBlogsPage() {
                 {/* 3. WORD-LIKE FORMATTING TOOLBAR RIBBON */}
                 {activeTab === "editor" && (
                   <div className="bg-slate-900 border border-slate-800 rounded-2xl overflow-hidden shadow-xl">
-                    {/* TOOLBAR */}
-                    <div className="bg-slate-950/90 border-b border-slate-800 p-2.5 flex flex-wrap items-center gap-1.5 text-slate-300 sticky top-0 z-10 backdrop-blur-sm">
+                    {/* TOOLBAR (PROFESSIONAL WORD-LIKE RIBBON) */}
+                    <div className="bg-slate-950/95 border-b border-slate-800 p-2 flex flex-wrap items-center gap-1.5 text-slate-300 sticky top-0 z-20 backdrop-blur-md">
                       {/* Undo / Redo */}
                       <button
                         type="button"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => execCmd("undo")}
                         className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition"
                         title="Undo (Ctrl+Z)"
@@ -1060,6 +1548,7 @@ export default function WebBlogsPage() {
                       </button>
                       <button
                         type="button"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => execCmd("redo")}
                         className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition"
                         title="Redo (Ctrl+Y)"
@@ -1067,17 +1556,19 @@ export default function WebBlogsPage() {
                         <RotateCw className="w-4 h-4" />
                       </button>
 
-                      <div className="w-[1px] h-5 bg-slate-800 mx-1" />
+                      <div className="w-[1px] h-5 bg-slate-800 mx-0.5" />
 
-                      {/* Headings Selector */}
+                      {/* Headings & Text Styles */}
                       <select
                         onChange={(e) => {
                           const val = e.target.value;
+                          if (!val) return;
                           if (val === "p") execCmd("formatBlock", "<p>");
                           else execCmd("formatBlock", `<${val}>`);
                           e.target.value = "";
                         }}
-                        className="bg-slate-900 border border-slate-800 text-xs rounded-lg px-2.5 py-1 text-slate-300 focus:outline-none focus:border-emerald-500/50"
+                        onMouseDown={(e) => e.stopPropagation()}
+                        className="bg-slate-900 border border-slate-800 text-xs rounded-lg px-2.5 py-1 text-slate-300 focus:outline-none focus:border-emerald-500/50 cursor-pointer"
                         title="Text Formatting / Headings"
                       >
                         <option value="">Text Style...</option>
@@ -1085,13 +1576,69 @@ export default function WebBlogsPage() {
                         <option value="h1">Heading 1 (Main Title)</option>
                         <option value="h2">Heading 2 (Section)</option>
                         <option value="h3">Heading 3 (Sub-section)</option>
+                        <option value="h4">Heading 4 (Minor)</option>
+                        <option value="blockquote">Quote Block</option>
+                        <option value="pre">Code Block</option>
                       </select>
 
-                      <div className="w-[1px] h-5 bg-slate-800 mx-1" />
+                      {/* Font Family / Design Selector */}
+                      <select
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val) applyFontFamily(val);
+                          e.target.value = "";
+                        }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        className="bg-slate-900 border border-slate-800 text-xs rounded-lg px-2.5 py-1 text-slate-300 focus:outline-none focus:border-emerald-500/50 cursor-pointer max-w-[130px]"
+                        title="Font Design (Family)"
+                      >
+                        <option value="">Font Style...</option>
+                        <option value="Inter, sans-serif" style={{ fontFamily: "Inter, sans-serif" }}>Inter (Clean Sans)</option>
+                        <option value="Roboto, sans-serif" style={{ fontFamily: "Roboto, sans-serif" }}>Roboto (Modern)</option>
+                        <option value="Poppins, sans-serif" style={{ fontFamily: "Poppins, sans-serif" }}>Poppins (Geometric)</option>
+                        <option value="Montserrat, sans-serif" style={{ fontFamily: "Montserrat, sans-serif" }}>Montserrat (Executive)</option>
+                        <option value="'Open Sans', sans-serif" style={{ fontFamily: "'Open Sans', sans-serif" }}>Open Sans (Neutral)</option>
+                        <option value="Georgia, serif" style={{ fontFamily: "Georgia, serif" }}>Georgia (Classic Serif)</option>
+                        <option value="Merriweather, serif" style={{ fontFamily: "Merriweather, serif" }}>Merriweather (Editorial)</option>
+                        <option value="'Playfair Display', serif" style={{ fontFamily: "'Playfair Display', serif" }}>Playfair Display (Luxury)</option>
+                        <option value="'Times New Roman', serif" style={{ fontFamily: "'Times New Roman', serif" }}>Times New Roman</option>
+                        <option value="'JetBrains Mono', monospace" style={{ fontFamily: "'JetBrains Mono', monospace" }}>JetBrains Mono (Code)</option>
+                        <option value="'Courier New', monospace" style={{ fontFamily: "'Courier New', monospace" }}>Courier New (Typewriter)</option>
+                        <option value="'Comic Sans MS', cursive" style={{ fontFamily: "'Comic Sans MS', cursive" }}>Comic Sans (Playful)</option>
+                        <option value="Impact, sans-serif" style={{ fontFamily: "Impact, sans-serif" }}>Impact (Headline)</option>
+                      </select>
 
-                      {/* Basic Formatting Group */}
+                      {/* Font Size Selector */}
+                      <select
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          if (val) applyFontSize(val);
+                          e.target.value = "";
+                        }}
+                        onMouseDown={(e) => e.stopPropagation()}
+                        className="bg-slate-900 border border-slate-800 text-xs rounded-lg px-2 py-1 text-slate-300 focus:outline-none focus:border-emerald-500/50 cursor-pointer"
+                        title="Font Size"
+                      >
+                        <option value="">Size...</option>
+                        <option value="11px">11px - Fine Print</option>
+                        <option value="12px">12px - Small</option>
+                        <option value="14px">14px - Compact</option>
+                        <option value="16px">16px - Normal (Body)</option>
+                        <option value="18px">18px - Medium</option>
+                        <option value="20px">20px - Large Body</option>
+                        <option value="24px">24px - Sub-heading</option>
+                        <option value="28px">28px - Heading 3</option>
+                        <option value="32px">32px - Heading 2</option>
+                        <option value="36px">36px - Heading 1</option>
+                        <option value="44px">44px - Hero Display</option>
+                      </select>
+
+                      <div className="w-[1px] h-5 bg-slate-800 mx-0.5" />
+
+                      {/* Basic Typography Group */}
                       <button
                         type="button"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => execCmd("bold")}
                         className="p-1.5 rounded-lg hover:bg-slate-800 hover:text-white transition font-bold"
                         title="Bold (Ctrl+B)"
@@ -1100,6 +1647,7 @@ export default function WebBlogsPage() {
                       </button>
                       <button
                         type="button"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => execCmd("italic")}
                         className="p-1.5 rounded-lg hover:bg-slate-800 hover:text-white transition italic"
                         title="Italic (Ctrl+I)"
@@ -1108,6 +1656,7 @@ export default function WebBlogsPage() {
                       </button>
                       <button
                         type="button"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => execCmd("underline")}
                         className="p-1.5 rounded-lg hover:bg-slate-800 hover:text-white transition underline"
                         title="Underline (Ctrl+U)"
@@ -1116,18 +1665,187 @@ export default function WebBlogsPage() {
                       </button>
                       <button
                         type="button"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => execCmd("strikeThrough")}
                         className="p-1.5 rounded-lg hover:bg-slate-800 hover:text-white transition"
                         title="Strikethrough"
                       >
                         <Strikethrough className="w-4 h-4" />
                       </button>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => execCmd("subscript")}
+                        className="p-1.5 rounded-lg hover:bg-slate-800 hover:text-white transition"
+                        title="Subscript (X₂)"
+                      >
+                        <Subscript className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => execCmd("superscript")}
+                        className="p-1.5 rounded-lg hover:bg-slate-800 hover:text-white transition"
+                        title="Superscript (X²)"
+                      >
+                        <Superscript className="w-4 h-4" />
+                      </button>
 
-                      <div className="w-[1px] h-5 bg-slate-800 mx-1" />
+                      <div className="w-[1px] h-5 bg-slate-800 mx-0.5" />
+
+                      {/* Word-like Text Color Picker */}
+                      <div className="relative color-picker-container">
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setShowColorPicker(!showColorPicker);
+                            setShowHighlightPicker(false);
+                          }}
+                          className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition flex flex-col items-center justify-center relative"
+                          title="Font Text Color"
+                        >
+                          <span className="font-bold text-sm leading-none">A</span>
+                          <span
+                            className="w-3.5 h-1 rounded-sm mt-0.5 shadow-sm"
+                            style={{ backgroundColor: activeTextColor }}
+                          />
+                        </button>
+
+                        {showColorPicker && (
+                          <div
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className="absolute top-full left-0 mt-2 z-40 bg-slate-900 border border-slate-700 rounded-xl p-3 shadow-2xl w-56 space-y-2.5 animate-in fade-in zoom-in-95 duration-100"
+                          >
+                            <div className="flex items-center justify-between text-xs font-semibold text-slate-300 pb-1 border-b border-slate-800">
+                              <span>Font Text Color</span>
+                              <button
+                                type="button"
+                                onClick={() => setShowColorPicker(false)}
+                                className="text-slate-500 hover:text-slate-300"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+
+                            {/* Palette Swatches */}
+                            <div className="grid grid-cols-6 gap-1.5">
+                              {[
+                                "#ffffff", "#f1f5f9", "#94a3b8", "#1e293b", "#000000",
+                                "#10b981", "#059669", "#06b6d4", "#0284c7", "#3b82f6",
+                                "#6366f1", "#8b5cf6", "#ec4899", "#ef4444", "#f97316",
+                                "#eab308", "#14b8a6", "#84cc16",
+                              ].map((c) => (
+                                <button
+                                  key={c}
+                                  type="button"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => applyTextColor(c)}
+                                  className="w-6 h-6 rounded-md border border-slate-700/80 hover:scale-110 transition flex items-center justify-center relative shadow-sm"
+                                  style={{ backgroundColor: c }}
+                                  title={c}
+                                >
+                                  {activeTextColor === c && (
+                                    <Check className={`w-3 h-3 ${c === "#ffffff" || c === "#f1f5f9" || c === "#eab308" ? "text-slate-900" : "text-white"}`} />
+                                  )}
+                                </button>
+                              ))}
+                            </div>
+
+                            {/* Custom Color Input */}
+                            <div className="pt-2 border-t border-slate-800 flex items-center gap-2">
+                              <input
+                                type="color"
+                                value={activeTextColor}
+                                onChange={(e) => applyTextColor(e.target.value)}
+                                className="w-7 h-7 rounded border border-slate-700 cursor-pointer bg-transparent"
+                                title="Pick Custom Color"
+                              />
+                              <span className="text-xs font-mono text-slate-400 uppercase flex-1">{activeTextColor}</span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Word-like Text Highlighter */}
+                      <div className="relative highlight-picker-container">
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={() => {
+                            setShowHighlightPicker(!showHighlightPicker);
+                            setShowColorPicker(false);
+                          }}
+                          className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-300 hover:text-white transition flex flex-col items-center justify-center relative"
+                          title="Highlight Color"
+                        >
+                          <Highlighter className="w-3.5 h-3.5" />
+                          <span
+                            className="w-3.5 h-1 rounded-sm mt-0.5 shadow-sm"
+                            style={{ backgroundColor: activeHighlightColor }}
+                          />
+                        </button>
+
+                        {showHighlightPicker && (
+                          <div
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className="absolute top-full left-0 mt-2 z-40 bg-slate-900 border border-slate-700 rounded-xl p-3 shadow-2xl w-52 space-y-2.5 animate-in fade-in zoom-in-95 duration-100"
+                          >
+                            <div className="flex items-center justify-between text-xs font-semibold text-slate-300 pb-1 border-b border-slate-800">
+                              <span>Highlight Text</span>
+                              <button
+                                type="button"
+                                onClick={() => setShowHighlightPicker(false)}
+                                className="text-slate-500 hover:text-slate-300"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            </div>
+
+                            {/* Swatches */}
+                            <div className="grid grid-cols-4 gap-1.5">
+                              {[
+                                { name: "Yellow", color: "#fef08a" },
+                                { name: "Green", color: "#bbf7d0" },
+                                { name: "Cyan", color: "#a5f3fc" },
+                                { name: "Pink", color: "#fbcfe8" },
+                                { name: "Orange", color: "#fed7aa" },
+                                { name: "Purple", color: "#e9d5ff" },
+                                { name: "Emerald", color: "#a7f3d0" },
+                              ].map((h) => (
+                                <button
+                                  key={h.color}
+                                  type="button"
+                                  onMouseDown={(e) => e.preventDefault()}
+                                  onClick={() => applyHighlightColor(h.color)}
+                                  className="h-6 rounded-md border border-slate-700 hover:scale-105 transition flex items-center justify-center shadow-sm"
+                                  style={{ backgroundColor: h.color }}
+                                  title={h.name}
+                                >
+                                  {activeHighlightColor === h.color && <Check className="w-3 h-3 text-slate-900" />}
+                                </button>
+                              ))}
+                            </div>
+
+                            {/* Clear Highlight button */}
+                            <button
+                              type="button"
+                              onMouseDown={(e) => e.preventDefault()}
+                              onClick={() => applyHighlightColor("transparent")}
+                              className="w-full py-1 text-xs text-slate-400 hover:text-white rounded border border-slate-800 hover:bg-slate-800 transition"
+                            >
+                              Remove Highlight
+                            </button>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="w-[1px] h-5 bg-slate-800 mx-0.5" />
 
                       {/* Alignments */}
                       <button
                         type="button"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => execCmd("justifyLeft")}
                         className="p-1.5 rounded-lg hover:bg-slate-800 hover:text-white transition"
                         title="Align Left"
@@ -1136,6 +1854,7 @@ export default function WebBlogsPage() {
                       </button>
                       <button
                         type="button"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => execCmd("justifyCenter")}
                         className="p-1.5 rounded-lg hover:bg-slate-800 hover:text-white transition"
                         title="Align Center"
@@ -1144,6 +1863,7 @@ export default function WebBlogsPage() {
                       </button>
                       <button
                         type="button"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => execCmd("justifyRight")}
                         className="p-1.5 rounded-lg hover:bg-slate-800 hover:text-white transition"
                         title="Align Right"
@@ -1152,6 +1872,7 @@ export default function WebBlogsPage() {
                       </button>
                       <button
                         type="button"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => execCmd("justifyFull")}
                         className="p-1.5 rounded-lg hover:bg-slate-800 hover:text-white transition"
                         title="Justify"
@@ -1159,11 +1880,12 @@ export default function WebBlogsPage() {
                         <AlignJustify className="w-4 h-4" />
                       </button>
 
-                      <div className="w-[1px] h-5 bg-slate-800 mx-1" />
+                      <div className="w-[1px] h-5 bg-slate-800 mx-0.5" />
 
-                      {/* Lists */}
+                      {/* Lists & Indentation */}
                       <button
                         type="button"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => execCmd("insertUnorderedList")}
                         className="p-1.5 rounded-lg hover:bg-slate-800 hover:text-white transition"
                         title="Bullet List"
@@ -1172,18 +1894,59 @@ export default function WebBlogsPage() {
                       </button>
                       <button
                         type="button"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => execCmd("insertOrderedList")}
                         className="p-1.5 rounded-lg hover:bg-slate-800 hover:text-white transition"
                         title="Numbered List"
                       >
                         <ListOrdered className="w-4 h-4" />
                       </button>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => execCmd("outdent")}
+                        className="p-1.5 rounded-lg hover:bg-slate-800 hover:text-white transition"
+                        title="Decrease Indent"
+                      >
+                        <Outdent className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => execCmd("indent")}
+                        className="p-1.5 rounded-lg hover:bg-slate-800 hover:text-white transition"
+                        title="Increase Indent"
+                      >
+                        <Indent className="w-4 h-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => execCmd("formatBlock", "<blockquote>")}
+                        className="p-1.5 rounded-lg hover:bg-slate-800 hover:text-white transition"
+                        title="Blockquote"
+                      >
+                        <Quote className="w-4 h-4" />
+                      </button>
 
-                      <div className="w-[1px] h-5 bg-slate-800 mx-1" />
+                      <div className="w-[1px] h-5 bg-slate-800 mx-0.5" />
+
+                      {/* In-Content Insert Objects */}
+                      {/* 🖼️ INSERT IMAGE BUTTON */}
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={handleOpenInsertImage}
+                        className="px-2.5 py-1 rounded-lg bg-cyan-500/15 hover:bg-cyan-500/25 text-cyan-400 border border-cyan-500/30 text-xs flex items-center gap-1.5 transition font-semibold shadow-sm"
+                        title="Insert Image (Upload or Web URL with full Angle & Position control)"
+                      >
+                        <ImageIcon className="w-3.5 h-3.5" /> + Image
+                      </button>
 
                       {/* Special Blocks */}
                       <button
                         type="button"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => insertCallout("tip")}
                         className="px-2 py-1 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 border border-emerald-500/20 text-xs flex items-center gap-1 transition"
                         title="Insert Pro Tip Callout Box"
@@ -1192,6 +1955,7 @@ export default function WebBlogsPage() {
                       </button>
                       <button
                         type="button"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => insertCallout("warning")}
                         className="px-2 py-1 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 text-xs flex items-center gap-1 transition"
                         title="Insert Warning Box"
@@ -1200,6 +1964,7 @@ export default function WebBlogsPage() {
                       </button>
                       <button
                         type="button"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={insertTable}
                         className="px-2 py-1 rounded-lg bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 border border-blue-500/20 text-xs flex items-center gap-1 transition"
                         title="Insert Pricing / Comparison Table"
@@ -1207,12 +1972,16 @@ export default function WebBlogsPage() {
                         <Table className="w-3.5 h-3.5" /> + Table
                       </button>
 
-                      <div className="w-[1px] h-5 bg-slate-800 mx-1" />
+                      <div className="w-[1px] h-5 bg-slate-800 mx-0.5" />
 
                       {/* Link & Clear */}
                       <button
                         type="button"
-                        onClick={() => setShowLinkModal(true)}
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => {
+                          saveCurrentSelection();
+                          setShowLinkModal(true);
+                        }}
                         className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition"
                         title="Insert Web Link"
                       >
@@ -1220,6 +1989,7 @@ export default function WebBlogsPage() {
                       </button>
                       <button
                         type="button"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => execCmd("insertHorizontalRule")}
                         className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition"
                         title="Horizontal Divider"
@@ -1228,6 +1998,7 @@ export default function WebBlogsPage() {
                       </button>
                       <button
                         type="button"
+                        onMouseDown={(e) => e.preventDefault()}
                         onClick={() => execCmd("removeFormat")}
                         className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-rose-400 transition"
                         title="Clear Formatting"
@@ -1236,11 +2007,148 @@ export default function WebBlogsPage() {
                       </button>
                     </div>
 
+                    {/* DYNAMIC IMAGE CONTROL DOCK (APPEARS WHEN AN IMAGE IS SELECTED IN CANVAS) */}
+                    {selectedImgEl && (
+                      <div className="image-control-dock bg-slate-950 border-b border-emerald-500/30 px-3 py-2 flex flex-wrap items-center justify-between gap-2.5 text-xs animate-in slide-in-from-top-1 duration-150 sticky top-[48px] z-10 backdrop-blur-md">
+                        <div className="flex items-center gap-2">
+                          <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400 font-semibold border border-emerald-500/30 text-[11px]">
+                            <ImageIcon className="w-3 h-3" /> Image Selected ({imageConfig.angle}° | {imageConfig.align.toUpperCase()} | {imageConfig.width}%)
+                          </span>
+                        </div>
+
+                        {/* Quick Placement / Alignment */}
+                        <div className="flex items-center bg-slate-900 border border-slate-800 rounded-lg p-0.5">
+                          <button
+                            type="button"
+                            onClick={() => updateSelectedImageAttributes({ align: "left" })}
+                            className={`px-2 py-1 rounded transition flex items-center gap-1 ${imageConfig.align === "left" ? "bg-emerald-600 text-white font-medium" : "text-slate-400 hover:text-white"}`}
+                            title="Float Left (Text wraps along right)"
+                          >
+                            <AlignLeft className="w-3 h-3" /> Left
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateSelectedImageAttributes({ align: "center" })}
+                            className={`px-2 py-1 rounded transition flex items-center gap-1 ${imageConfig.align === "center" ? "bg-emerald-600 text-white font-medium" : "text-slate-400 hover:text-white"}`}
+                            title="Center Block"
+                          >
+                            <AlignCenter className="w-3 h-3" /> Center
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateSelectedImageAttributes({ align: "right" })}
+                            className={`px-2 py-1 rounded transition flex items-center gap-1 ${imageConfig.align === "right" ? "bg-emerald-600 text-white font-medium" : "text-slate-400 hover:text-white"}`}
+                            title="Float Right (Text wraps along left)"
+                          >
+                            <AlignRight className="w-3 h-3" /> Right
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateSelectedImageAttributes({ align: "full" })}
+                            className={`px-2 py-1 rounded transition flex items-center gap-1 ${imageConfig.align === "full" ? "bg-emerald-600 text-white font-medium" : "text-slate-400 hover:text-white"}`}
+                            title="Full Width Stretch"
+                          >
+                            <Maximize2 className="w-3 h-3" /> Full
+                          </button>
+                        </div>
+
+                        {/* Quick Width Presets */}
+                        <div className="flex items-center bg-slate-900 border border-slate-800 rounded-lg p-0.5">
+                          {[25, 50, 75, 100].map((sz) => (
+                            <button
+                              key={sz}
+                              type="button"
+                              onClick={() => updateSelectedImageAttributes({ width: sz })}
+                              className={`px-2 py-0.5 rounded transition text-[11px] font-medium ${imageConfig.width === sz ? "bg-emerald-600 text-white" : "text-slate-400 hover:text-white"}`}
+                              title={`Width: ${sz}%`}
+                            >
+                              {sz}%
+                            </button>
+                          ))}
+                        </div>
+
+                        {/* Quick Rotate / Angle */}
+                        <div className="flex items-center bg-slate-900 border border-slate-800 rounded-lg p-0.5">
+                          <button
+                            type="button"
+                            onClick={() => updateSelectedImageAttributes({ angle: (imageConfig.angle - 15) % 360 })}
+                            className="p-1 rounded text-slate-400 hover:text-white transition"
+                            title="Rotate Left -15°"
+                          >
+                            <RotateCcw className="w-3 h-3" />
+                          </button>
+                          <span className="px-2 font-mono text-emerald-400 font-bold text-[11px]">{imageConfig.angle}°</span>
+                          <button
+                            type="button"
+                            onClick={() => updateSelectedImageAttributes({ angle: (imageConfig.angle + 15) % 360 })}
+                            className="p-1 rounded text-slate-400 hover:text-white transition"
+                            title="Rotate Right +15°"
+                          >
+                            <RotateCw className="w-3 h-3" />
+                          </button>
+                          {imageConfig.angle !== 0 && (
+                            <button
+                              type="button"
+                              onClick={() => updateSelectedImageAttributes({ angle: 0 })}
+                              className="px-1.5 py-0.5 text-[10px] text-slate-500 hover:text-slate-300 underline"
+                              title="Reset angle to 0°"
+                            >
+                              0°
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Full Controls & Delete */}
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setImageModalMode("edit");
+                              setImageModalOpen(true);
+                            }}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-400 border border-emerald-500/30 font-medium flex items-center gap-1 transition text-xs"
+                            title="Open full controls: fine-tune angle slider, width, shadows, caption, replace image"
+                          >
+                            <Sliders className="w-3 h-3" /> Sliders &amp; Caption
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={handleDeleteSelectedImage}
+                            className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 transition"
+                            title="Delete this image"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (selectedImgEl) {
+                                selectedImgEl.style.outline = "";
+                                selectedImgEl.style.outlineOffset = "";
+                              }
+                              setSelectedImgEl(null);
+                            }}
+                            className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-white transition"
+                            title="Close / Deselect"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                     {/* EDITABLE DOCUMENT CANVAS */}
                     <div
                       ref={editorRef}
                       contentEditable
                       onInput={handleEditorInput}
+                      onClick={handleEditorClick}
+                      onDoubleClick={handleEditorDoubleClick}
+                      onKeyDown={handleEditorKeyDown}
+                      onKeyUp={saveCurrentSelection}
+                      onMouseUp={saveCurrentSelection}
                       className="min-h-[500px] p-8 md:p-10 bg-slate-900 text-slate-100 text-base leading-relaxed focus:outline-none focus:ring-0 font-sans selection:bg-emerald-500/30 overflow-y-auto"
                       style={{ minHeight: "520px" }}
                     />
@@ -1721,6 +2629,494 @@ export default function WebBlogsPage() {
               >
                 Insert Link
               </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* INSERT / CUSTOMIZE IN-CONTENT IMAGE MODAL */}
+      {imageModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden my-auto image-modal-container animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[92vh]">
+            {/* Modal Header */}
+            <div className="bg-slate-950 px-5 py-4 border-b border-slate-800 flex items-center justify-between shrink-0">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-cyan-500/15 text-cyan-400 border border-cyan-500/30">
+                  <ImageIcon className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                    {imageModalMode === "insert" ? "Insert Image into Blog" : "Adjust Image Angles & Styling"}
+                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-slate-800 text-cyan-400 border border-slate-700">
+                      {imageConfig.angle}° • {imageConfig.align.toUpperCase()}
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-400">
+                    Adjust exact position, angle/rotation, size, and styling
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setImageModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Modal Body (Scrollable) */}
+            <div className="p-5 overflow-y-auto space-y-5 flex-1">
+              {/* SOURCE TABS */}
+              <div className="flex items-center bg-slate-950 border border-slate-800 rounded-xl p-1 text-xs">
+                <button
+                  type="button"
+                  onClick={() => setImageTab("upload")}
+                  className={`flex-1 py-1.5 rounded-lg font-medium transition flex items-center justify-center gap-1.5 ${
+                    imageTab === "upload"
+                      ? "bg-slate-800 text-white shadow"
+                      : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  <Upload className="w-3.5 h-3.5" /> Upload from Computer
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setImageTab("url")}
+                  className={`flex-1 py-1.5 rounded-lg font-medium transition flex items-center justify-center gap-1.5 ${
+                    imageTab === "url"
+                      ? "bg-slate-800 text-white shadow"
+                      : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  <Globe className="w-3.5 h-3.5" /> Image Web Link (URL)
+                </button>
+              </div>
+
+              {/* TAB 1: UPLOAD BOX */}
+              {imageTab === "upload" && (
+                <div
+                  onClick={() => inContentFileInputRef.current?.click()}
+                  className="border-2 border-dashed border-slate-800 hover:border-cyan-500/50 bg-slate-950/60 rounded-xl p-5 text-center cursor-pointer transition group"
+                >
+                  <input
+                    ref={inContentFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleModalImageUpload(file);
+                    }}
+                    className="hidden"
+                  />
+                  {imageUploading ? (
+                    <div className="py-3 flex flex-col items-center justify-center gap-2">
+                      <RefreshCw className="w-6 h-6 animate-spin text-cyan-400" />
+                      <span className="text-xs text-slate-300 font-medium">Uploading image to server...</span>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center gap-2 text-slate-400 group-hover:text-slate-300">
+                      <div className="p-2.5 rounded-full bg-slate-900 group-hover:bg-cyan-500/10 text-slate-400 group-hover:text-cyan-400 transition">
+                        <Upload className="w-5 h-5" />
+                      </div>
+                      <p className="text-xs font-medium">
+                        Click or drag &amp; drop to upload image (PNG, JPG, WEBP)
+                      </p>
+                      <span className="text-[11px] text-slate-500">
+                        {imageConfig.url ? "File selected: Click to replace" : "High-resolution photos supported"}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 2: URL INPUT */}
+              {imageTab === "url" && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">
+                    Image Direct URL
+                  </label>
+                  <input
+                    type="text"
+                    value={imageConfig.url}
+                    onChange={(e) => {
+                      const next = { ...imageConfig, url: e.target.value };
+                      setImageConfig(next);
+                      if (imageModalMode === "edit" && selectedImgEl) {
+                        updateSelectedImageAttributes({ url: e.target.value });
+                      }
+                    }}
+                    placeholder="https://images.unsplash.com/... or https://..."
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-white placeholder-slate-600 focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+              )}
+
+              {/* LIVE TRANSFORMATION PREVIEW CANVAS */}
+              {imageConfig.url && (
+                <div className="bg-slate-950 rounded-2xl border border-slate-800/90 p-5 flex flex-col items-center justify-center relative overflow-hidden">
+                  <div className="w-full flex items-center justify-between pb-3 mb-2 border-b border-slate-800/80 text-[11px] text-slate-400">
+                    <span className="flex items-center gap-1.5 font-semibold text-cyan-400">
+                      <Eye className="w-3.5 h-3.5" /> Live Transformation Preview
+                    </span>
+                    <span className="font-mono text-slate-500">
+                      Rotation: {imageConfig.angle}° | Width: {imageConfig.width}%
+                    </span>
+                  </div>
+
+                  <div
+                    style={{
+                      maxWidth: `${imageConfig.width}%`,
+                      width: "100%",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                    }}
+                    className="transition-all duration-150"
+                  >
+                    <div style={{ display: "inline-block", maxWidth: "100%" }}>
+                      <img
+                        src={imageConfig.url}
+                        alt={imageConfig.alt || "Preview"}
+                        style={{
+                          transform: `rotate(${imageConfig.angle}deg)`,
+                          borderRadius: `${imageConfig.radius}px`,
+                          boxShadow:
+                            imageConfig.shadow === "soft"
+                              ? "0 4px 15px rgba(0,0,0,0.3)"
+                              : imageConfig.shadow === "medium"
+                              ? "0 10px 25px -5px rgba(0,0,0,0.5)"
+                              : imageConfig.shadow === "hard"
+                              ? "0 20px 35px -5px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.1)"
+                              : "none",
+                          maxHeight: "220px",
+                          objectFit: "contain",
+                        }}
+                        className="transition-transform duration-100 ease-out"
+                      />
+                    </div>
+
+                    {imageConfig.caption && (
+                      <p className="text-xs text-slate-400 italic text-center mt-3">
+                        {imageConfig.caption}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* ANGLE / ROTATION ADJUSTMENT */}
+              <div className="space-y-2 bg-slate-950/70 p-3.5 rounded-xl border border-slate-800">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                    <RotateCw className="w-3.5 h-3.5 text-cyan-400" /> Image Angle &amp; Rotation
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-cyan-500/20 text-cyan-400 font-bold border border-cyan-500/30">
+                      {imageConfig.angle}°
+                    </span>
+                    {imageConfig.angle !== 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const next = { ...imageConfig, angle: 0 };
+                          setImageConfig(next);
+                          if (imageModalMode === "edit" && selectedImgEl) updateSelectedImageAttributes({ angle: 0 });
+                        }}
+                        className="text-[11px] text-slate-500 hover:text-slate-300 underline"
+                      >
+                        Reset to 0°
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Slider */}
+                <input
+                  type="range"
+                  min="-180"
+                  max="180"
+                  step="1"
+                  value={imageConfig.angle}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    const next = { ...imageConfig, angle: val };
+                    setImageConfig(next);
+                    if (imageModalMode === "edit" && selectedImgEl) updateSelectedImageAttributes({ angle: val });
+                  }}
+                  className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                />
+
+                {/* Angle Preset Pills */}
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {[
+                    { label: "0° (Normal)", deg: 0 },
+                    { label: "-6° (Tilt Left)", deg: -6 },
+                    { label: "+6° (Tilt Right)", deg: 6 },
+                    { label: "90° (Quarter CW)", deg: 90 },
+                    { label: "180° (Invert)", deg: 180 },
+                    { label: "270° (Counter CW)", deg: 270 },
+                  ].map((preset) => (
+                    <button
+                      key={preset.deg}
+                      type="button"
+                      onClick={() => {
+                        const next = { ...imageConfig, angle: preset.deg };
+                        setImageConfig(next);
+                        if (imageModalMode === "edit" && selectedImgEl) updateSelectedImageAttributes({ angle: preset.deg });
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-medium transition ${
+                        imageConfig.angle === preset.deg
+                          ? "bg-cyan-600 text-white shadow-md shadow-cyan-500/20"
+                          : "bg-slate-800 hover:bg-slate-700 text-slate-300"
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* PLACEMENT & ALIGNMENT */}
+              <div className="space-y-2">
+                <label className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                  <SlidersHorizontal className="w-3.5 h-3.5 text-cyan-400" /> Placement &amp; Alignment
+                </label>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  {[
+                    { id: "left", label: "Float Left", desc: "Text wraps along right", icon: AlignLeft },
+                    { id: "center", label: "Center Block", desc: "Standalone center block", icon: AlignCenter },
+                    { id: "right", label: "Float Right", desc: "Text wraps along left", icon: AlignRight },
+                    { id: "full", label: "Full Width", desc: "100% full stretch", icon: Maximize2 },
+                  ].map((pos) => {
+                    const Icon = pos.icon;
+                    const isSelected = imageConfig.align === pos.id;
+                    return (
+                      <button
+                        key={pos.id}
+                        type="button"
+                        onClick={() => {
+                          const next = { ...imageConfig, align: pos.id };
+                          setImageConfig(next);
+                          if (imageModalMode === "edit" && selectedImgEl) updateSelectedImageAttributes({ align: pos.id });
+                        }}
+                        className={`p-2.5 rounded-xl border text-left transition flex flex-col gap-1 ${
+                          isSelected
+                            ? "bg-cyan-500/15 border-cyan-500 text-cyan-300 shadow-sm"
+                            : "bg-slate-950/80 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 font-semibold text-xs">
+                          <Icon className="w-3.5 h-3.5 shrink-0" />
+                          <span>{pos.label}</span>
+                        </div>
+                        <span className="text-[10px] text-slate-500 leading-tight">{pos.desc}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* SIZE & WIDTH SLIDER */}
+              <div className="space-y-2 bg-slate-950/70 p-3.5 rounded-xl border border-slate-800">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                    <Sliders className="w-3.5 h-3.5 text-cyan-400" /> Width &amp; Scaling
+                  </label>
+                  <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-slate-800 text-cyan-400 font-bold border border-slate-700">
+                    {imageConfig.width}%
+                  </span>
+                </div>
+
+                <input
+                  type="range"
+                  min="15"
+                  max="100"
+                  step="5"
+                  value={imageConfig.width}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    const next = { ...imageConfig, width: val };
+                    setImageConfig(next);
+                    if (imageModalMode === "edit" && selectedImgEl) updateSelectedImageAttributes({ width: val });
+                  }}
+                  className="w-full h-2 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-500"
+                />
+
+                <div className="flex items-center gap-2">
+                  {[
+                    { label: "25% (Small)", val: 25 },
+                    { label: "50% (Medium)", val: 50 },
+                    { label: "75% (Large)", val: 75 },
+                    { label: "100% (Full)", val: 100 },
+                  ].map((preset) => (
+                    <button
+                      key={preset.val}
+                      type="button"
+                      onClick={() => {
+                        const next = { ...imageConfig, width: preset.val };
+                        setImageConfig(next);
+                        if (imageModalMode === "edit" && selectedImgEl) updateSelectedImageAttributes({ width: preset.val });
+                      }}
+                      className={`flex-1 py-1 rounded-lg text-xs font-medium transition ${
+                        imageConfig.width === preset.val
+                          ? "bg-cyan-600 text-white"
+                          : "bg-slate-800 hover:bg-slate-700 text-slate-300"
+                      }`}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* CORNERS & SHADOW */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Corner Radius */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-400">
+                    Corner Style (Rounded)
+                  </label>
+                  <div className="flex gap-1.5">
+                    {[
+                      { label: "Square", val: 0 },
+                      { label: "Soft", val: 8 },
+                      { label: "Rounded", val: 16 },
+                      { label: "Large", val: 24 },
+                      { label: "Circle/Pill", val: 9999 },
+                    ].map((r) => (
+                      <button
+                        key={r.val}
+                        type="button"
+                        onClick={() => {
+                          const next = { ...imageConfig, radius: r.val };
+                          setImageConfig(next);
+                          if (imageModalMode === "edit" && selectedImgEl) updateSelectedImageAttributes({ radius: r.val });
+                        }}
+                        className={`flex-1 py-1 rounded-lg text-xs font-medium transition ${
+                          imageConfig.radius === r.val
+                            ? "bg-cyan-600 text-white"
+                            : "bg-slate-800 text-slate-400 hover:text-white"
+                        }`}
+                      >
+                        {r.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Shadow */}
+                <div className="space-y-1.5">
+                  <label className="text-xs font-semibold text-slate-400">
+                    Shadow &amp; Depth
+                  </label>
+                  <div className="flex gap-1.5">
+                    {[
+                      { label: "None", val: "none" },
+                      { label: "Soft", val: "soft" },
+                      { label: "3D Medium", val: "medium" },
+                      { label: "High Depth", val: "hard" },
+                    ].map((sh) => (
+                      <button
+                        key={sh.val}
+                        type="button"
+                        onClick={() => {
+                          const next = { ...imageConfig, shadow: sh.val };
+                          setImageConfig(next);
+                          if (imageModalMode === "edit" && selectedImgEl) updateSelectedImageAttributes({ shadow: sh.val });
+                        }}
+                        className={`flex-1 py-1 rounded-lg text-xs font-medium transition ${
+                          imageConfig.shadow === sh.val
+                            ? "bg-cyan-600 text-white"
+                            : "bg-slate-800 text-slate-400 hover:text-white"
+                        }`}
+                      >
+                        {sh.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* CAPTION & ALT */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">
+                    Image Caption (Displayed under image)
+                  </label>
+                  <input
+                    type="text"
+                    value={imageConfig.caption}
+                    onChange={(e) => {
+                      const next = { ...imageConfig, caption: e.target.value };
+                      setImageConfig(next);
+                      if (imageModalMode === "edit" && selectedImgEl) updateSelectedImageAttributes({ caption: e.target.value });
+                    }}
+                    placeholder="e.g. Technician troubleshooting AC system in Patna"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500 placeholder-slate-600"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-400 mb-1">
+                    Alt Text (SEO &amp; Accessibility)
+                  </label>
+                  <input
+                    type="text"
+                    value={imageConfig.alt}
+                    onChange={(e) => {
+                      const next = { ...imageConfig, alt: e.target.value };
+                      setImageConfig(next);
+                      if (imageModalMode === "edit" && selectedImgEl) updateSelectedImageAttributes({ alt: e.target.value });
+                    }}
+                    placeholder="e.g. AC service repair Patna"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-cyan-500 placeholder-slate-600"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="bg-slate-950 px-5 py-3.5 border-t border-slate-800 flex items-center justify-between shrink-0">
+              {imageModalMode === "edit" ? (
+                <button
+                  type="button"
+                  onClick={handleDeleteSelectedImage}
+                  className="px-3.5 py-2 rounded-xl text-xs font-semibold text-rose-400 hover:bg-rose-500/10 border border-rose-500/20 transition flex items-center gap-1.5"
+                >
+                  <Trash2 className="w-3.5 h-3.5" /> Delete Image
+                </button>
+              ) : (
+                <div />
+              )}
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setImageModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-xs font-medium text-slate-400 hover:bg-slate-800 transition"
+                >
+                  Cancel
+                </button>
+
+                {imageModalMode === "insert" ? (
+                  <button
+                    type="button"
+                    onClick={handleInsertImage}
+                    disabled={!imageConfig.url}
+                    className="px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-teal-500 hover:from-cyan-500 hover:to-teal-400 text-white text-xs font-semibold shadow-lg shadow-cyan-500/20 transition disabled:opacity-50 flex items-center gap-1.5"
+                  >
+                    <Check className="w-3.5 h-3.5" /> Insert into Article
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleSaveImageChanges}
+                    className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white text-xs font-semibold shadow-lg shadow-emerald-500/20 transition flex items-center gap-1.5"
+                  >
+                    <Check className="w-3.5 h-3.5" /> Save Adjustments
+                  </button>
+                )}
+              </div>
             </div>
           </div>
         </div>
