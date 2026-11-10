@@ -90,54 +90,64 @@ const SUGGESTED_TAGS = [
   "Warranty",
 ];
 
-// Ensure image URLs load cleanly on both local dev and live HTTPS production domains (completely eliminates Mixed Content)
+// Base URL for uploads derived directly from environment (VITE_SERVER_URL / VITE_BACKEND_URL / VITE_IMAGE_URL)
+const getUploadBaseUrl = () => {
+  const envUrl =
+    import.meta.env.VITE_BACKEND_URL ||
+    import.meta.env.VITE_IMAGE_URL ||
+    import.meta.env.VITE_SERVER_URL ||
+    "";
+
+  if (!envUrl) return "";
+  let clean = envUrl.trim().replace(/\/+$/, "");
+  // If envUrl is like "https://.../api", strip trailing "/api" to get the root server host
+  clean = clean.replace(/\/api\/?$/i, "");
+  return clean;
+};
+
+// Ensure image URLs use the backend upload URL configured in .env
 const normalizeImageUrl = (rawUrl) => {
   if (!rawUrl || typeof rawUrl !== "string") return "";
   if (rawUrl.startsWith("data:") || rawUrl.startsWith("blob:")) return rawUrl;
 
   const url = rawUrl.trim();
+  const baseFromEnv = getUploadBaseUrl();
 
-  // Match any uploads URL regardless of raw IP (e.g. 187.77.184.23:8008), localhost, or relative path
-  const uploadMatch = url.match(/(?:https?:\/\/[^\/]+)?(?:\/api)?\/uploads\/([^\s"'>\?#]+)/i);
-  if (uploadMatch && uploadMatch[1]) {
-    const filename = uploadMatch[1];
-    if (
-      typeof window !== "undefined" &&
-      window.location.hostname !== "localhost" &&
-      window.location.hostname !== "127.0.0.1"
-    ) {
-      return `${window.location.origin}/api/uploads/${filename}`;
+  // If already absolute with http/https
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    // If it contains localhost:8008 or 127.0.0.1:8008, and an env URL is available, swap it
+    if (baseFromEnv && (url.includes("localhost:8008") || url.includes("127.0.0.1:8008"))) {
+      const match = url.match(/(?:\/api)?\/uploads\/[^\s"'>]+/);
+      if (match) {
+        return `${baseFromEnv}${match[0]}`;
+      }
     }
-    return `/api/uploads/${filename}`;
+    return url;
   }
 
-  // If on HTTPS and it is an insecure HTTP URL pointing to uploads
-  if (typeof window !== "undefined" && window.location.protocol === "https:" && url.startsWith("http://")) {
-    if (url.includes("/uploads/")) {
-      const parts = url.split("/uploads/");
-      return `${window.location.origin}/api/uploads/${parts[parts.length - 1]}`;
-    }
+  // If it's a relative path starting with /uploads or /api/uploads
+  if (url.startsWith("/uploads/") || url.startsWith("/api/uploads/")) {
+    return baseFromEnv ? `${baseFromEnv}${url}` : url;
+  }
+
+  // If it's just a raw filename (e.g. flaxo-123.png)
+  if (!url.includes("/")) {
+    return baseFromEnv ? `${baseFromEnv}/uploads/${url}` : `/uploads/${url}`;
   }
 
   return url;
 };
 
-// Sanitize all <img> tags in HTML to upgrade any insecure HTTP/IP URLs to HTTPS
+// Sanitize <img> tags in HTML to use the backend upload URL from .env
 const sanitizeContentImages = (html) => {
   if (!html || typeof html !== "string") return html;
+  const baseFromEnv = getUploadBaseUrl();
+
+  if (!baseFromEnv) return html;
 
   return html.replace(
-    /src=["'](?:https?:\/\/[^\/]+)?(?:\/api)?\/uploads\/([^"'\s>]+)["']/gi,
-    (match, filename) => {
-      if (
-        typeof window !== "undefined" &&
-        window.location.hostname !== "localhost" &&
-        window.location.hostname !== "127.0.0.1"
-      ) {
-        return `src="${window.location.origin}/api/uploads/${filename}"`;
-      }
-      return `src="/api/uploads/${filename}"`;
-    }
+    /src=["'](?:https?:\/\/(?:localhost|127\.0\.0\.1):8008)?(?:\/api)?\/uploads\/([^"'\s>]+)["']/gi,
+    (match, filename) => `src="${baseFromEnv}/uploads/${filename}"`
   );
 };
 

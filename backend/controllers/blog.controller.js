@@ -23,19 +23,32 @@ function calculateReadTime(text) {
   return `${minutes} min read`;
 }
 
-// Clean IP or localhost URLs from image and content fields to prevent Mixed Content
+// Clean or attach authoritative BACKEND_URL from .env to image and content fields
 function sanitizeImageUrl(url) {
   if (!url || typeof url !== "string") return url;
   if (url.startsWith("data:") || url.startsWith("blob:")) return url;
-  // If points to /uploads or /api/uploads, strip any http/https domain and IP
-  return url.replace(/https?:\/\/[^\/]+(?:\/api)?\/uploads\/([^\s"'>\?#]+)/gi, "/api/uploads/$1");
+
+  const backendBase = (process.env.BACKEND_URL || "").replace(/\/+$/, "");
+
+  if (backendBase && (url.includes("/uploads/") || url.includes("/api/uploads/"))) {
+    const filename = url.split(/\/(?:api\/)?uploads\//i).pop();
+    if (filename) {
+      return `${backendBase}/uploads/${filename}`;
+    }
+  }
+
+  return url;
 }
 
 function sanitizeHtmlContent(html) {
   if (!html || typeof html !== "string") return html;
+  const backendBase = (process.env.BACKEND_URL || "").replace(/\/+$/, "");
+
+  if (!backendBase) return html;
+
   return html.replace(
     /src=["'](?:https?:\/\/[^\/]+)?(?:\/api)?\/uploads\/([^"'\s>]+)["']/gi,
-    'src="/api/uploads/$1"'
+    (match, filename) => `src="${backendBase}/uploads/${filename}"`
   );
 }
 
