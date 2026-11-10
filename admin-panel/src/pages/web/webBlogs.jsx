@@ -662,64 +662,76 @@ export default function WebBlogsPage() {
   // Bulletproof DOM Insertion for Images at Current Cursor
   const insertImageAtCursor = (config) => {
     if (!editorRef.current || !config?.url) return false;
-    editorRef.current.focus();
+
+    // 1. Grab saved range snapshot BEFORE touching focus to avoid browser jumping caret to bottom
+    let targetRange = savedRangeRef.current ? savedRangeRef.current.cloneRange() : null;
+
+    // If no saved range, check active window selection inside editor
+    if (!targetRange) {
+      const sel = window.getSelection();
+      if (sel && sel.rangeCount > 0 && editorRef.current.contains(sel.getRangeAt(0).commonAncestorContainer)) {
+        targetRange = sel.getRangeAt(0).cloneRange();
+      }
+    }
 
     const normalizedUrl = normalizeImageUrl(config.url);
     const html = generateImageHTML({ ...config, url: normalizedUrl });
 
-    const tempDiv = document.createElement("div");
-    tempDiv.innerHTML = html.trim();
-
     let inserted = false;
-    const range = savedRangeRef.current;
 
-    if (range && editorRef.current.contains(range.commonAncestorContainer)) {
+    // 2. Insert exactly at the restored cursor position
+    if (targetRange && editorRef.current.contains(targetRange.commonAncestorContainer)) {
       try {
-        let blockContainer = range.commonAncestorContainer;
-        while (
-          blockContainer &&
-          blockContainer !== editorRef.current &&
-          blockContainer.parentNode !== editorRef.current
-        ) {
-          blockContainer = blockContainer.parentNode;
+        const sel = window.getSelection();
+        sel.removeAllRanges();
+        sel.addRange(targetRange);
+
+        // Native insertHTML is most precise for WYSIWYG caret insertion
+        if (document.queryCommandSupported && document.queryCommandSupported("insertHTML")) {
+          inserted = document.execCommand("insertHTML", false, html);
         }
 
-        if (
-          blockContainer &&
-          blockContainer !== editorRef.current &&
-          blockContainer.parentNode === editorRef.current
-        ) {
+        // DOM Range insertion fallback
+        if (!inserted) {
+          targetRange.deleteContents();
+          const tempDiv = document.createElement("div");
+          tempDiv.innerHTML = html.trim();
           const frag = document.createDocumentFragment();
+          let lastNode = null;
           while (tempDiv.firstChild) {
+            lastNode = tempDiv.firstChild;
             frag.appendChild(tempDiv.firstChild);
           }
-          if (blockContainer.nextSibling) {
-            editorRef.current.insertBefore(frag, blockContainer.nextSibling);
-          } else {
-            editorRef.current.appendChild(frag);
+          targetRange.insertNode(frag);
+
+          if (lastNode) {
+            const nextRange = document.createRange();
+            nextRange.setStartAfter(lastNode);
+            nextRange.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(nextRange);
+            savedRangeRef.current = nextRange.cloneRange();
           }
-          inserted = true;
-        } else {
-          range.deleteContents();
-          const frag = document.createDocumentFragment();
-          while (tempDiv.firstChild) {
-            frag.appendChild(tempDiv.firstChild);
-          }
-          range.insertNode(frag);
           inserted = true;
         }
-      } catch (e) {
-        console.warn("DOM Range insert failed, falling back to appendChild:", e);
+      } catch (rangeErr) {
+        console.warn("Cursor image insert error:", rangeErr);
       }
     }
 
+    // 3. Fallback: if cursor was lost, insert at beginning or end cleanly
     if (!inserted) {
+      const tempDiv = document.createElement("div");
+      tempDiv.innerHTML = html.trim();
+      const frag = document.createDocumentFragment();
       while (tempDiv.firstChild) {
-        editorRef.current.appendChild(tempDiv.firstChild);
+        frag.appendChild(tempDiv.firstChild);
       }
+      editorRef.current.appendChild(frag);
     }
 
     handleEditorInput();
+    saveCurrentSelection();
     return true;
   };
 
@@ -1096,6 +1108,17 @@ export default function WebBlogsPage() {
     const files = e.dataTransfer?.files;
     if (files && files.length > 0 && files[0].type.startsWith("image/")) {
       e.preventDefault();
+
+      // Lock cursor right at the drop coordinates
+      if (document.caretRangeFromPoint) {
+        const dropRange = document.caretRangeFromPoint(e.clientX, e.clientY);
+        if (dropRange) savedRangeRef.current = dropRange.cloneRange();
+      } else if (e.rangeParent) {
+        const dropRange = document.createRange();
+        dropRange.setStart(e.rangeParent, e.rangeOffset);
+        savedRangeRef.current = dropRange.cloneRange();
+      }
+
       const file = files[0];
       const toastId = toast.loading("Uploading dropped image...");
       try {
@@ -2333,8 +2356,14 @@ export default function WebBlogsPage() {
                       {/* 🖼️ DIRECT QUICK UPLOAD BUTTON */}
                       <button
                         type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => quickUploadInputRef.current?.click()}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          saveCurrentSelection();
+                        }}
+                        onClick={() => {
+                          saveCurrentSelection();
+                          quickUploadInputRef.current?.click();
+                        }}
                         className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs flex items-center gap-1.5 transition font-semibold shadow-xs"
                         title="Upload Image directly from computer and insert at cursor"
                       >
@@ -2352,8 +2381,14 @@ export default function WebBlogsPage() {
                       {/* 🖼️ ADVANCED IMAGE MODAL BUTTON (Angle / Styling) */}
                       <button
                         type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={handleOpenInsertImage}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          saveCurrentSelection();
+                        }}
+                        onClick={() => {
+                          saveCurrentSelection();
+                          handleOpenInsertImage();
+                        }}
                         className="px-2.5 py-1 rounded-lg bg-cyan-50 hover:bg-cyan-100 text-cyan-700 border border-cyan-200 text-xs flex items-center gap-1.5 transition font-semibold shadow-xs"
                         title="Insert Image (Upload or Web URL with full Angle, Shadow & Position control)"
                       >
