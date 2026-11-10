@@ -181,6 +181,7 @@ export default function WebBlogsPage() {
   const [activeTextColor, setActiveTextColor] = useState("#0f172a");
   const [showHighlightPicker, setShowHighlightPicker] = useState(false);
   const [activeHighlightColor, setActiveHighlightColor] = useState("#fef08a");
+  const [customFontSize, setCustomFontSize] = useState("16");
 
   // In-Content Image Management State
   const [imageModalOpen, setImageModalOpen] = useState(false);
@@ -408,6 +409,30 @@ export default function WebBlogsPage() {
     setIsEditorOpen(true);
   };
 
+  // Helper to extract computed font size of current selection
+  const updateActiveFontSizeFromSelection = () => {
+    try {
+      const sel = window.getSelection();
+      if (!sel || sel.rangeCount === 0 || !editorRef.current) return;
+      const range = sel.getRangeAt(0);
+      if (!editorRef.current.contains(range.commonAncestorContainer)) return;
+
+      let el = range.commonAncestorContainer;
+      if (el.nodeType === Node.TEXT_NODE) {
+        el = el.parentElement;
+      }
+      if (el && el instanceof Element) {
+        const computed = window.getComputedStyle(el);
+        if (computed && computed.fontSize) {
+          const num = parseInt(computed.fontSize, 10);
+          if (num && !isNaN(num) && num > 0) {
+            setCustomFontSize(String(num));
+          }
+        }
+      }
+    } catch (e) {}
+  };
+
   // Continuous selection range tracker
   const saveCurrentSelection = () => {
     const sel = window.getSelection();
@@ -415,6 +440,7 @@ export default function WebBlogsPage() {
       const range = sel.getRangeAt(0);
       if (editorRef.current && editorRef.current.contains(range.commonAncestorContainer)) {
         savedRangeRef.current = range.cloneRange();
+        updateActiveFontSizeFromSelection();
       }
     }
   };
@@ -498,26 +524,61 @@ export default function WebBlogsPage() {
     }
   };
 
-  // Word-like Font Size Selector
+  // Word-like Font Size Selector (supports custom manual entry & presets)
   const applyFontSize = (size) => {
+    if (!size) return;
+    let cleanVal = String(size).trim();
+    if (!cleanVal) return;
+    const num = parseInt(cleanVal, 10);
+    if (isNaN(num) || num <= 0) return;
+    const pxVal = `${num}px`;
+    setCustomFontSize(String(num));
+
     if (activeTab !== "editor") setActiveTab("editor");
     if (editorRef.current) editorRef.current.focus();
     restoreSelection();
+
+    const sel = window.getSelection();
+    if (sel && sel.rangeCount > 0 && sel.isCollapsed) {
+      const span = document.createElement("span");
+      span.style.fontSize = pxVal;
+      span.innerHTML = "&#8203;";
+      const range = sel.getRangeAt(0);
+      range.insertNode(span);
+      range.selectNodeContents(span);
+      range.collapse(false);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      handleEditorInput();
+      saveCurrentSelection();
+      return;
+    }
+
     document.execCommand("fontSize", false, "7");
     if (editorRef.current) {
       const fontTags = editorRef.current.querySelectorAll('font[size="7"]');
       fontTags.forEach((el) => {
         const span = document.createElement("span");
-        span.style.fontSize = size;
+        span.style.fontSize = pxVal;
         span.innerHTML = el.innerHTML;
         el.parentNode.replaceChild(span, el);
       });
-      const spanTags = editorRef.current.querySelectorAll('span[style*="xxx-large"]');
+      const spanTags = editorRef.current.querySelectorAll(
+        'span[style*="xxx-large"], span[style*="font-size: 7"]'
+      );
       spanTags.forEach((el) => {
-        el.style.fontSize = size;
+        el.style.fontSize = pxVal;
       });
       handleEditorInput();
+      saveCurrentSelection();
     }
+  };
+
+  // Increase or decrease font size by delta (like MS Word Grow/Shrink)
+  const stepFontSize = (delta) => {
+    const current = parseInt(customFontSize, 10) || 16;
+    const newSize = Math.max(6, Math.min(144, current + delta));
+    applyFontSize(newSize);
   };
 
   // Word-like Font Color Picker
@@ -1891,30 +1952,81 @@ export default function WebBlogsPage() {
                         <option value="Impact, sans-serif" style={{ fontFamily: "Impact, sans-serif" }}>Impact (Headline)</option>
                       </select>
 
-                      {/* Font Size Selector */}
-                      <select
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          if (val) applyFontSize(val);
-                          e.target.value = "";
-                        }}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        className="bg-white border border-slate-200 text-xs rounded-lg px-2 py-1 text-slate-700 focus:outline-none focus:border-emerald-500 cursor-pointer shadow-xs"
-                        title="Font Size"
-                      >
-                        <option value="">Size...</option>
-                        <option value="11px">11px - Fine Print</option>
-                        <option value="12px">12px - Small</option>
-                        <option value="14px">14px - Compact</option>
-                        <option value="16px">16px - Normal (Body)</option>
-                        <option value="18px">18px - Medium</option>
-                        <option value="20px">20px - Large Body</option>
-                        <option value="24px">24px - Sub-heading</option>
-                        <option value="28px">28px - Heading 3</option>
-                        <option value="32px">32px - Heading 2</option>
-                        <option value="36px">36px - Heading 1</option>
-                        <option value="44px">44px - Hero Display</option>
-                      </select>
+                      {/* MS Word-like Font Size (Manual Number Entry + Preset Dropdown + Grow/Shrink) */}
+                      <div className="flex items-center gap-1" title="Font Size (select text and type custom size)">
+                        <div className="flex items-center bg-white border border-slate-200 hover:border-slate-300 focus-within:border-emerald-500 rounded-lg shadow-xs overflow-hidden transition">
+                          <input
+                            type="text"
+                            inputMode="numeric"
+                            value={customFontSize}
+                            onChange={(e) => {
+                              const cleaned = e.target.value.replace(/[^0-9]/g, "");
+                              setCustomFontSize(cleaned);
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") {
+                                e.preventDefault();
+                                if (customFontSize) applyFontSize(customFontSize);
+                              }
+                            }}
+                            onBlur={() => {
+                              if (customFontSize) applyFontSize(customFontSize);
+                            }}
+                            className="w-9 text-center text-xs font-semibold text-slate-800 bg-white py-1 px-1 focus:outline-none focus:bg-emerald-50/40"
+                            title="Type custom font size (e.g. 18, 22) & press Enter"
+                            placeholder="16"
+                          />
+                          <select
+                            value={customFontSize}
+                            onChange={(e) => {
+                              const val = e.target.value;
+                              if (val) applyFontSize(val);
+                            }}
+                            onMouseDown={(e) => e.stopPropagation()}
+                            className="bg-slate-50 hover:bg-slate-100 border-l border-slate-200 text-xs py-1 px-1 text-slate-600 focus:outline-none cursor-pointer"
+                            title="Choose font size preset"
+                          >
+                            <option value="" disabled hidden>
+                              ▾
+                            </option>
+                            {[8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 20, 22, 24, 26, 28, 32, 36, 40, 44, 48, 56, 64, 72].map(
+                              (s) => (
+                                <option key={s} value={String(s)}>
+                                  {s}
+                                </option>
+                              )
+                            )}
+                          </select>
+                        </div>
+
+                        {/* MS Word Grow Font Button (A▲) */}
+                        <button
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            stepFontSize(2);
+                          }}
+                          className="p-1 px-1.5 rounded-lg hover:bg-slate-200/70 text-slate-700 hover:text-slate-900 transition flex items-center justify-center font-bold"
+                          title="Grow Font (Increase +2px)"
+                        >
+                          <span className="text-xs font-extrabold leading-none">A</span>
+                          <span className="text-[8px] -mt-1 font-black leading-none ml-0.5">▲</span>
+                        </button>
+
+                        {/* MS Word Shrink Font Button (A▼) */}
+                        <button
+                          type="button"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            stepFontSize(-2);
+                          }}
+                          className="p-1 px-1.5 rounded-lg hover:bg-slate-200/70 text-slate-700 hover:text-slate-900 transition flex items-center justify-center font-bold"
+                          title="Shrink Font (Decrease -2px)"
+                        >
+                          <span className="text-[10px] font-bold leading-none">A</span>
+                          <span className="text-[8px] mt-1 font-black leading-none ml-0.5">▼</span>
+                        </button>
+                      </div>
 
                       <div className="w-[1px] h-5 bg-slate-200 mx-0.5" />
 
