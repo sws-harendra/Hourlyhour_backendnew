@@ -285,13 +285,24 @@ export default function AllBooking() {
                           isGrouped ? "bg-blue-50" : "bg-white shadow-sm"
                         }
                       >
-                        <td className="px-6 py-4 text-blue-600 font-semibold">
-                          #{b.id}
+                        <td className="px-6 py-4 text-blue-600 font-semibold font-mono">
+                          {b.id >= 100000 ? `RS-${b.id}` : `#${b.id}`}
                         </td>
                         <td className="px-6 py-4">
-                          {b.user?.name || "Unknown"}
+                          <div className="font-semibold text-slate-800">
+                            {b.user?.name || b.customerName || "Customer"}
+                          </div>
+                          {(b.customerPhone || b.user?.phone) && (
+                            <div className="text-xs text-slate-400">
+                              {b.customerPhone || b.user?.phone}
+                            </div>
+                          )}
                         </td>
-                        <td className="px-6 py-4">{b.service?.title}</td>
+                        <td className="px-6 py-4">
+                          <div className="font-medium text-slate-800">
+                            {b.specialNote?.split("\n")[0] || b.service?.title || "Service"}
+                          </div>
+                        </td>
                         <td className="px-6 py-4">{b.bookingDate}</td>
                         <td className="px-6 py-4">{b.bookingTime}</td>
                         <td className="px-6 py-4">{b.location}</td>

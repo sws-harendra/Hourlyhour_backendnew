@@ -347,7 +347,9 @@ export default function BookingDetail() {
               <h1 className="text-3xl font-bold text-gray-900">
                 Booking Details
               </h1>
-              <p className="text-gray-500 mt-1">Reference #{booking.id}</p>
+              <p className="text-gray-500 mt-1 font-mono">
+                Reference {booking.id >= 100000 ? `RS-${booking.id}` : `#${booking.id}`}
+              </p>
             </div>
             <div
               className={`inline-flex items-center px-4 py-2 rounded-lg border ${currentStatus.border} ${currentStatus.bg}`}
@@ -377,14 +379,14 @@ export default function BookingDetail() {
               <div className="p-6">
                 <div className="flex items-center space-x-4">
                   <div className="w-14 h-14 rounded-full bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center text-white text-xl font-bold shadow-md">
-                    {booking.user?.name?.[0]?.toUpperCase()}
+                    {(booking.user?.name || booking.customerName || "C")?.[0]?.toUpperCase()}
                   </div>
                   <div className="flex-1">
                     <h3 className="text-lg font-semibold text-gray-900">
-                      {booking.user?.name}
+                      {booking.user?.name || booking.customerName || "Customer"}
                     </h3>
                     <p className="text-gray-500 text-sm">
-                      {booking.user?.email}
+                      {booking.user?.phone || booking.customerPhone || booking.user?.email || booking.customerEmail || "No phone provided"}
                     </p>
                   </div>
                 </div>
@@ -402,10 +404,10 @@ export default function BookingDetail() {
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
                     <h3 className="text-xl font-semibold text-gray-900 mb-2">
-                      {booking.service?.title}
+                      {booking.specialNote?.split("\n")[0] || booking.service?.title || "Service"}
                     </h3>
-                    <p className="text-gray-600">
-                      {booking.service?.description}
+                    <p className="text-gray-600 whitespace-pre-line text-sm">
+                      {booking.specialNote?.split("\n").slice(1).join("\n") || booking.service?.description}
                     </p>
                   </div>
                   <div className="ml-4 text-right">

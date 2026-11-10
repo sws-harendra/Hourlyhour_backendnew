@@ -10,6 +10,7 @@ const {
   BookingAddon,
   ServiceAreaPrice,
   Warranty,
+  WebRequest,
 } = require("../models");
 
 const { Op } = require("sequelize");
@@ -600,12 +601,19 @@ const allBookings = async (req, res) => {
 
     // ✅ Search filter
     if (search) {
+      const trimmedSearch = search.trim();
+      const numSearch = parseInt(trimmedSearch.replace(/\D/g, ""), 10);
       where[Op.or] = [
-        { location: { [Op.like]: `%${search}%` } },
-        { specialNote: { [Op.like]: `%${search}%` } },
-        { "$user.name$": { [Op.like]: `%${search}%` } },
-        { "$service.title$": { [Op.like]: `%${search}%` } },
+        { location: { [Op.like]: `%${trimmedSearch}%` } },
+        { specialNote: { [Op.like]: `%${trimmedSearch}%` } },
+        { customerName: { [Op.like]: `%${trimmedSearch}%` } },
+        { customerPhone: { [Op.like]: `%${trimmedSearch}%` } },
+        { "$user.name$": { [Op.like]: `%${trimmedSearch}%` } },
+        { "$service.title$": { [Op.like]: `%${trimmedSearch}%` } },
       ];
+      if (!isNaN(numSearch) && numSearch > 0) {
+        where[Op.or].push({ id: numSearch });
+      }
     }
 
     const { rows, count } = await Booking.findAndCountAll({
@@ -713,11 +721,18 @@ const cancelBooking = async (req, res) => {
 // Controller function
 const bookingDetail = async (req, res) => {
   try {
-    const bookingId = req.params.id; // get the id from route parameter
+    const rawId = req.params.id; // get the id from route parameter
+    const numId = parseInt(String(rawId).replace(/\D/g, ""), 10);
+    const where = {};
+    if (!isNaN(numId) && numId > 0) {
+      where[Op.or] = [{ id: rawId }, { id: numId }];
+    } else {
+      where.id = rawId;
+    }
 
     // Assuming you are using Sequelize
     const booking = await Booking.findOne({
-      where: { id: bookingId },
+      where,
       include: [
         {
           model: User,
@@ -806,6 +821,19 @@ const assignProvider = async (req, res) => {
 
     booking.providerId = providerId;
     await booking.save();
+
+    // Sync to WebRequest if it was created from web
+    try {
+      if (WebRequest) {
+        const webReq = await WebRequest.findOne({
+          where: { inquiryId: `RS-${booking.id}` },
+        });
+        if (webReq) {
+          webReq.status = "in_progress";
+          await webReq.save();
+        }
+      }
+    } catch {}
 
     const provider = await User.findByPk(providerId, {
       attributes: ["id", "name", "fcmToken"],
