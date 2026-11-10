@@ -1,4 +1,4 @@
-﻿// controllers/blog.controller.js
+// controllers/blog.controller.js
 const db = require("../models");
 const Blog = db.Blog;
 const { Op } = require("sequelize");
@@ -21,6 +21,34 @@ function calculateReadTime(text) {
   const words = (text || "").replace(/<[^>]*>/g, " ").trim().split(/\s+/).length;
   const minutes = Math.max(1, Math.ceil(words / 200));
   return `${minutes} min read`;
+}
+
+// Clean IP or localhost URLs from image and content fields to prevent Mixed Content
+function sanitizeImageUrl(url) {
+  if (!url || typeof url !== "string") return url;
+  if (url.startsWith("data:") || url.startsWith("blob:")) return url;
+  // If points to /uploads or /api/uploads, strip any http/https domain and IP
+  return url.replace(/https?:\/\/[^\/]+(?:\/api)?\/uploads\/([^\s"'>\?#]+)/gi, "/api/uploads/$1");
+}
+
+function sanitizeHtmlContent(html) {
+  if (!html || typeof html !== "string") return html;
+  return html.replace(
+    /src=["'](?:https?:\/\/[^\/]+)?(?:\/api)?\/uploads\/([^"'\s>]+)["']/gi,
+    'src="/api/uploads/$1"'
+  );
+}
+
+function sanitizeBlogRecord(blog) {
+  if (!blog) return blog;
+  const data = blog.toJSON ? blog.toJSON() : { ...blog };
+  if (data.image) {
+    data.image = sanitizeImageUrl(data.image);
+  }
+  if (data.content) {
+    data.content = sanitizeHtmlContent(data.content);
+  }
+  return data;
 }
 
 // 1. GET ALL BLOGS
@@ -63,7 +91,7 @@ exports.getAllBlogs = async (req, res) => {
 
     res.json({
       success: true,
-      data: rows,
+      data: rows.map(sanitizeBlogRecord),
       total: count,
       page: parseInt(page, 10),
       totalPages: Math.ceil(count / parseInt(limit, 10)),
@@ -95,7 +123,7 @@ exports.getBlogBySlug = async (req, res) => {
     blog.views = (blog.views || 0) + 1;
     await blog.save();
 
-    res.json({ success: true, data: blog });
+    res.json({ success: true, data: sanitizeBlogRecord(blog) });
   } catch (err) {
     console.error("Error in getBlogBySlug:", err);
     res.status(500).json({ success: false, message: err.message });
@@ -144,6 +172,8 @@ exports.createBlog = async (req, res) => {
     }
 
     const calculatedTime = readTime || calculateReadTime(content);
+    const cleanImage = image ? sanitizeImageUrl(image) : null;
+    const cleanContent = sanitizeHtmlContent(content);
 
     const newBlog = await Blog.create({
       title: title.trim(),
@@ -152,9 +182,9 @@ exports.createBlog = async (req, res) => {
       category: category ? category.trim() : "Home Appliance",
       tags: Array.isArray(tags) ? tags : tags ? [tags] : [],
       readTime: calculatedTime,
-      image: image || null,
+      image: cleanImage,
       excerpt: excerpt ? excerpt.trim() : null,
-      content,
+      content: cleanContent,
       metaTitle: metaTitle ? metaTitle.trim() : title.trim(),
       metaDescription: metaDescription ? metaDescription.trim() : (excerpt ? excerpt.trim() : null),
       metaKeywords: metaKeywords ? metaKeywords.trim() : null,
@@ -167,7 +197,7 @@ exports.createBlog = async (req, res) => {
     res.status(201).json({
       success: true,
       message: "Blog created successfully",
-      data: newBlog,
+      data: sanitizeBlogRecord(newBlog),
     });
   } catch (err) {
     console.error("Error in createBlog:", err);
@@ -219,11 +249,12 @@ exports.updateBlog = async (req, res) => {
     if (author !== undefined) blog.author = author.trim();
     if (category !== undefined) blog.category = category.trim();
     if (tags !== undefined) blog.tags = Array.isArray(tags) ? tags : [tags];
-    if (image !== undefined) blog.image = image;
+    if (image !== undefined) blog.image = sanitizeImageUrl(image);
     if (excerpt !== undefined) blog.excerpt = excerpt ? excerpt.trim() : null;
     if (content !== undefined) {
-      blog.content = content;
-      blog.readTime = readTime || calculateReadTime(content);
+      const cleanContent = sanitizeHtmlContent(content);
+      blog.content = cleanContent;
+      blog.readTime = readTime || calculateReadTime(cleanContent);
     } else if (readTime !== undefined) {
       blog.readTime = readTime;
     }
@@ -239,7 +270,7 @@ exports.updateBlog = async (req, res) => {
     res.json({
       success: true,
       message: "Blog updated successfully",
-      data: blog,
+      data: sanitizeBlogRecord(blog),
     });
   } catch (err) {
     console.error("Error in updateBlog:", err);

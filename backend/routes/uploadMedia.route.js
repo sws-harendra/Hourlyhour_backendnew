@@ -10,30 +10,45 @@ router.post("/", upload.single("file"), (req, res) => {
   // Public URL (if serving /uploads statically)
   const fileUrl = req.file.filename;
 
-  let backendUrl = process.env.BACKEND_URL;
-  const isLocalHost = !backendUrl || backendUrl.includes("localhost") || backendUrl.includes("127.0.0.1");
+  const proto = req.headers["x-forwarded-proto"] || req.protocol || "http";
   const requestHost = req.get("host");
+  const isHttps =
+    proto === "https" ||
+    req.headers["x-forwarded-ssl"] === "on" ||
+    (requestHost &&
+      !requestHost.includes("localhost") &&
+      !requestHost.includes("127.0.0.1") &&
+      !requestHost.includes("187.77.184.23"));
 
-  // If running on a live domain but BACKEND_URL was omitted or left as localhost
-  if (isLocalHost && requestHost && !requestHost.includes("localhost") && !requestHost.includes("127.0.0.1")) {
-    const proto = req.headers["x-forwarded-proto"] || req.protocol || "https";
-    backendUrl = `${proto}://${requestHost}`;
-  } else if (!backendUrl) {
-    const proto = req.headers["x-forwarded-proto"] || req.protocol || "http";
-    backendUrl = `${proto}://${requestHost || "localhost:8008"}`;
+  let cleanBase = "";
+  if (isHttps && requestHost && !requestHost.includes("187.77.184.23")) {
+    cleanBase = `https://${requestHost}`;
+  } else if (
+    process.env.BACKEND_URL &&
+    !process.env.BACKEND_URL.includes("187.77.184.23") &&
+    !process.env.BACKEND_URL.includes("localhost")
+  ) {
+    cleanBase = process.env.BACKEND_URL.replace(/\/+$/, "");
+  } else if (requestHost && !requestHost.includes("187.77.184.23")) {
+    cleanBase = `${proto}://${requestHost}`;
   }
 
-  const cleanBase = backendUrl.replace(/\/+$/, "");
-  const fullUrl = `${cleanBase}/uploads/${fileUrl}`;
-  const apiFullUrl = `${cleanBase}/api/uploads/${fileUrl}`;
+  const apiPath = `/api/uploads/${fileUrl}`;
+  const uploadsPath = `/uploads/${fileUrl}`;
+
+  // If cleanBase exists, full URL is https://<domain>/api/uploads/...
+  // Otherwise, origin-relative /api/uploads/... is 100% safe against Mixed Content
+  const publicUrl = cleanBase ? `${cleanBase}${apiPath}` : apiPath;
+  const legacyFullUrl = cleanBase ? `${cleanBase}${uploadsPath}` : uploadsPath;
 
   res.json({
-    url: fullUrl,
-    fileUrl: fullUrl,
-    apiFullUrl: apiFullUrl,
+    url: publicUrl,
+    fileUrl: publicUrl,
+    apiFullUrl: publicUrl,
+    fullUrl: legacyFullUrl,
     filename: fileUrl,
-    path: `/uploads/${fileUrl}`,
-    apiPath: `/api/uploads/${fileUrl}`,
+    path: uploadsPath,
+    apiPath: apiPath,
   });
 });
 

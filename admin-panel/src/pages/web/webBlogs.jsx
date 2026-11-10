@@ -90,51 +90,55 @@ const SUGGESTED_TAGS = [
   "Warranty",
 ];
 
-// Ensure image URLs load cleanly on both local dev and live HTTPS production domains
+// Ensure image URLs load cleanly on both local dev and live HTTPS production domains (completely eliminates Mixed Content)
 const normalizeImageUrl = (rawUrl) => {
   if (!rawUrl || typeof rawUrl !== "string") return "";
   if (rawUrl.startsWith("data:") || rawUrl.startsWith("blob:")) return rawUrl;
 
-  let url = rawUrl.trim();
+  const url = rawUrl.trim();
 
-  // If running on a live domain in browser
-  if (typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
-    // If backend returned localhost or 127.0.0.1 on a live site, rewrite to use live origin
-    if (url.includes("localhost:8008") || url.includes("127.0.0.1:8008")) {
-      const match = url.match(/(?:\/api)?\/uploads\/[^\s"'>]+/);
-      if (match) {
-        let p = match[0];
-        if (!p.startsWith("/api/")) p = `/api${p}`;
-        return `${window.location.origin}${p}`;
-      }
+  // Match any uploads URL regardless of raw IP (e.g. 187.77.184.23:8008), localhost, or relative path
+  const uploadMatch = url.match(/(?:https?:\/\/[^\/]+)?(?:\/api)?\/uploads\/([^\s"'>\?#]+)/i);
+  if (uploadMatch && uploadMatch[1]) {
+    const filename = uploadMatch[1];
+    if (
+      typeof window !== "undefined" &&
+      window.location.hostname !== "localhost" &&
+      window.location.hostname !== "127.0.0.1"
+    ) {
+      return `${window.location.origin}/api/uploads/${filename}`;
     }
+    return `/api/uploads/${filename}`;
+  }
 
-    // Ensure /uploads/ uses /api/uploads/ so Nginx reverse proxy forwards it to Express backend
-    if (url.startsWith("/uploads/")) {
-      return `${window.location.origin}/api${url}`;
-    }
-    if (url.startsWith("/api/uploads/")) {
-      return `${window.location.origin}${url}`;
-    }
-
-    if (url.includes("/uploads/") && !url.includes("/api/uploads/")) {
-      url = url.replace("/uploads/", "/api/uploads/");
+  // If on HTTPS and it is an insecure HTTP URL pointing to uploads
+  if (typeof window !== "undefined" && window.location.protocol === "https:" && url.startsWith("http://")) {
+    if (url.includes("/uploads/")) {
+      const parts = url.split("/uploads/");
+      return `${window.location.origin}/api/uploads/${parts[parts.length - 1]}`;
     }
   }
 
   return url;
 };
 
-// Sanitize all <img> tags in HTML to repair any broken localhost:8008 URLs
+// Sanitize all <img> tags in HTML to upgrade any insecure HTTP/IP URLs to HTTPS
 const sanitizeContentImages = (html) => {
   if (!html || typeof html !== "string") return html;
-  if (typeof window === "undefined" || window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
-    return html;
-  }
 
-  return html.replace(/src=["'](?:https?:\/\/(?:localhost|127\.0\.0\.1):8008)?(?:\/api)?\/uploads\/([^"'\s]+)["']/gi, (match, filename) => {
-    return `src="${window.location.origin}/api/uploads/${filename}"`;
-  });
+  return html.replace(
+    /src=["'](?:https?:\/\/[^\/]+)?(?:\/api)?\/uploads\/([^"'\s>]+)["']/gi,
+    (match, filename) => {
+      if (
+        typeof window !== "undefined" &&
+        window.location.hostname !== "localhost" &&
+        window.location.hostname !== "127.0.0.1"
+      ) {
+        return `src="${window.location.origin}/api/uploads/${filename}"`;
+      }
+      return `src="/api/uploads/${filename}"`;
+    }
+  );
 };
 
 export default function WebBlogsPage() {
@@ -218,11 +222,18 @@ export default function WebBlogsPage() {
     try {
       setLoading(true);
       const res = await BlogService.getAll();
-      if (res.data && res.data.success) {
-        setBlogs(res.data.data || []);
-      } else if (Array.isArray(res.data)) {
-        setBlogs(res.data);
-      }
+      const rawList =
+        res.data && res.data.success
+          ? res.data.data || []
+          : Array.isArray(res.data)
+          ? res.data
+          : [];
+      const normalizedList = rawList.map((b) => ({
+        ...b,
+        image: normalizeImageUrl(b.image),
+        content: sanitizeContentImages(b.content),
+      }));
+      setBlogs(normalizedList);
     } catch (err) {
       console.error("Error fetching blogs:", err);
       toast.error("Failed to load blogs");
@@ -1494,7 +1505,7 @@ export default function WebBlogsPage() {
                           <div className="relative w-16 h-12 rounded-lg overflow-hidden bg-slate-800 border border-slate-700/60 shrink-0">
                             {blog.image ? (
                               <img
-                                src={blog.image}
+                                src={normalizeImageUrl(blog.image)}
                                 alt={blog.title}
                                 className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
                                 onError={(e) => {
@@ -2499,7 +2510,7 @@ export default function WebBlogsPage() {
                     {formData.image && (
                       <div className="rounded-xl overflow-hidden shadow-md max-h-[420px]">
                         <img
-                          src={formData.image}
+                          src={normalizeImageUrl(formData.image)}
                           alt={formData.title}
                           className="w-full h-full object-cover"
                         />
@@ -2704,7 +2715,7 @@ export default function WebBlogsPage() {
                   {formData.image ? (
                     <div className="relative rounded-xl overflow-hidden border border-slate-200 group">
                       <img
-                        src={formData.image}
+                        src={normalizeImageUrl(formData.image)}
                         alt="Preview"
                         className="w-full h-44 object-cover"
                       />
@@ -3086,7 +3097,7 @@ export default function WebBlogsPage() {
                   >
                     <div style={{ display: "inline-block", maxWidth: "100%" }}>
                       <img
-                        src={imageConfig.url}
+                        src={normalizeImageUrl(imageConfig.url)}
                         alt={imageConfig.alt || "Preview"}
                         style={{
                           transform: `rotate(${imageConfig.angle}deg)`,
