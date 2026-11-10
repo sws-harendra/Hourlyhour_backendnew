@@ -90,6 +90,27 @@ const SUGGESTED_TAGS = [
   "Warranty",
 ];
 
+// Ensure image URLs load cleanly on both local dev and live HTTPS production domains
+const normalizeImageUrl = (rawUrl) => {
+  if (!rawUrl || typeof rawUrl !== "string") return "";
+  if (rawUrl.startsWith("data:") || rawUrl.startsWith("blob:")) return rawUrl;
+
+  if (typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
+    // If backend returned localhost or 127.0.0.1 on a live site, fix it to live domain
+    if (rawUrl.includes("localhost:8008") || rawUrl.includes("127.0.0.1:8008")) {
+      const serverEnv = import.meta.env.VITE_SERVER_URL;
+      let liveBase = window.location.origin;
+      if (serverEnv && serverEnv.startsWith("http") && !serverEnv.includes("localhost")) {
+        try {
+          liveBase = new URL(serverEnv).origin;
+        } catch (e) {}
+      }
+      return rawUrl.replace(/https?:\/\/(localhost|127\.0\.0\.1):8008/, liveBase);
+    }
+  }
+  return rawUrl;
+};
+
 export default function WebBlogsPage() {
   const [blogs, setBlogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -140,6 +161,7 @@ export default function WebBlogsPage() {
 
   const savedRangeRef = useRef(null);
   const inContentFileInputRef = useRef(null);
+  const quickUploadInputRef = useRef(null);
 
   // Tag input state
   const [tagInput, setTagInput] = useState("");
@@ -482,6 +504,7 @@ export default function WebBlogsPage() {
   // Generate HTML for in-content image
   const generateImageHTML = (config) => {
     const { url, alt, caption, align, width, angle, radius, shadow } = config;
+    const finalUrl = normalizeImageUrl(url);
 
     let floatStyle = "none";
     let marginStyle = "20px auto";
@@ -517,15 +540,79 @@ export default function WebBlogsPage() {
     else if (shadow === "hard") shadowCss = "0 20px 35px -5px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.1)";
 
     const figcaptionHTML = caption && caption.trim()
-      ? `<figcaption style="font-size: 13px; color: #94a3b8; margin-top: 8px; text-align: center; font-style: italic;">${caption.trim()}</figcaption>`
+      ? `<figcaption style="font-size: 13px; color: #64748b; margin-top: 8px; text-align: center; font-style: italic;">${caption.trim()}</figcaption>`
       : "";
 
     return `<figure class="blog-img-box" data-align="${align}" data-width="${width}" data-angle="${angle}" data-radius="${radius}" data-shadow="${shadow}" style="display: ${displayStyle}; float: ${floatStyle}; margin: ${marginStyle}; max-width: ${maxWidth}; width: ${maxWidth}; text-align: center; clear: ${clearStyle};">
   <div style="display: inline-block; width: 100%; text-align: center;">
-    <img src="${url}" alt="${alt || ""}" data-angle="${angle}" data-align="${align}" data-width="${width}" data-radius="${radius}" data-shadow="${shadow}" style="width: 100%; height: auto; transform: rotate(${angle}deg); border-radius: ${radius}px; box-shadow: ${shadowCss}; display: block; margin: 0 auto; transition: transform 0.2s;" />
+    <img src="${finalUrl}" alt="${alt || ""}" data-angle="${angle}" data-align="${align}" data-width="${width}" data-radius="${radius}" data-shadow="${shadow}" style="width: 100%; height: auto; transform: rotate(${angle}deg); border-radius: ${radius}px; box-shadow: ${shadowCss}; display: block; margin: 0 auto; transition: transform 0.2s;" />
   </div>
   ${figcaptionHTML}
 </figure><p><br></p>`;
+  };
+
+  // Bulletproof DOM Insertion for Images at Current Cursor
+  const insertImageAtCursor = (config) => {
+    if (!editorRef.current || !config?.url) return false;
+    editorRef.current.focus();
+
+    const normalizedUrl = normalizeImageUrl(config.url);
+    const html = generateImageHTML({ ...config, url: normalizedUrl });
+
+    const tempDiv = document.createElement("div");
+    tempDiv.innerHTML = html.trim();
+
+    let inserted = false;
+    const range = savedRangeRef.current;
+
+    if (range && editorRef.current.contains(range.commonAncestorContainer)) {
+      try {
+        let blockContainer = range.commonAncestorContainer;
+        while (
+          blockContainer &&
+          blockContainer !== editorRef.current &&
+          blockContainer.parentNode !== editorRef.current
+        ) {
+          blockContainer = blockContainer.parentNode;
+        }
+
+        if (
+          blockContainer &&
+          blockContainer !== editorRef.current &&
+          blockContainer.parentNode === editorRef.current
+        ) {
+          const frag = document.createDocumentFragment();
+          while (tempDiv.firstChild) {
+            frag.appendChild(tempDiv.firstChild);
+          }
+          if (blockContainer.nextSibling) {
+            editorRef.current.insertBefore(frag, blockContainer.nextSibling);
+          } else {
+            editorRef.current.appendChild(frag);
+          }
+          inserted = true;
+        } else {
+          range.deleteContents();
+          const frag = document.createDocumentFragment();
+          while (tempDiv.firstChild) {
+            frag.appendChild(tempDiv.firstChild);
+          }
+          range.insertNode(frag);
+          inserted = true;
+        }
+      } catch (e) {
+        console.warn("DOM Range insert failed, falling back to appendChild:", e);
+      }
+    }
+
+    if (!inserted) {
+      while (tempDiv.firstChild) {
+        editorRef.current.appendChild(tempDiv.firstChild);
+      }
+    }
+
+    handleEditorInput();
+    return true;
   };
 
   // Open modal to insert new image
@@ -546,36 +633,72 @@ export default function WebBlogsPage() {
     setImageModalOpen(true);
   };
 
-  // Insert image at current cursor selection
+  // Insert image from modal at current cursor selection
   const handleInsertImage = () => {
     if (!imageConfig.url) {
       toast.error("Please upload an image or provide an image URL");
       return;
     }
 
-    if (editorRef.current) {
-      editorRef.current.focus();
-      let inserted = false;
-      if (savedRangeRef.current) {
-        try {
-          restoreSelection();
-          const html = generateImageHTML(imageConfig);
-          inserted = document.execCommand("insertHTML", false, html);
-        } catch (e) {
-          console.warn("Could not insert at range, appending to end", e);
-        }
-      }
-
-      if (!inserted) {
-        const html = generateImageHTML(imageConfig);
-        editorRef.current.innerHTML += html;
-      }
-
-      handleEditorInput();
-    }
-
+    insertImageAtCursor(imageConfig);
     setImageModalOpen(false);
     toast.success("Image added to blog article!");
+  };
+
+  // Quick Direct Toolbar Image Upload
+  const handleQuickImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select a valid image file (PNG, JPG, WEBP)");
+      return;
+    }
+
+    const toastId = toast.loading("Uploading and adding image...");
+    try {
+      const res = await BlogService.uploadImage(file);
+      const rawUrl = res?.url || res?.data?.url || res?.fileUrl || (res?.filename ? `/uploads/${res.filename}` : "");
+      if (rawUrl) {
+        const finalUrl = normalizeImageUrl(rawUrl);
+        insertImageAtCursor({
+          url: finalUrl,
+          alt: file.name.split(".")[0] || "Blog image",
+          caption: "",
+          align: "center",
+          width: 75,
+          angle: 0,
+          radius: 12,
+          shadow: "medium",
+        });
+        toast.success("Image added to blog article!", { id: toastId });
+      } else {
+        throw new Error("No URL returned from server");
+      }
+    } catch (err) {
+      console.warn("Quick upload server error, falling back to data URL:", err);
+      try {
+        const reader = new FileReader();
+        reader.onload = (uploadEvent) => {
+          const dataUrl = uploadEvent.target.result;
+          insertImageAtCursor({
+            url: dataUrl,
+            alt: file.name.split(".")[0] || "Blog image",
+            caption: "",
+            align: "center",
+            width: 75,
+            angle: 0,
+            radius: 12,
+            shadow: "medium",
+          });
+          toast.success("Image added to blog article!", { id: toastId });
+        };
+        reader.readAsDataURL(file);
+      } catch (fallbackErr) {
+        toast.error("Failed to add image", { id: toastId });
+      }
+    } finally {
+      e.target.value = "";
+    }
   };
 
   // Save modal changes to selected image
@@ -775,10 +898,12 @@ export default function WebBlogsPage() {
     try {
       setImageUploading(true);
       const res = await BlogService.uploadImage(file);
-      if (res && res.url) {
-        setImageConfig((prev) => ({ ...prev, url: res.url }));
+      const rawUrl = res?.url || res?.data?.url || res?.fileUrl || (res?.filename ? `/uploads/${res.filename}` : "");
+      if (rawUrl) {
+        const finalUrl = normalizeImageUrl(rawUrl);
+        setImageConfig((prev) => ({ ...prev, url: finalUrl }));
         if (selectedImgEl && imageModalMode === "edit") {
-          updateSelectedImageAttributes({ url: res.url });
+          updateSelectedImageAttributes({ url: finalUrl });
         }
         toast.success("Image uploaded!");
       } else {
@@ -802,6 +927,105 @@ export default function WebBlogsPage() {
       }
     } finally {
       setImageUploading(false);
+    }
+  };
+
+  // Handle direct paste inside editor (supports screenshot pasting from clipboard)
+  const handleEditorPaste = async (e) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    for (let i = 0; i < items.length; i++) {
+      if (items[i].type.indexOf("image") !== -1) {
+        e.preventDefault();
+        const file = items[i].getAsFile();
+        if (!file) continue;
+
+        const toastId = toast.loading("Uploading pasted image...");
+        try {
+          const res = await BlogService.uploadImage(file);
+          const rawUrl = res?.url || res?.data?.url || res?.fileUrl || (res?.filename ? `/uploads/${res.filename}` : "");
+          if (rawUrl) {
+            const finalUrl = normalizeImageUrl(rawUrl);
+            insertImageAtCursor({
+              url: finalUrl,
+              alt: "Pasted image",
+              caption: "",
+              align: "center",
+              width: 75,
+              angle: 0,
+              radius: 12,
+              shadow: "medium",
+            });
+            toast.success("Image pasted into article!", { id: toastId });
+          } else {
+            throw new Error("No URL returned");
+          }
+        } catch (err) {
+          const reader = new FileReader();
+          reader.onload = (uploadEvent) => {
+            insertImageAtCursor({
+              url: uploadEvent.target.result,
+              alt: "Pasted image",
+              caption: "",
+              align: "center",
+              width: 75,
+              angle: 0,
+              radius: 12,
+              shadow: "medium",
+            });
+            toast.success("Image pasted into article!", { id: toastId });
+          };
+          reader.readAsDataURL(file);
+        }
+        return;
+      }
+    }
+  };
+
+  // Handle direct drag-and-drop of image files from desktop onto the writing canvas
+  const handleEditorDrop = async (e) => {
+    const files = e.dataTransfer?.files;
+    if (files && files.length > 0 && files[0].type.startsWith("image/")) {
+      e.preventDefault();
+      const file = files[0];
+      const toastId = toast.loading("Uploading dropped image...");
+      try {
+        const res = await BlogService.uploadImage(file);
+        const rawUrl = res?.url || res?.data?.url || res?.fileUrl || (res?.filename ? `/uploads/${res.filename}` : "");
+        if (rawUrl) {
+          const finalUrl = normalizeImageUrl(rawUrl);
+          insertImageAtCursor({
+            url: finalUrl,
+            alt: file.name.split(".")[0] || "Dropped image",
+            caption: "",
+            align: "center",
+            width: 75,
+            angle: 0,
+            radius: 12,
+            shadow: "medium",
+          });
+          toast.success("Image dropped & added to article!", { id: toastId });
+        } else {
+          throw new Error("No URL returned");
+        }
+      } catch (err) {
+        const reader = new FileReader();
+        reader.onload = (uploadEvent) => {
+          insertImageAtCursor({
+            url: uploadEvent.target.result,
+            alt: file.name.split(".")[0] || "Dropped image",
+            caption: "",
+            align: "center",
+            width: 75,
+            angle: 0,
+            radius: 12,
+            shadow: "medium",
+          });
+          toast.success("Image added to article!", { id: toastId });
+        };
+        reader.readAsDataURL(file);
+      }
     }
   };
 
@@ -861,7 +1085,7 @@ export default function WebBlogsPage() {
     setLinkText("");
   };
 
-  // Image Upload handler (for featured image or in-content)
+  // Image Upload handler (for featured cover image)
   const handleImageUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -874,17 +1098,29 @@ export default function WebBlogsPage() {
     try {
       setUploadingImage(true);
       const res = await BlogService.uploadImage(file);
-      if (res && res.url) {
-        setFormData((prev) => ({ ...prev, image: res.url }));
+      const rawUrl = res?.url || res?.data?.url || res?.fileUrl || (res?.filename ? `/uploads/${res.filename}` : "");
+      if (rawUrl) {
+        const finalUrl = normalizeImageUrl(rawUrl);
+        setFormData((prev) => ({ ...prev, image: finalUrl }));
         toast.success("Featured image uploaded!");
       } else {
         toast.error("Failed to get uploaded image URL");
       }
     } catch (err) {
       console.error("Upload error:", err);
-      toast.error("Failed to upload image. You can also paste an image URL directly.");
+      try {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          setFormData((prev) => ({ ...prev, image: ev.target.result }));
+          toast.success("Featured image loaded!");
+        };
+        reader.readAsDataURL(file);
+      } catch (fbErr) {
+        toast.error("Failed to upload image. You can also paste an image URL directly.");
+      }
     } finally {
       setUploadingImage(false);
+      e.target.value = "";
     }
   };
 
@@ -1932,15 +2168,34 @@ export default function WebBlogsPage() {
                       <div className="w-[1px] h-5 bg-slate-200 mx-0.5" />
 
                       {/* In-Content Insert Objects */}
-                      {/* 🖼️ INSERT IMAGE BUTTON */}
+                      {/* 🖼️ DIRECT QUICK UPLOAD BUTTON */}
+                      <button
+                        type="button"
+                        onMouseDown={(e) => e.preventDefault()}
+                        onClick={() => quickUploadInputRef.current?.click()}
+                        className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs flex items-center gap-1.5 transition font-semibold shadow-xs"
+                        title="Upload Image directly from computer and insert at cursor"
+                      >
+                        <Upload className="w-3.5 h-3.5 text-emerald-600" /> Upload Image
+                      </button>
+                      <input
+                        ref={quickUploadInputRef}
+                        type="file"
+                        accept="image/*"
+                        onClick={(e) => e.stopPropagation()}
+                        onChange={handleQuickImageUpload}
+                        className="hidden"
+                      />
+
+                      {/* 🖼️ ADVANCED IMAGE MODAL BUTTON (Angle / Styling) */}
                       <button
                         type="button"
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={handleOpenInsertImage}
                         className="px-2.5 py-1 rounded-lg bg-cyan-50 hover:bg-cyan-100 text-cyan-700 border border-cyan-200 text-xs flex items-center gap-1.5 transition font-semibold shadow-xs"
-                        title="Insert Image (Upload or Web URL with full Angle & Position control)"
+                        title="Insert Image (Upload or Web URL with full Angle, Shadow & Position control)"
                       >
-                        <ImageIcon className="w-3.5 h-3.5" /> + Image
+                        <ImageIcon className="w-3.5 h-3.5" /> + Image (Angles)
                       </button>
 
                       {/* Special Blocks */}
@@ -2149,6 +2404,9 @@ export default function WebBlogsPage() {
                       onKeyDown={handleEditorKeyDown}
                       onKeyUp={saveCurrentSelection}
                       onMouseUp={saveCurrentSelection}
+                      onPaste={handleEditorPaste}
+                      onDrop={handleEditorDrop}
+                      onDragOver={(e) => e.preventDefault()}
                       className="min-h-[500px] p-8 md:p-10 bg-white text-slate-800 text-base leading-relaxed focus:outline-none focus:ring-0 font-sans selection:bg-emerald-100 overflow-y-auto"
                       style={{ minHeight: "520px" }}
                     />
@@ -2441,12 +2699,23 @@ export default function WebBlogsPage() {
                   ) : (
                     <div
                       onClick={() => fileInputRef.current?.click()}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const file = e.dataTransfer?.files?.[0];
+                        if (file) handleImageUpload({ target: { files: [file], value: "" } });
+                      }}
                       className="border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-xl p-6 text-center cursor-pointer transition bg-slate-50/70 group"
                     >
                       <input
                         ref={fileInputRef}
                         type="file"
                         accept="image/*"
+                        onClick={(e) => e.stopPropagation()}
                         onChange={handleImageUpload}
                         className="hidden"
                       />
@@ -2697,15 +2966,27 @@ export default function WebBlogsPage() {
               {imageTab === "upload" && (
                 <div
                   onClick={() => inContentFileInputRef.current?.click()}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const file = e.dataTransfer?.files?.[0];
+                    if (file) handleModalImageUpload(file);
+                  }}
                   className="border-2 border-dashed border-slate-300 hover:border-cyan-500 bg-slate-50/70 rounded-xl p-5 text-center cursor-pointer transition group"
                 >
                   <input
                     ref={inContentFileInputRef}
                     type="file"
                     accept="image/*"
+                    onClick={(e) => e.stopPropagation()}
                     onChange={(e) => {
                       const file = e.target.files?.[0];
                       if (file) handleModalImageUpload(file);
+                      e.target.value = "";
                     }}
                     className="hidden"
                   />
@@ -2800,6 +3081,16 @@ export default function WebBlogsPage() {
                       <p className="text-xs text-slate-600 italic text-center mt-3">
                         {imageConfig.caption}
                       </p>
+                    )}
+
+                    {imageModalMode === "insert" && (
+                      <button
+                        type="button"
+                        onClick={handleInsertImage}
+                        className="mt-3 w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold text-xs shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition cursor-pointer"
+                      >
+                        <Check className="w-4 h-4" /> Insert This Image into Blog Article Now
+                      </button>
                     )}
                   </div>
                 </div>
