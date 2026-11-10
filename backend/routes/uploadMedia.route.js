@@ -25,12 +25,15 @@ router.post("/", upload.single("file"), (req, res) => {
 
   const cleanBase = backendUrl.replace(/\/+$/, "");
   const fullUrl = `${cleanBase}/uploads/${fileUrl}`;
+  const apiFullUrl = `${cleanBase}/api/uploads/${fileUrl}`;
 
   res.json({
     url: fullUrl,
     fileUrl: fullUrl,
+    apiFullUrl: apiFullUrl,
     filename: fileUrl,
     path: `/uploads/${fileUrl}`,
+    apiPath: `/api/uploads/${fileUrl}`,
   });
 });
 

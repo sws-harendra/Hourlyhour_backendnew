@@ -95,20 +95,46 @@ const normalizeImageUrl = (rawUrl) => {
   if (!rawUrl || typeof rawUrl !== "string") return "";
   if (rawUrl.startsWith("data:") || rawUrl.startsWith("blob:")) return rawUrl;
 
+  let url = rawUrl.trim();
+
+  // If running on a live domain in browser
   if (typeof window !== "undefined" && window.location.hostname !== "localhost" && window.location.hostname !== "127.0.0.1") {
-    // If backend returned localhost or 127.0.0.1 on a live site, fix it to live domain
-    if (rawUrl.includes("localhost:8008") || rawUrl.includes("127.0.0.1:8008")) {
-      const serverEnv = import.meta.env.VITE_SERVER_URL;
-      let liveBase = window.location.origin;
-      if (serverEnv && serverEnv.startsWith("http") && !serverEnv.includes("localhost")) {
-        try {
-          liveBase = new URL(serverEnv).origin;
-        } catch (e) {}
+    // If backend returned localhost or 127.0.0.1 on a live site, rewrite to use live origin
+    if (url.includes("localhost:8008") || url.includes("127.0.0.1:8008")) {
+      const match = url.match(/(?:\/api)?\/uploads\/[^\s"'>]+/);
+      if (match) {
+        let p = match[0];
+        if (!p.startsWith("/api/")) p = `/api${p}`;
+        return `${window.location.origin}${p}`;
       }
-      return rawUrl.replace(/https?:\/\/(localhost|127\.0\.0\.1):8008/, liveBase);
+    }
+
+    // Ensure /uploads/ uses /api/uploads/ so Nginx reverse proxy forwards it to Express backend
+    if (url.startsWith("/uploads/")) {
+      return `${window.location.origin}/api${url}`;
+    }
+    if (url.startsWith("/api/uploads/")) {
+      return `${window.location.origin}${url}`;
+    }
+
+    if (url.includes("/uploads/") && !url.includes("/api/uploads/")) {
+      url = url.replace("/uploads/", "/api/uploads/");
     }
   }
-  return rawUrl;
+
+  return url;
+};
+
+// Sanitize all <img> tags in HTML to repair any broken localhost:8008 URLs
+const sanitizeContentImages = (html) => {
+  if (!html || typeof html !== "string") return html;
+  if (typeof window === "undefined" || window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") {
+    return html;
+  }
+
+  return html.replace(/src=["'](?:https?:\/\/(?:localhost|127\.0\.0\.1):8008)?(?:\/api)?\/uploads\/([^"'\s]+)["']/gi, (match, filename) => {
+    return `src="${window.location.origin}/api/uploads/${filename}"`;
+  });
 };
 
 export default function WebBlogsPage() {
@@ -348,9 +374,9 @@ export default function WebBlogsPage() {
       category: blog.category || "AC Service",
       tags: Array.isArray(blog.tags) ? blog.tags : (typeof blog.tags === "string" ? JSON.parse(blog.tags || "[]") : []),
       readTime: blog.readTime || "5 min read",
-      image: blog.image || "",
+      image: normalizeImageUrl(blog.image || ""),
       excerpt: blog.excerpt || "",
-      content: blog.content || "",
+      content: sanitizeContentImages(blog.content || ""),
       metaTitle: blog.metaTitle || "",
       metaDescription: blog.metaDescription || "",
       metaKeywords: blog.metaKeywords || "",
@@ -545,7 +571,7 @@ export default function WebBlogsPage() {
 
     return `<figure class="blog-img-box" data-align="${align}" data-width="${width}" data-angle="${angle}" data-radius="${radius}" data-shadow="${shadow}" style="display: ${displayStyle}; float: ${floatStyle}; margin: ${marginStyle}; max-width: ${maxWidth}; width: ${maxWidth}; text-align: center; clear: ${clearStyle};">
   <div style="display: inline-block; width: 100%; text-align: center;">
-    <img src="${finalUrl}" alt="${alt || ""}" data-angle="${angle}" data-align="${align}" data-width="${width}" data-radius="${radius}" data-shadow="${shadow}" style="width: 100%; height: auto; transform: rotate(${angle}deg); border-radius: ${radius}px; box-shadow: ${shadowCss}; display: block; margin: 0 auto; transition: transform 0.2s;" />
+    <img src="${finalUrl}" alt="${alt || ""}" onerror="if(!this.dataset.retried){this.dataset.retried='1';if(this.src.includes('/api/uploads/')){this.src=this.src.replace('/api/uploads/','/uploads/');}else if(this.src.includes('/uploads/')){this.src=this.src.replace('/uploads/','/api/uploads/');}}" data-angle="${angle}" data-align="${align}" data-width="${width}" data-radius="${radius}" data-shadow="${shadow}" style="width: 100%; height: auto; transform: rotate(${angle}deg); border-radius: ${radius}px; box-shadow: ${shadowCss}; display: block; margin: 0 auto; transition: transform 0.2s;" />
   </div>
   ${figcaptionHTML}
 </figure><p><br></p>`;
@@ -1178,8 +1204,8 @@ export default function WebBlogsPage() {
 
     const payload = {
       ...formData,
-      content: latestContent,
-      image: finalImage,
+      content: sanitizeContentImages(latestContent),
+      image: normalizeImageUrl(finalImage),
       status: targetStatus || formData.status,
     };
 

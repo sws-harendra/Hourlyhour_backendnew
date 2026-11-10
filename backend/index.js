@@ -39,7 +39,19 @@ app.use(
 app.use(express.json());
 app.use(cookieParser());
 app.use(morgan("dev"));
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
+// Static uploads served on both /uploads and /api/uploads (for Nginx proxy-pass compatibility)
+const uploadsDirectory = path.join(__dirname, "uploads");
+const staticUploadsMiddleware = [
+  (req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Cross-Origin-Resource-Policy", "cross-origin");
+    next();
+  },
+  express.static(uploadsDirectory),
+];
+app.use("/uploads", ...staticUploadsMiddleware);
+app.use("/api/uploads", ...staticUploadsMiddleware);
 
 // Routes
 app.get("/", (req, res) => res.send("Hello World"));
