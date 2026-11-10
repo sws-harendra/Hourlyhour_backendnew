@@ -59,6 +59,11 @@ import {
   Sliders,
   Palette,
   Type,
+  Move,
+  ArrowUp,
+  ArrowDown,
+  ChevronsUp,
+  ChevronsDown,
 } from "lucide-react";
 import BlogService from "../../services/blog.service";
 import Delete from "../../components/Delete";
@@ -203,6 +208,19 @@ export default function WebBlogsPage() {
   const savedRangeRef = useRef(null);
   const inContentFileInputRef = useRef(null);
   const quickUploadInputRef = useRef(null);
+  const editorRef = useRef(null);
+  const editorWrapperRef = useRef(null);
+  const fileInputRef = useRef(null);
+  const draggedFigureRef = useRef(null);
+  const dropTargetBlockRef = useRef(null);
+
+  // Floating Image Mouse-Resize & Drag-to-Move State
+  const [overlayRect, setOverlayRect] = useState(null);
+  const [isResizing, setIsResizing] = useState(false);
+  const [isDraggingImage, setIsDraggingImage] = useState(false);
+  const [dragCursorPos, setDragCursorPos] = useState({ x: 0, y: 0 });
+  const [dropIndicator, setDropIndicator] = useState(null);
+  const pendingDropTargetRef = useRef(null);
 
   // Tag input state
   const [tagInput, setTagInput] = useState("");
@@ -224,9 +242,6 @@ export default function WebBlogsPage() {
     status: "published",
     isFeatured: false,
   });
-
-  const editorRef = useRef(null);
-  const fileInputRef = useRef(null);
 
   // Fetch blogs from API
   const fetchBlogs = async () => {
@@ -651,9 +666,9 @@ export default function WebBlogsPage() {
       ? `<figcaption style="font-size: 13px; color: #64748b; margin-top: 8px; text-align: center; font-style: italic;">${caption.trim()}</figcaption>`
       : "";
 
-    return `<figure class="blog-img-box" data-align="${align}" data-width="${width}" data-angle="${angle}" data-radius="${radius}" data-shadow="${shadow}" style="display: ${displayStyle}; float: ${floatStyle}; margin: ${marginStyle}; max-width: ${maxWidth}; width: ${maxWidth}; text-align: center; clear: ${clearStyle};">
+    return `<figure class="blog-img-box" draggable="false" data-align="${align}" data-width="${width}" data-angle="${angle}" data-radius="${radius}" data-shadow="${shadow}" style="display: ${displayStyle}; float: ${floatStyle}; margin: ${marginStyle}; max-width: ${maxWidth}; width: ${maxWidth}; text-align: center; clear: ${clearStyle}; cursor: pointer; user-select: none;">
   <div style="display: inline-block; width: 100%; text-align: center;">
-    <img src="${finalUrl}" alt="${alt || ""}" onerror="if(!this.dataset.retried){this.dataset.retried='1';if(this.src.includes('/api/uploads/')){this.src=this.src.replace('/api/uploads/','/uploads/');}else if(this.src.includes('/uploads/')){this.src=this.src.replace('/uploads/','/api/uploads/');}}" data-angle="${angle}" data-align="${align}" data-width="${width}" data-radius="${radius}" data-shadow="${shadow}" style="width: 100%; height: auto; transform: rotate(${angle}deg); border-radius: ${radius}px; box-shadow: ${shadowCss}; display: block; margin: 0 auto; transition: transform 0.2s;" />
+    <img src="${finalUrl}" draggable="false" alt="${alt || ""}" onerror="if(!this.dataset.retried){this.dataset.retried='1';if(this.src.includes('/api/uploads/')){this.src=this.src.replace('/api/uploads/','/uploads/');}else if(this.src.includes('/uploads/')){this.src=this.src.replace('/uploads/','/api/uploads/');}}" data-angle="${angle}" data-align="${align}" data-width="${width}" data-radius="${radius}" data-shadow="${shadow}" style="width: 100%; height: auto; transform: rotate(${angle}deg); border-radius: ${radius}px; box-shadow: ${shadowCss}; display: block; margin: 0 auto; transition: transform 0.2s;" />
   </div>
   ${figcaptionHTML}
 </figure><p><br></p>`;
@@ -909,6 +924,319 @@ export default function WebBlogsPage() {
     }
 
     handleEditorInput();
+    setTimeout(() => updateOverlayRect(), 20);
+  };
+
+  // Dynamic position updater for interactive image handles & overlay
+  const updateOverlayRect = () => {
+    if (!selectedImgEl || !editorWrapperRef.current) {
+      setOverlayRect(null);
+      return;
+    }
+    const imgRect = selectedImgEl.getBoundingClientRect();
+    const wrapperRect = editorWrapperRef.current.getBoundingClientRect();
+
+    setOverlayRect({
+      top: imgRect.top - wrapperRect.top,
+      left: imgRect.left - wrapperRect.left,
+      width: imgRect.width,
+      height: imgRect.height,
+    });
+  };
+
+  // Re-pin overlay position on scroll or window resize
+  useEffect(() => {
+    if (selectedImgEl) {
+      updateOverlayRect();
+      const handleScrollOrResize = () => {
+        updateOverlayRect();
+      };
+      window.addEventListener("scroll", handleScrollOrResize, true);
+      window.addEventListener("resize", handleScrollOrResize);
+      return () => {
+        window.removeEventListener("scroll", handleScrollOrResize, true);
+        window.removeEventListener("resize", handleScrollOrResize);
+      };
+    } else {
+      setOverlayRect(null);
+    }
+  }, [selectedImgEl]);
+
+  // Real-time Mouse Drag-to-Resize Handler
+  const handleResizeMouseDown = (e, handle) => {
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!selectedImgEl || !editorRef.current) return;
+    setIsResizing(true);
+
+    const startX = e.clientX;
+    const figure = selectedImgEl.closest("figure.blog-img-box");
+    const editorWidth = editorRef.current.clientWidth || 800;
+    const startRect = selectedImgEl.getBoundingClientRect();
+    const startWidth = startRect.width;
+    const align = figure?.getAttribute("data-align") || imageConfig.align || "center";
+
+    const onMouseMove = (moveEvent) => {
+      moveEvent.preventDefault();
+      let deltaX = moveEvent.clientX - startX;
+
+      if (handle.includes("w")) {
+        deltaX = -deltaX;
+      }
+
+      // If centered, dragging expands from both sides symmetrically
+      const multiplier = align === "center" ? 2 : 1;
+      let targetWidthPx = startWidth + deltaX * multiplier;
+
+      const minPx = Math.max(80, editorWidth * 0.15);
+      const maxPx = editorWidth;
+      targetWidthPx = Math.max(minPx, Math.min(maxPx, targetWidthPx));
+
+      const newPct = Math.max(15, Math.min(100, Math.round((targetWidthPx / editorWidth) * 100)));
+
+      if (figure) {
+        figure.style.width = `${newPct}%`;
+        figure.style.maxWidth = align === "left" || align === "right" ? `${Math.min(newPct, 50)}%` : `${newPct}%`;
+        figure.setAttribute("data-width", String(newPct));
+      }
+      selectedImgEl.setAttribute("data-width", String(newPct));
+
+      setImageConfig((prev) => ({ ...prev, width: newPct }));
+      updateOverlayRect();
+    };
+
+    const onMouseUp = () => {
+      setIsResizing(false);
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+      handleEditorInput();
+      updateOverlayRect();
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
+  };
+
+  // 1-Click Move Up, Down, Top, or Bottom
+  const handleMoveSelectedImage = (direction) => {
+    if (!selectedImgEl || !editorRef.current) return;
+    const figure = selectedImgEl.closest("figure.blog-img-box");
+    if (!figure || !figure.parentNode) return;
+
+    if (direction === "top") {
+      const firstChild = editorRef.current.firstChild;
+      if (firstChild && firstChild !== figure) {
+        editorRef.current.insertBefore(figure, firstChild);
+        handleEditorInput();
+        setTimeout(updateOverlayRect, 30);
+        toast.success("Image moved to top of article ⏫");
+      } else {
+        toast("Image is already at the top", { icon: "ℹ️" });
+      }
+      return;
+    }
+
+    if (direction === "bottom") {
+      editorRef.current.appendChild(figure);
+      handleEditorInput();
+      setTimeout(updateOverlayRect, 30);
+      toast.success("Image moved to bottom of article ⏬");
+      return;
+    }
+
+    if (direction === "up") {
+      let target = figure.previousElementSibling;
+      while (target && target.tagName === "P" && (target.innerHTML.trim() === "<br>" || target.innerHTML.trim() === "")) {
+        target = target.previousElementSibling;
+      }
+      if (target) {
+        figure.parentNode.insertBefore(figure, target);
+        handleEditorInput();
+        setTimeout(updateOverlayRect, 30);
+        toast.success("Image moved up ⬆");
+      } else {
+        toast("Image is already at the top", { icon: "ℹ️" });
+      }
+      return;
+    }
+
+    if (direction === "down") {
+      let target = figure.nextElementSibling;
+      while (target && target.tagName === "P" && (target.innerHTML.trim() === "<br>" || target.innerHTML.trim() === "")) {
+        target = target.nextElementSibling;
+      }
+      if (target) {
+        figure.parentNode.insertBefore(figure, target.nextElementSibling);
+        handleEditorInput();
+        setTimeout(updateOverlayRect, 30);
+        toast.success("Image moved down ⬇");
+      } else {
+        toast("Image is already at the bottom", { icon: "ℹ️" });
+      }
+      return;
+    }
+  };
+
+  // Universal Smooth Mouse Drag-to-Move Handler
+  const handleStartMoveDrag = (e, figureEl = null) => {
+    if (e.button !== 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+
+    const figure = figureEl || (selectedImgEl ? selectedImgEl.closest("figure.blog-img-box") : null);
+    if (!figure || !editorRef.current || !editorWrapperRef.current) return;
+
+    const startX = e.clientX;
+    const startY = e.clientY;
+    let hasMoved = false;
+
+    // Helper to find target block under cursor
+    const getTargetUnderCursor = (clientX, clientY) => {
+      const wrapperRect = editorWrapperRef.current.getBoundingClientRect();
+      const allChildren = Array.from(editorRef.current.children).filter(
+        (c) => c !== figure && !c.classList.contains("image-resize-overlay") && !c.classList.contains("drop-indicator-line")
+      );
+
+      if (allChildren.length === 0) {
+        return { target: null, position: "append", top: 10, left: 10, width: editorRef.current.clientWidth - 20 };
+      }
+
+      // Check top bound (top of article)
+      const firstRect = allChildren[0].getBoundingClientRect();
+      if (clientY <= firstRect.top + 15) {
+        return {
+          target: allChildren[0],
+          position: "before",
+          top: Math.max(0, firstRect.top - wrapperRect.top),
+          left: Math.max(0, firstRect.left - wrapperRect.left),
+          width: firstRect.width || editorRef.current.clientWidth,
+        };
+      }
+
+      // Check bottom bound (bottom of article)
+      const lastRect = allChildren[allChildren.length - 1].getBoundingClientRect();
+      if (clientY >= lastRect.bottom - 15) {
+        return {
+          target: allChildren[allChildren.length - 1],
+          position: "after",
+          top: Math.max(0, lastRect.bottom - wrapperRect.top),
+          left: Math.max(0, lastRect.left - wrapperRect.left),
+          width: lastRect.width || editorRef.current.clientWidth,
+        };
+      }
+
+      // High-precision caret lookup
+      if (document.caretRangeFromPoint) {
+        const range = document.caretRangeFromPoint(clientX, clientY);
+        if (range && editorRef.current.contains(range.commonAncestorContainer)) {
+          let node = range.startContainer;
+          if (node.nodeType === Node.TEXT_NODE) node = node.parentElement;
+          while (node && node.parentElement && node.parentElement !== editorRef.current) {
+            node = node.parentElement;
+          }
+          if (node && node !== figure && editorRef.current.contains(node)) {
+            const rect = node.getBoundingClientRect();
+            const isBefore = clientY < (rect.top + rect.height / 2);
+            return {
+              target: node,
+              position: isBefore ? "before" : "after",
+              top: Math.max(0, (isBefore ? rect.top : rect.bottom) - wrapperRect.top),
+              left: Math.max(0, rect.left - wrapperRect.left),
+              width: rect.width || editorRef.current.clientWidth,
+            };
+          }
+        }
+      }
+
+      // Distance fallback
+      let closest = allChildren[0];
+      let minDist = Infinity;
+      let pos = "after";
+      let closestRect = allChildren[0].getBoundingClientRect();
+
+      for (const child of allChildren) {
+        const rect = child.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        const dist = Math.abs(clientY - midY);
+        if (dist < minDist) {
+          minDist = dist;
+          closest = child;
+          closestRect = rect;
+          pos = clientY < midY ? "before" : "after";
+        }
+      }
+
+      return {
+        target: closest,
+        position: pos,
+        top: Math.max(0, (pos === "before" ? closestRect.top : closestRect.bottom) - wrapperRect.top),
+        left: Math.max(0, closestRect.left - wrapperRect.left),
+        width: closestRect.width || editorRef.current.clientWidth,
+      };
+    };
+
+    const onMouseMove = (moveEvent) => {
+      moveEvent.preventDefault();
+      const dist = Math.hypot(moveEvent.clientX - startX, moveEvent.clientY - startY);
+
+      if (!hasMoved && dist > 5) {
+        hasMoved = true;
+        setIsDraggingImage(true);
+        figure.style.opacity = "0.35";
+        figure.style.transition = "opacity 0.2s";
+      }
+
+      if (hasMoved) {
+        setDragCursorPos({ x: moveEvent.clientX, y: moveEvent.clientY });
+        const dropInfo = getTargetUnderCursor(moveEvent.clientX, moveEvent.clientY);
+        if (dropInfo) {
+          pendingDropTargetRef.current = dropInfo;
+          setDropIndicator({
+            top: dropInfo.top,
+            left: dropInfo.left,
+            width: dropInfo.width,
+          });
+        }
+      }
+    };
+
+    const onMouseUp = (upEvent) => {
+      window.removeEventListener("mousemove", onMouseMove);
+      window.removeEventListener("mouseup", onMouseUp);
+
+      if (hasMoved) {
+        figure.style.opacity = "1";
+        setIsDraggingImage(false);
+        setDropIndicator(null);
+
+        const dropInfo = pendingDropTargetRef.current;
+        pendingDropTargetRef.current = null;
+
+        if (dropInfo && dropInfo.target && dropInfo.target !== figure) {
+          if (dropInfo.position === "before") {
+            editorRef.current.insertBefore(figure, dropInfo.target);
+          } else {
+            editorRef.current.insertBefore(figure, dropInfo.target.nextSibling);
+          }
+          handleEditorInput();
+          setTimeout(() => updateOverlayRect(), 40);
+          toast.success("Image moved to new position!");
+        } else if (dropInfo && dropInfo.position === "append") {
+          editorRef.current.appendChild(figure);
+          handleEditorInput();
+          setTimeout(() => updateOverlayRect(), 40);
+          toast.success("Image moved to bottom of article!");
+        }
+      } else {
+        const img = figure.querySelector("img");
+        if (img) setSelectedImgEl(img);
+        updateOverlayRect();
+      }
+    };
+
+    window.addEventListener("mousemove", onMouseMove);
+    window.addEventListener("mouseup", onMouseUp);
   };
 
   // Handle clicking inside the editor canvas
@@ -936,6 +1264,9 @@ export default function WebBlogsPage() {
         figure.appendChild(div);
       }
 
+      figure.setAttribute("draggable", "false");
+      target.setAttribute("draggable", "false");
+
       const angle = parseInt(target.getAttribute("data-angle") || "0", 10);
       const align = target.getAttribute("data-align") || (figure?.style.float === "left" ? "left" : figure?.style.float === "right" ? "right" : figure?.style.width === "100%" ? "full" : "center");
       const width = parseInt(target.getAttribute("data-width") || (figure ? parseInt(figure.style.width, 10) || "60" : "60"), 10);
@@ -952,8 +1283,8 @@ export default function WebBlogsPage() {
         });
       }
 
-      target.style.outline = "3px solid #10b981";
-      target.style.outlineOffset = "4px";
+      target.style.outline = "2px solid #10b981";
+      target.style.outlineOffset = "3px";
 
       setSelectedImgEl(target);
       setImageConfig({
@@ -966,12 +1297,19 @@ export default function WebBlogsPage() {
         radius: isNaN(radius) ? 12 : radius,
         shadow: shadow || "medium",
       });
+      setTimeout(() => updateOverlayRect(), 20);
       handleEditorInput();
     } else {
-      if (selectedImgEl && !e.target.closest(".image-control-dock") && !e.target.closest(".image-modal-container")) {
+      if (
+        selectedImgEl &&
+        !e.target.closest(".image-control-dock") &&
+        !e.target.closest(".image-modal-container") &&
+        !e.target.closest(".image-resize-overlay")
+      ) {
         selectedImgEl.style.outline = "";
         selectedImgEl.style.outlineOffset = "";
         setSelectedImgEl(null);
+        setOverlayRect(null);
       }
     }
   };
@@ -1002,6 +1340,7 @@ export default function WebBlogsPage() {
       selectedImgEl.remove();
     }
     setSelectedImgEl(null);
+    setOverlayRect(null);
     handleEditorInput();
     setImageModalOpen(false);
     toast.success("Image removed from article");
@@ -1103,6 +1442,90 @@ export default function WebBlogsPage() {
     }
   };
 
+  // Handle start of dragging figure inside editor
+  const handleEditorDragStart = (e) => {
+    const target = e.target;
+    const figure = target.closest ? target.closest("figure.blog-img-box") : null;
+    if (figure) {
+      draggedFigureRef.current = figure;
+      e.dataTransfer.setData("text/plain", "RS_FIGURE_DRAG");
+      e.dataTransfer.effectAllowed = "move";
+      figure.style.opacity = "0.4";
+      const img = figure.querySelector("img");
+      if (img) setSelectedImgEl(img);
+    }
+  };
+
+  // Clean up on drag end
+  const handleEditorDragEnd = () => {
+    if (draggedFigureRef.current) {
+      draggedFigureRef.current.style.opacity = "1";
+      draggedFigureRef.current = null;
+    }
+    dropTargetBlockRef.current = null;
+    setDropIndicator(null);
+    setTimeout(() => updateOverlayRect(), 50);
+  };
+
+  // Remove drop guide when pointer leaves editor
+  const handleEditorDragLeave = (e) => {
+    if (!editorRef.current?.contains(e.relatedTarget)) {
+      setDropIndicator(null);
+    }
+  };
+
+  // Calculate live drop position indicator while dragging
+  const handleEditorDragOver = (e) => {
+    e.preventDefault();
+
+    if (e.dataTransfer?.types?.includes("Files")) {
+      e.dataTransfer.dropEffect = "copy";
+      return;
+    }
+
+    if (draggedFigureRef.current && editorWrapperRef.current && editorRef.current) {
+      e.dataTransfer.dropEffect = "move";
+      const wrapperRect = editorWrapperRef.current.getBoundingClientRect();
+
+      const children = Array.from(editorRef.current.children).filter(
+        (el) => el !== draggedFigureRef.current && !el.classList.contains("image-resize-overlay")
+      );
+
+      if (children.length === 0) return;
+
+      let closestBlock = null;
+      let insertPosition = "after";
+      let minDistance = Infinity;
+      let targetTop = 0;
+      let targetLeft = 0;
+      let targetWidth = editorRef.current.clientWidth;
+
+      for (const child of children) {
+        const rect = child.getBoundingClientRect();
+        const midY = rect.top + rect.height / 2;
+        const dist = Math.abs(e.clientY - midY);
+
+        if (dist < minDistance) {
+          minDistance = dist;
+          closestBlock = child;
+          insertPosition = e.clientY < midY ? "before" : "after";
+          targetTop = (insertPosition === "before" ? rect.top : rect.bottom) - wrapperRect.top;
+          targetLeft = rect.left - wrapperRect.left;
+          targetWidth = rect.width;
+        }
+      }
+
+      if (closestBlock) {
+        dropTargetBlockRef.current = { block: closestBlock, position: insertPosition };
+        setDropIndicator({
+          top: Math.max(0, targetTop),
+          left: Math.max(0, targetLeft),
+          width: targetWidth || editorRef.current.clientWidth,
+        });
+      }
+    }
+  };
+
   // Handle direct drag-and-drop of image files from desktop onto the writing canvas
   const handleEditorDrop = async (e) => {
     const files = e.dataTransfer?.files;
@@ -1157,7 +1580,48 @@ export default function WebBlogsPage() {
         };
         reader.readAsDataURL(file);
       }
+      return;
     }
+
+    // Reposition existing figure moved with mouse
+    if (draggedFigureRef.current && dropTargetBlockRef.current) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const { block, position } = dropTargetBlockRef.current;
+      const figure = draggedFigureRef.current;
+
+      if (block && figure && block !== figure) {
+        if (position === "before") {
+          block.parentNode.insertBefore(figure, block);
+        } else {
+          block.parentNode.insertBefore(figure, block.nextSibling);
+        }
+
+        figure.style.opacity = "1";
+        draggedFigureRef.current = null;
+        dropTargetBlockRef.current = null;
+        setDropIndicator(null);
+
+        handleEditorInput();
+
+        const img = figure.querySelector("img");
+        if (img) {
+          setSelectedImgEl(img);
+          setTimeout(() => updateOverlayRect(), 50);
+        }
+
+        toast.success("Image moved to new position!");
+        return;
+      }
+    }
+
+    if (draggedFigureRef.current) {
+      draggedFigureRef.current.style.opacity = "1";
+      draggedFigureRef.current = null;
+    }
+    dropTargetBlockRef.current = null;
+    setDropIndicator(null);
   };
 
   // Insert Custom Callout Box
@@ -2550,6 +3014,42 @@ export default function WebBlogsPage() {
                           )}
                         </div>
 
+                        {/* Quick 1-Click Move Controls: Top, Up, Down, Bottom */}
+                        <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5 shadow-xs">
+                          <button
+                            type="button"
+                            onClick={() => handleMoveSelectedImage("top")}
+                            className="px-2 py-1 rounded text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 transition flex items-center gap-1 font-medium text-xs"
+                            title="Move Image to Top of article"
+                          >
+                            <ChevronsUp className="w-3.5 h-3.5 text-emerald-600" /> Top
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMoveSelectedImage("up")}
+                            className="px-2 py-1 rounded text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 transition flex items-center gap-1 font-medium text-xs border-l border-slate-200"
+                            title="Move Image Up (Above previous paragraph)"
+                          >
+                            <ArrowUp className="w-3.5 h-3.5 text-emerald-600" /> Up
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMoveSelectedImage("down")}
+                            className="px-2 py-1 rounded text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 transition flex items-center gap-1 font-medium text-xs border-l border-slate-200"
+                            title="Move Image Down (Below next paragraph)"
+                          >
+                            <ArrowDown className="w-3.5 h-3.5 text-emerald-600" /> Down
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleMoveSelectedImage("bottom")}
+                            className="px-2 py-1 rounded text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 transition flex items-center gap-1 font-medium text-xs border-l border-slate-200"
+                            title="Move Image to Bottom of article"
+                          >
+                            <ChevronsDown className="w-3.5 h-3.5 text-emerald-600" /> Bottom
+                          </button>
+                        </div>
+
                         {/* Full Controls & Delete */}
                         <div className="flex items-center gap-1.5">
                           <button
@@ -2581,6 +3081,7 @@ export default function WebBlogsPage() {
                                 selectedImgEl.style.outlineOffset = "";
                               }
                               setSelectedImgEl(null);
+                              setOverlayRect(null);
                             }}
                             className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition"
                             title="Close / Deselect"
@@ -2591,22 +3092,222 @@ export default function WebBlogsPage() {
                       </div>
                     )}
 
-                    {/* EDITABLE DOCUMENT CANVAS */}
-                    <div
-                      ref={editorRef}
-                      contentEditable
-                      onInput={handleEditorInput}
-                      onClick={handleEditorClick}
-                      onDoubleClick={handleEditorDoubleClick}
-                      onKeyDown={handleEditorKeyDown}
-                      onKeyUp={saveCurrentSelection}
-                      onMouseUp={saveCurrentSelection}
-                      onPaste={handleEditorPaste}
-                      onDrop={handleEditorDrop}
-                      onDragOver={(e) => e.preventDefault()}
-                      className="min-h-[500px] p-8 md:p-10 bg-white text-slate-800 text-base leading-relaxed focus:outline-none focus:ring-0 font-sans selection:bg-emerald-100 overflow-y-auto"
-                      style={{ minHeight: "520px" }}
-                    />
+                    {/* EDITABLE DOCUMENT CANVAS WRAPPER */}
+                    <div ref={editorWrapperRef} className="relative">
+                      {/* EDITABLE DOCUMENT CANVAS */}
+                      <div
+                        ref={editorRef}
+                        contentEditable
+                        onInput={handleEditorInput}
+                        onClick={handleEditorClick}
+                        onDoubleClick={handleEditorDoubleClick}
+                        onKeyDown={handleEditorKeyDown}
+                        onKeyUp={saveCurrentSelection}
+                        onMouseUp={saveCurrentSelection}
+                        onPaste={handleEditorPaste}
+                        onDragStart={handleEditorDragStart}
+                        onDragEnd={handleEditorDragEnd}
+                        onDragOver={handleEditorDragOver}
+                        onDragLeave={handleEditorDragLeave}
+                        onDrop={handleEditorDrop}
+                        className="min-h-[500px] p-8 md:p-10 bg-white text-slate-800 text-base leading-relaxed focus:outline-none focus:ring-0 font-sans selection:bg-emerald-100 overflow-y-auto"
+                        style={{ minHeight: "520px" }}
+                      />
+
+                      {/* VISUAL DROP INDICATOR LINE (SHOWS EXACT DROP SPOT WHEN MOVING IMAGE) */}
+                      {dropIndicator && (
+                        <div
+                          className="pointer-events-none absolute z-30 transition-all duration-75"
+                          style={{
+                            top: `${dropIndicator.top}px`,
+                            left: `${dropIndicator.left}px`,
+                            width: `${dropIndicator.width}px`,
+                            height: "3px",
+                            backgroundColor: "#10b981",
+                            borderRadius: "9999px",
+                            boxShadow: "0 0 10px #10b981, 0 0 20px rgba(16, 185, 129, 0.4)",
+                          }}
+                        >
+                          <div className="absolute -left-1.5 -top-1 w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-md ring-2 ring-white" />
+                          <div className="absolute -right-1.5 -top-1 w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-md ring-2 ring-white" />
+                        </div>
+                      )}
+
+                      {/* FLOATING CURSOR BADGE WHILE DRAGGING IMAGE WITH MOUSE */}
+                      {isDraggingImage && (
+                        <div
+                          className="fixed z-50 pointer-events-none transform -translate-x-1/2 -translate-y-1/2 bg-slate-900/95 text-white px-3.5 py-1.5 rounded-full shadow-2xl border border-emerald-500/60 flex items-center gap-2 text-xs font-semibold backdrop-blur-md animate-in fade-in zoom-in-95 duration-75 select-none"
+                          style={{ left: `${dragCursorPos.x}px`, top: `${dragCursorPos.y}px` }}
+                        >
+                          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
+                          <Move className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Moving Image • Release anywhere to drop</span>
+                        </div>
+                      )}
+
+                      {/* FLOATING INTERACTIVE RESIZE & MOVE OVERLAY (OUTSIDE CONTENTEDITABLE DOM) */}
+                      {selectedImgEl && overlayRect && (
+                        <div
+                          className="image-resize-overlay absolute z-20 pointer-events-none transition-none"
+                          style={{
+                            top: `${overlayRect.top}px`,
+                            left: `${overlayRect.left}px`,
+                            width: `${overlayRect.width}px`,
+                            height: `${overlayRect.height}px`,
+                          }}
+                        >
+                          {/* Outer Border Frame (Click and drag to move freely!) */}
+                          <div
+                            onMouseDown={(e) => handleStartMoveDrag(e)}
+                            className="absolute inset-0 border-2 border-emerald-500 rounded-lg pointer-events-auto cursor-grab active:cursor-grabbing shadow-xs bg-emerald-500/5 hover:bg-emerald-500/15 transition-colors"
+                            title="Click and drag with mouse to freely move this image anywhere in the article"
+                          />
+
+                          {/* Top Floating Control Toolbar Bar */}
+                          <div
+                            className="absolute -top-10 left-1/2 -translate-x-1/2 pointer-events-auto bg-slate-900/95 backdrop-blur-md text-white px-2.5 py-1 rounded-full shadow-xl border border-slate-700/80 flex items-center gap-2 text-[11px] whitespace-nowrap select-none animate-in fade-in zoom-in-95 duration-100"
+                            onMouseDown={(e) => e.stopPropagation()}
+                          >
+                            {/* Drag to Move handle */}
+                            <div
+                              onMouseDown={(e) => handleStartMoveDrag(e)}
+                              className="px-2.5 py-0.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium flex items-center gap-1 cursor-grab active:cursor-grabbing transition"
+                              title="Click and drag with mouse to freely move this image anywhere"
+                            >
+                              <Move className="w-3 h-3" />
+                              <span>Drag to Move</span>
+                            </div>
+
+                            {/* 1-Click Move Top */}
+                            <button
+                              type="button"
+                              onClick={() => handleMoveSelectedImage("top")}
+                              className="p-1 hover:bg-slate-800 rounded text-slate-300 hover:text-emerald-400 transition flex items-center gap-0.5"
+                              title="Move to top of article"
+                            >
+                              <ChevronsUp className="w-3 h-3 text-emerald-400" />
+                              <span className="hidden sm:inline text-[10px]">Top</span>
+                            </button>
+
+                            {/* 1-Click Move Up */}
+                            <button
+                              type="button"
+                              onClick={() => handleMoveSelectedImage("up")}
+                              className="p-1 hover:bg-slate-800 rounded text-slate-300 hover:text-white transition flex items-center gap-0.5"
+                              title="Move above previous paragraph"
+                            >
+                              <ArrowUp className="w-3 h-3 text-emerald-400" />
+                              <span className="hidden sm:inline text-[10px]">Up</span>
+                            </button>
+
+                            {/* 1-Click Move Down */}
+                            <button
+                              type="button"
+                              onClick={() => handleMoveSelectedImage("down")}
+                              className="p-1 hover:bg-slate-800 rounded text-slate-300 hover:text-white transition flex items-center gap-0.5"
+                              title="Move below next paragraph"
+                            >
+                              <ArrowDown className="w-3 h-3 text-emerald-400" />
+                              <span className="hidden sm:inline text-[10px]">Down</span>
+                            </button>
+
+                            {/* 1-Click Move Bottom */}
+                            <button
+                              type="button"
+                              onClick={() => handleMoveSelectedImage("bottom")}
+                              className="p-1 hover:bg-slate-800 rounded text-slate-300 hover:text-emerald-400 transition flex items-center gap-0.5"
+                              title="Move to bottom of article"
+                            >
+                              <ChevronsDown className="w-3 h-3 text-emerald-400" />
+                              <span className="hidden sm:inline text-[10px]">Bottom</span>
+                            </button>
+
+                            <div className="w-[1px] h-3.5 bg-slate-700" />
+
+                            {/* Live Size Badge */}
+                            <span className="font-mono text-emerald-400 font-bold px-1">
+                              {imageConfig.width}% • {Math.round(overlayRect.width)}px
+                            </span>
+
+                            <div className="w-[1px] h-3.5 bg-slate-700" />
+
+                            {/* Deselect / Close */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (selectedImgEl) {
+                                  selectedImgEl.style.outline = "";
+                                  selectedImgEl.style.outlineOffset = "";
+                                }
+                                setSelectedImgEl(null);
+                                setOverlayRect(null);
+                              }}
+                              className="p-0.5 hover:bg-slate-800 text-slate-400 hover:text-white rounded-full transition"
+                              title="Close"
+                            >
+                              <X className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+
+                          {/* 8 Resize Handles (NW, N, NE, E, SE, S, SW, W) */}
+                          {/* Corner NW */}
+                          <div
+                            onMouseDown={(e) => handleResizeMouseDown(e, "nw")}
+                            className="absolute -top-1.5 -left-1.5 w-3.5 h-3.5 bg-white border-2 border-emerald-600 rounded-xs shadow-md pointer-events-auto cursor-nw-resize hover:bg-emerald-500 hover:scale-125 transition-transform"
+                            title="Drag with mouse to resize (Top-Left)"
+                          />
+                          {/* Top Center N */}
+                          <div
+                            onMouseDown={(e) => handleResizeMouseDown(e, "n")}
+                            className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3.5 h-3.5 bg-white border-2 border-emerald-600 rounded-xs shadow-md pointer-events-auto cursor-n-resize hover:bg-emerald-500 hover:scale-125 transition-transform"
+                            title="Drag with mouse to resize"
+                          />
+                          {/* Corner NE */}
+                          <div
+                            onMouseDown={(e) => handleResizeMouseDown(e, "ne")}
+                            className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-emerald-600 rounded-xs shadow-md pointer-events-auto cursor-ne-resize hover:bg-emerald-500 hover:scale-125 transition-transform"
+                            title="Drag with mouse to resize (Top-Right)"
+                          />
+                          {/* Middle Right E */}
+                          <div
+                            onMouseDown={(e) => handleResizeMouseDown(e, "e")}
+                            className="absolute top-1/2 -right-1.5 -translate-y-1/2 w-3.5 h-3.5 bg-white border-2 border-emerald-600 rounded-xs shadow-md pointer-events-auto cursor-e-resize hover:bg-emerald-500 hover:scale-125 transition-transform"
+                            title="Drag with mouse to resize width (Right Edge)"
+                          />
+                          {/* Corner SE */}
+                          <div
+                            onMouseDown={(e) => handleResizeMouseDown(e, "se")}
+                            className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-emerald-600 rounded-xs shadow-md pointer-events-auto cursor-se-resize hover:bg-emerald-500 hover:scale-125 transition-transform"
+                            title="Drag with mouse to resize (Bottom-Right)"
+                          />
+                          {/* Bottom Center S */}
+                          <div
+                            onMouseDown={(e) => handleResizeMouseDown(e, "s")}
+                            className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3.5 h-3.5 bg-white border-2 border-emerald-600 rounded-xs shadow-md pointer-events-auto cursor-s-resize hover:bg-emerald-500 hover:scale-125 transition-transform"
+                            title="Drag with mouse to resize"
+                          />
+                          {/* Corner SW */}
+                          <div
+                            onMouseDown={(e) => handleResizeMouseDown(e, "sw")}
+                            className="absolute -bottom-1.5 -left-1.5 w-3.5 h-3.5 bg-white border-2 border-emerald-600 rounded-xs shadow-md pointer-events-auto cursor-sw-resize hover:bg-emerald-500 hover:scale-125 transition-transform"
+                            title="Drag with mouse to resize (Bottom-Left)"
+                          />
+                          {/* Middle Left W */}
+                          <div
+                            onMouseDown={(e) => handleResizeMouseDown(e, "w")}
+                            className="absolute top-1/2 -left-1.5 -translate-y-1/2 w-3.5 h-3.5 bg-white border-2 border-emerald-600 rounded-xs shadow-md pointer-events-auto cursor-w-resize hover:bg-emerald-500 hover:scale-125 transition-transform"
+                            title="Drag with mouse to resize width (Left Edge)"
+                          />
+
+                          {/* Live Tooltip while resizing */}
+                          {isResizing && (
+                            <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white font-mono text-[11px] font-bold px-2.5 py-0.5 rounded-md shadow-lg pointer-events-none border border-slate-700 whitespace-nowrap">
+                              ↔ Resizing: {imageConfig.width}% ({Math.round(overlayRect.width)}px)
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
 
                     {/* EDITOR FOOTER STATUS BAR */}
                     <div className="bg-slate-50 px-4 py-2 border-t border-slate-200 rounded-b-2xl flex items-center justify-between text-xs text-slate-500">
