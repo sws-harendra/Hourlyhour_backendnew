@@ -1769,9 +1769,9 @@ export default function WebBlogsPage() {
 
                 {/* 3. WORD-LIKE FORMATTING TOOLBAR RIBBON */}
                 {activeTab === "editor" && (
-                  <div className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm">
+                  <div className="bg-white border border-slate-200 rounded-2xl shadow-sm relative">
                     {/* TOOLBAR (PROFESSIONAL WORD-LIKE RIBBON) */}
-                    <div className="bg-slate-50 border-b border-slate-200 p-2 flex flex-wrap items-center gap-1.5 text-slate-700 sticky top-0 z-20 backdrop-blur-md">
+                    <div className="bg-slate-50 border-b border-slate-200 p-2 rounded-t-2xl flex flex-wrap items-center gap-1.5 text-slate-700 sticky top-0 z-20 backdrop-blur-md">
                       {/* Undo / Redo */}
                       <button
                         type="button"
@@ -1951,53 +1951,56 @@ export default function WebBlogsPage() {
                         {showColorPicker && (
                           <div
                             onMouseDown={(e) => e.stopPropagation()}
-                            className="absolute top-full left-0 mt-2 z-40 bg-white border border-slate-200 rounded-xl p-3 shadow-xl w-56 space-y-2.5 animate-in fade-in zoom-in-95 duration-100"
+                            className="absolute top-full right-0 mt-2 z-50 bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xl w-64 space-y-3 animate-in fade-in zoom-in-95 duration-100"
                           >
-                            <div className="flex items-center justify-between text-xs font-semibold text-slate-800 pb-1 border-b border-slate-200">
+                            <div className="flex items-center justify-between text-xs font-semibold text-slate-800 pb-1.5 border-b border-slate-200">
                               <span>Font Text Color</span>
                               <button
                                 type="button"
                                 onClick={() => setShowColorPicker(false)}
-                                className="text-slate-400 hover:text-slate-600"
+                                className="text-slate-400 hover:text-slate-600 p-0.5 rounded"
                               >
-                                <X className="w-3 h-3" />
+                                <X className="w-3.5 h-3.5" />
                               </button>
                             </div>
 
                             {/* Palette Swatches */}
                             <div className="grid grid-cols-6 gap-1.5">
                               {[
-                                "#0f172a", "#334155", "#64748b", "#94a3b8", "#ffffff",
-                                "#10b981", "#059669", "#06b6d4", "#0284c7", "#3b82f6",
-                                "#6366f1", "#8b5cf6", "#ec4899", "#ef4444", "#f97316",
-                                "#eab308", "#14b8a6", "#84cc16",
+                                "#0f172a", "#334155", "#64748b", "#94a3b8", "#cbd5e1", "#ffffff",
+                                "#10b981", "#059669", "#06b6d4", "#0284c7", "#3b82f6", "#1d4ed8",
+                                "#6366f1", "#8b5cf6", "#a855f7", "#ec4899", "#ef4444", "#dc2626",
+                                "#f97316", "#eab308", "#14b8a6", "#84cc16", "#78716c", "#475569",
                               ].map((c) => (
                                 <button
                                   key={c}
                                   type="button"
                                   onMouseDown={(e) => e.preventDefault()}
                                   onClick={() => applyTextColor(c)}
-                                  className="w-6 h-6 rounded-md border border-slate-200 hover:scale-110 transition flex items-center justify-center relative shadow-xs"
+                                  className="w-7 h-7 rounded-lg border border-slate-200 hover:scale-110 transition flex items-center justify-center relative shadow-xs cursor-pointer"
                                   style={{ backgroundColor: c }}
                                   title={c}
                                 >
                                   {activeTextColor === c && (
-                                    <Check className={`w-3 h-3 ${c === "#ffffff" || c === "#f1f5f9" || c === "#eab308" ? "text-slate-900" : "text-white"}`} />
+                                    <Check className={`w-3.5 h-3.5 ${c === "#ffffff" || c === "#cbd5e1" || c === "#eab308" ? "text-slate-900" : "text-white"}`} />
                                   )}
                                 </button>
                               ))}
                             </div>
 
                             {/* Custom Color Input */}
-                            <div className="pt-2 border-t border-slate-200 flex items-center gap-2">
+                            <div className="pt-2.5 border-t border-slate-200 flex items-center gap-2.5">
                               <input
                                 type="color"
                                 value={activeTextColor}
                                 onChange={(e) => applyTextColor(e.target.value)}
-                                className="w-7 h-7 rounded border border-slate-300 cursor-pointer bg-transparent"
+                                className="w-8 h-8 rounded-lg border border-slate-300 cursor-pointer bg-transparent p-0.5"
                                 title="Pick Custom Color"
                               />
-                              <span className="text-xs font-mono text-slate-600 uppercase flex-1">{activeTextColor}</span>
+                              <div className="flex-1 flex items-center justify-between">
+                                <span className="text-xs font-mono font-bold text-slate-800 uppercase">{activeTextColor}</span>
+                                <span className="text-[11px] text-slate-400">Hex Code</span>
+                              </div>
                             </div>
                           </div>
                         )}
@@ -2025,16 +2028,16 @@ export default function WebBlogsPage() {
                         {showHighlightPicker && (
                           <div
                             onMouseDown={(e) => e.stopPropagation()}
-                            className="absolute top-full left-0 mt-2 z-40 bg-white border border-slate-200 rounded-xl p-3 shadow-xl w-52 space-y-2.5 animate-in fade-in zoom-in-95 duration-100"
+                            className="absolute top-full right-0 mt-2 z-50 bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xl w-56 space-y-3 animate-in fade-in zoom-in-95 duration-100"
                           >
-                            <div className="flex items-center justify-between text-xs font-semibold text-slate-800 pb-1 border-b border-slate-200">
+                            <div className="flex items-center justify-between text-xs font-semibold text-slate-800 pb-1.5 border-b border-slate-200">
                               <span>Highlight Text</span>
                               <button
                                 type="button"
                                 onClick={() => setShowHighlightPicker(false)}
-                                className="text-slate-400 hover:text-slate-600"
+                                className="text-slate-400 hover:text-slate-600 p-0.5 rounded"
                               >
-                                <X className="w-3 h-3" />
+                                <X className="w-3.5 h-3.5" />
                               </button>
                             </div>
 
@@ -2054,11 +2057,11 @@ export default function WebBlogsPage() {
                                   type="button"
                                   onMouseDown={(e) => e.preventDefault()}
                                   onClick={() => applyHighlightColor(h.color)}
-                                  className="h-6 rounded-md border border-slate-200 hover:scale-105 transition flex items-center justify-center shadow-xs"
+                                  className="h-7 rounded-lg border border-slate-200 hover:scale-105 transition flex items-center justify-center shadow-xs cursor-pointer"
                                   style={{ backgroundColor: h.color }}
                                   title={h.name}
                                 >
-                                  {activeHighlightColor === h.color && <Check className="w-3 h-3 text-slate-900" />}
+                                  {activeHighlightColor === h.color && <Check className="w-3.5 h-3.5 text-slate-900" />}
                                 </button>
                               ))}
                             </div>
@@ -2412,7 +2415,7 @@ export default function WebBlogsPage() {
                     />
 
                     {/* EDITOR FOOTER STATUS BAR */}
-                    <div className="bg-slate-50 px-4 py-2 border-t border-slate-200 flex items-center justify-between text-xs text-slate-500">
+                    <div className="bg-slate-50 px-4 py-2 border-t border-slate-200 rounded-b-2xl flex items-center justify-between text-xs text-slate-500">
                       <div className="flex items-center gap-4">
                         <span>Words: <strong className="text-slate-800">{stats.words}</strong></span>
                         <span>Characters: <strong className="text-slate-800">{stats.chars}</strong></span>
