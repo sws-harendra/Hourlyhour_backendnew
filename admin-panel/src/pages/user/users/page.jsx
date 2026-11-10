@@ -55,6 +55,8 @@ const Users = () => {
   const [bookingTotalPages, setBookingTotalPages] = useState(1);
   const bookingLimit = 10;
   const [selectedBookingUser, setSelectedBookingUser] = useState(null);
+  const [providerStats, setProviderStats] = useState({ total: 0, completed: 0 });
+  const [providerStatsLoading, setProviderStatsLoading] = useState(false);
   const isProvider =
     selectedUser?.userType?.toLowerCase()?.includes("provider");
 
@@ -195,6 +197,61 @@ const Users = () => {
 
     await fetchBookings(user.id, user.userType, 1);
   };
+
+  const fetchProviderStats = async (user) => {
+    if (!user?.id) return;
+    try {
+      setProviderStatsLoading(true);
+      const isProv = user?.userType?.toLowerCase()?.includes("provider");
+      const paramKey = isProv ? "providerId" : "userId";
+
+      const res = await BookingService.getAll({
+        limit: 1000,
+        [paramKey]: user.id,
+      });
+
+      const list = res?.data?.data || [];
+      const total = res?.data?.total !== undefined ? res.data.total : list.length;
+      let completedCount = list.filter((b) => b.status === "completed").length;
+
+      // If total is greater than 1000, fetch exact count for completed status
+      if (total > list.length) {
+        try {
+          const completedRes = await BookingService.getAll({
+            limit: 1,
+            [paramKey]: user.id,
+            status: "completed",
+          });
+          if (completedRes?.data?.total !== undefined) {
+            completedCount = completedRes.data.total;
+          }
+        } catch (err) {}
+      }
+
+      setProviderStats({
+        total: Math.max(total, list.length),
+        completed: completedCount,
+      });
+    } catch (err) {
+      console.error("Error fetching provider stats:", err);
+      setProviderStats({ total: 0, completed: 0 });
+    } finally {
+      setProviderStatsLoading(false);
+    }
+  };
+
+  const handleOpenView = (u) => {
+    setSelectedUser(u);
+    setShowView(true);
+    setProviderStats({ total: 0, completed: 0 });
+    fetchProviderStats(u);
+  };
+
+  useEffect(() => {
+    if (showView && selectedUser) {
+      fetchProviderStats(selectedUser);
+    }
+  }, [showView, selectedUser?.id]);
   const groupBookings = (data) => {
     const map = new Map();
 
@@ -437,10 +494,7 @@ const Users = () => {
                         <div className="inline-flex gap-4">
                           <Eye
                             className="cursor-pointer text-gray-600 hover:scale-110"
-                            onClick={() => {
-                              setSelectedUser(u);
-                              setShowView(true);
-                            }}
+                            onClick={() => handleOpenView(u)}
                           />
 
                           <Edit
@@ -648,9 +702,15 @@ const Users = () => {
                           Total Bookings
                         </p>
                         <p className="text-2xl font-bold text-blue-800">
-                          <span className="font-semibold text-black">
-                            {bookingTotalPages * bookingLimit}
-                          </span>
+                          {providerStatsLoading ? (
+                            <span className="text-sm font-normal text-blue-500 animate-pulse">
+                              Loading...
+                            </span>
+                          ) : (
+                            <span className="font-semibold text-black">
+                              {providerStats.total}
+                            </span>
+                          )}
                         </p>
                       </div>
 
@@ -659,11 +719,13 @@ const Users = () => {
                           Completed
                         </p>
                         <p className="text-2xl font-bold text-green-800">
-                          {
-                            bookings.filter(
-                              (b) => b.status === "completed"
-                            ).length
-                          }
+                          {providerStatsLoading ? (
+                            <span className="text-sm font-normal text-green-500 animate-pulse">
+                              Loading...
+                            </span>
+                          ) : (
+                            providerStats.completed
+                          )}
                         </p>
                       </div>
 
@@ -714,7 +776,7 @@ const Users = () => {
                     <div className="flex-1">
                       <p className="text-sm text-gray-500 font-medium">Name</p>
                       <p className="text-gray-900 font-semibold">
-                        {selectedUser.name}
+                        {selectedUser.name || "N/A"}
                       </p>
                     </div>
                   </div>
