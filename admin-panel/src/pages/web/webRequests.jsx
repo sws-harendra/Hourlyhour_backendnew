@@ -24,6 +24,58 @@ import WebService from "../../services/web.service";
 import Delete from "../../components/Delete";
 import toast from "react-hot-toast";
 
+// Helper to dynamically extract requirement title and price/rate
+function parseRequirementItem(item) {
+  if (!item) return { title: "", price: null };
+  if (typeof item === "object") {
+    const rawPrice = item.price ?? item.rate ?? null;
+    let formattedPrice = null;
+    if (rawPrice != null && rawPrice !== "" && rawPrice !== "Inspection" && rawPrice !== "Free") {
+      formattedPrice = String(rawPrice).trim();
+      if (!formattedPrice.startsWith("₹") && !formattedPrice.toLowerCase().startsWith("rs")) {
+        formattedPrice = `₹${formattedPrice}`;
+      }
+    } else if (rawPrice === "Free" || rawPrice === "Inspection") {
+      formattedPrice = rawPrice;
+    }
+    return {
+      title: item.title || item.name || "Service",
+      price: formattedPrice,
+    };
+  }
+
+  const str = String(item).trim();
+
+  // Pattern 1: Title (₹199) or Title (Rs. 199) or Title (199) or Title (Free)
+  const matchParen = str.match(/^(.*?)\s*\(\s*(?:(₹|Rs\.?)\s*)?([\d,]+(?:\.\d+)?|Free|Inspection)\s*\)$/i);
+  if (matchParen) {
+    const currency = matchParen[2];
+    const val = matchParen[3].trim();
+    const formattedPrice =
+      val === "Free" || val === "Inspection"
+        ? val
+        : currency
+        ? `₹${val}`
+        : `₹${val}`;
+    return {
+      title: matchParen[1].trim(),
+      price: formattedPrice,
+    };
+  }
+
+  // Pattern 2: Title - ₹199 or Title | ₹199 or Title • ₹199
+  const matchDash = str.match(/^(.*?)\s*[-–—|•]\s*(₹|Rs\.?)\s*([\d,]+(?:\.\d+)?|Free|Inspection)$/i);
+  if (matchDash) {
+    const val = matchDash[3].trim();
+    return {
+      title: matchDash[1].trim(),
+      price: val === "Free" || val === "Inspection" ? val : `₹${val}`,
+    };
+  }
+
+  return { title: str, price: null };
+}
+
 export default function WebRequestsPage() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -689,22 +741,45 @@ export default function WebRequestsPage() {
                         <span className="text-xs font-semibold uppercase tracking-wider text-slate-400 block mb-2">
                           Selected Appliances &amp; Requirements ({apps.length}):
                         </span>
-                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                          {apps.map((app, idx) => (
-                            <div key={idx} className="p-3 rounded-xl bg-slate-900 border border-slate-800 flex flex-col justify-between">
-                              <div className="font-semibold text-white text-xs flex items-center gap-1.5">
-                                <span className="w-2 h-2 rounded-full bg-blue-400 shrink-0"></span>
-                                {app.name || "Appliance"}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                          {apps.map((app, idx) => {
+                            const rawList =
+                              Array.isArray(app.services) && app.services.length > 0
+                                ? app.services
+                                : Array.isArray(app.requirements)
+                                ? app.requirements
+                                : [];
+                            const items = rawList.map(parseRequirementItem);
+
+                            return (
+                              <div key={idx} className="p-3.5 rounded-xl bg-slate-900 border border-slate-800 flex flex-col justify-between gap-2.5">
+                                <div className="font-semibold text-white text-xs flex items-center justify-between">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="w-2 h-2 rounded-full bg-blue-400 shrink-0"></span>
+                                    <span>{app.name || "Appliance"}</span>
+                                    {app.brand && (
+                                      <span className="text-[10px] text-slate-400 font-normal">[{app.brand}]</span>
+                                    )}
+                                  </div>
+                                </div>
+                                <div className="flex flex-wrap gap-1.5">
+                                  {items.map((item, rIdx) => (
+                                    <span
+                                      key={rIdx}
+                                      className="inline-flex items-center gap-1.5 text-[11px] px-2.5 py-1 rounded-md bg-blue-500/15 text-blue-300 border border-blue-500/30 font-medium"
+                                    >
+                                      <span>✓ {item.title}</span>
+                                      {item.price && (
+                                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                                          {item.price}
+                                        </span>
+                                      )}
+                                    </span>
+                                  ))}
+                                </div>
                               </div>
-                              <div className="mt-2 flex flex-wrap gap-1">
-                                {(app.requirements || []).map((req, rIdx) => (
-                                  <span key={rIdx} className="text-[11px] px-2 py-0.5 rounded-md bg-blue-500/15 text-blue-300 border border-blue-500/30 font-medium">
-                                    ✓ {req}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          ))}
+                            );
+                          })}
                         </div>
                       </div>
                     );
