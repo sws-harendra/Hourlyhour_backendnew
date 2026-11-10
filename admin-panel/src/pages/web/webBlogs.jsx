@@ -224,6 +224,7 @@ export default function WebBlogsPage() {
 
   // Tag input state
   const [tagInput, setTagInput] = useState("");
+  const [isSlugManual, setIsSlugManual] = useState(false);
 
   // Editor form state
   const [formData, setFormData] = useState({
@@ -295,29 +296,66 @@ export default function WebBlogsPage() {
   const draftCount = blogs.filter((b) => b.status === "draft").length;
   const totalViews = blogs.reduce((acc, curr) => acc + (curr.views || 0), 0);
 
-  // Generate URL slug from title
+  // Generate URL slug from title or text
   const generateSlug = (text) => {
+    if (!text) return "";
     return text
       .toString()
       .toLowerCase()
       .trim()
-      .replace(/[^ws-]/g, "")
-      .replace(/[s_-]+/g, "-")
+      .replace(/[^a-z0-9\s-]/g, "")
+      .replace(/[\s_-]+/g, "-")
       .replace(/^-+|-+$/g, "");
   };
 
   const handleTitleChange = (e) => {
     const val = e.target.value;
     setFormData((prev) => {
-      // Auto update slug if it was empty or matched previous auto slug
-      const shouldAutoSlug = !editingBlog || !prev.slug || prev.slug === generateSlug(prev.title);
+      // Auto update slug only if user hasn't typed their own custom slug
+      const shouldAutoSlug = !isSlugManual;
       return {
         ...prev,
         title: val,
         slug: shouldAutoSlug ? generateSlug(val) : prev.slug,
-        metaTitle: prev.metaTitle ? prev.metaTitle : `${val} | Repair Saathi Patna`,
+        metaTitle:
+          prev.metaTitle && prev.metaTitle !== `${prev.title} | Repair Saathi Patna`
+            ? prev.metaTitle
+            : val
+            ? `${val} | Repair Saathi Patna`
+            : "",
       };
     });
+  };
+
+  const handleSlugInputChange = (e) => {
+    setIsSlugManual(true);
+    // Allow typing lowercase letters, numbers, hyphens, and underscores freely
+    const raw = e.target.value;
+    const sanitized = raw
+      .toLowerCase()
+      .replace(/\s+/g, "-")
+      .replace(/[^a-z0-9-_]/g, "");
+    setFormData((prev) => ({
+      ...prev,
+      slug: sanitized,
+    }));
+  };
+
+  const handleSlugInputBlur = () => {
+    setFormData((prev) => ({
+      ...prev,
+      slug: (prev.slug || "").replace(/^-+|-+$/g, ""),
+    }));
+  };
+
+  const handleAutoSlug = () => {
+    setIsSlugManual(false);
+    const newSlug = generateSlug(formData.title);
+    setFormData((prev) => ({
+      ...prev,
+      slug: newSlug,
+    }));
+    toast.success("Slug auto-generated from title!");
   };
 
   // Word count & Read time calculation
@@ -339,6 +377,7 @@ export default function WebBlogsPage() {
   // Open modal for Create
   const handleOpenCreate = () => {
     setEditingBlog(null);
+    setIsSlugManual(false);
     setFormData({
       title: "",
       slug: "",
@@ -404,6 +443,7 @@ export default function WebBlogsPage() {
   // Open modal for Edit
   const handleOpenEdit = (blog) => {
     setEditingBlog(blog);
+    setIsSlugManual(true);
     setFormData({
       title: blog.title || "",
       slug: blog.slug || "",
@@ -1750,7 +1790,13 @@ export default function WebBlogsPage() {
       toast.error("Blog title is required");
       return;
     }
-    if (!formData.slug.trim()) {
+    const cleanedSlug = (formData.slug || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9-_]/g, "")
+      .replace(/^-+|-+$/g, "");
+
+    if (!cleanedSlug) {
       toast.error("URL slug is required");
       return;
     }
@@ -1773,6 +1819,7 @@ export default function WebBlogsPage() {
 
     const payload = {
       ...formData,
+      slug: cleanedSlug,
       content: sanitizeContentImages(latestContent),
       image: normalizeImageUrl(finalImage),
       status: targetStatus || formData.status,
@@ -2321,12 +2368,8 @@ export default function WebBlogsPage() {
                       <input
                         type="text"
                         value={formData.slug}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            slug: generateSlug(e.target.value),
-                          }))
-                        }
+                        onChange={handleSlugInputChange}
+                        onBlur={handleSlugInputBlur}
                         placeholder="my-blog-post-url-slug"
                         className="bg-transparent font-mono text-emerald-700 font-semibold focus:outline-none border-b border-dashed border-emerald-500/50 px-1 flex-1 min-w-[120px]"
                       />
@@ -2334,12 +2377,7 @@ export default function WebBlogsPage() {
                     <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
                       <button
                         type="button"
-                        onClick={() =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            slug: generateSlug(prev.title),
-                          }))
-                        }
+                        onClick={handleAutoSlug}
                         className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-xs flex items-center gap-1 transition"
                         title="Auto Generate Slug from Title"
                       >
