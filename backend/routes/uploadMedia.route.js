@@ -11,7 +11,7 @@ router.post("/", upload.single("file"), (req, res) => {
   const fileUrl = req.file.filename;
 
   // Authoritative upload base URL from .env
-  let backendBase = (process.env.BACKEND_URL || "").replace(/\/+$/, "");
+  let backendBase = (process.env.DEPLOYED_URL || "").replace(/\/+$/, "");
 
   if (!backendBase) {
     const proto = req.headers["x-forwarded-proto"] || req.protocol || "http";
