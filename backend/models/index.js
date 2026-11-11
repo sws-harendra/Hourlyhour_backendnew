@@ -57,6 +57,19 @@ Object.keys(db).forEach((modelName) => {
   }
 })();
 
+// Auto-ensure 'imageLink' column exists in blogs table (safe non-destructive sync)
+(async () => {
+  try {
+    const [cols] = await sequelize.query("SHOW COLUMNS FROM `blogs` LIKE 'imageLink'");
+    if (!cols || cols.length === 0) {
+      await sequelize.query("ALTER TABLE `blogs` ADD COLUMN `imageLink` TEXT NULL AFTER `image`");
+      console.log("Auto-migrated: Added 'imageLink' column to blogs table.");
+    }
+  } catch (_) {
+    // Ignore if DB connection not ready yet or table doesn't exist
+  }
+})();
+
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;
 

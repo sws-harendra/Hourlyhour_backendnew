@@ -235,6 +235,7 @@ export default function WebBlogsPage() {
     tags: ["Patna", "Doorstep Repair"],
     readTime: "5 min read",
     image: "",
+    imageLink: "",
     excerpt: "",
     content: "",
     metaTitle: "",
@@ -386,6 +387,7 @@ export default function WebBlogsPage() {
       tags: ["Patna", "Doorstep Repair"],
       readTime: "5 min read",
       image: "",
+      imageLink: "",
       excerpt: "",
       content: `<h2>1. Common Problem Signs</h2>
 <p>Most home appliances exhibit subtle signs before breaking down completely. Recognizing these early can save you significant repair costs.</p>
@@ -452,6 +454,7 @@ export default function WebBlogsPage() {
       tags: Array.isArray(blog.tags) ? blog.tags : (typeof blog.tags === "string" ? JSON.parse(blog.tags || "[]") : []),
       readTime: blog.readTime || "5 min read",
       image: normalizeImageUrl(blog.image || ""),
+      imageLink: blog.imageLink || "",
       excerpt: blog.excerpt || "",
       content: sanitizeContentImages(blog.content || ""),
       metaTitle: blog.metaTitle || "",
@@ -1751,11 +1754,11 @@ export default function WebBlogsPage() {
         };
         reader.readAsDataURL(file);
       } catch (fbErr) {
-        toast.error("Failed to upload image. You can also paste an image URL directly.");
+        toast.error("Failed to upload image. Please try again.");
       }
     } finally {
       setUploadingImage(false);
-      e.target.value = "";
+      if (e.target) e.target.value = "";
     }
   };
 
@@ -3601,36 +3604,59 @@ export default function WebBlogsPage() {
                   </div>
                 </div>
 
-                {/* 3. FEATURED IMAGE (FILE UPLOAD + URL) */}
+                {/* 3. FEATURED IMAGE (FILE UPLOAD + OPTIONAL CLICK LINK) */}
                 <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm space-y-3">
-                  <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                    <ImageIcon className="w-4 h-4 text-emerald-600" />
-                    Cover / Featured Image
-                  </h3>
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
+                      <ImageIcon className="w-4 h-4 text-emerald-600" />
+                      Cover / Featured Image
+                    </h3>
+                  </div>
+
+                  {/* Always keep file input in DOM so Replace button and Drag-drop always work */}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onClick={(e) => e.stopPropagation()}
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
 
                   {formData.image ? (
-                    <div className="relative rounded-xl overflow-hidden border border-slate-200 group">
-                      <img
-                        src={normalizeImageUrl(formData.image)}
-                        alt="Preview"
-                        className="w-full h-44 object-cover"
-                      />
-                      <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition duration-200">
-                        <button
-                          type="button"
-                          onClick={() => fileInputRef.current?.click()}
-                          className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1 shadow"
-                        >
-                          <Upload className="w-3.5 h-3.5" /> Replace
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setFormData((prev) => ({ ...prev, image: "" }))}
-                          className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold flex items-center gap-1 shadow"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" /> Remove
-                        </button>
+                    <div className="space-y-2">
+                      <div className="relative rounded-xl overflow-hidden border border-slate-200 group bg-slate-50">
+                        <img
+                          src={normalizeImageUrl(formData.image)}
+                          alt="Cover Preview"
+                          className="w-full h-44 object-cover"
+                        />
+                        <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition duration-200">
+                          <button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1 shadow cursor-pointer"
+                          >
+                            <Upload className="w-3.5 h-3.5" /> Replace
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormData((prev) => ({ ...prev, image: "" }));
+                            }}
+                            className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold flex items-center gap-1 shadow cursor-pointer"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" /> Remove
+                          </button>
+                        </div>
                       </div>
+
+                      {formData.imageLink && (
+                        <div className="flex items-center gap-1.5 text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1">
+                          <Link2 className="w-3 h-3 text-emerald-600 shrink-0" />
+                          <span className="font-medium truncate">Opens on click: {formData.imageLink}</span>
+                        </div>
+                      )}
                     </div>
                   ) : (
                     <div
@@ -3647,14 +3673,6 @@ export default function WebBlogsPage() {
                       }}
                       className="border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-xl p-6 text-center cursor-pointer transition bg-slate-50/70 group"
                     >
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*"
-                        onClick={(e) => e.stopPropagation()}
-                        onChange={handleImageUpload}
-                        className="hidden"
-                      />
                       {uploadingImage ? (
                         <div className="flex flex-col items-center">
                           <RefreshCw className="w-6 h-6 text-emerald-600 animate-spin mb-2" />
@@ -3671,18 +3689,25 @@ export default function WebBlogsPage() {
                   )}
 
                   <div>
-                    <label className="block text-[11px] text-slate-500 mb-1">
-                      Or paste direct image URL:
+                    <label className="block text-[11px] font-semibold text-slate-700 mb-1 flex items-center justify-between">
+                      <span className="flex items-center gap-1.5">
+                        <Link2 className="w-3.5 h-3.5 text-emerald-600" />
+                        Cover Image Click Link (URL to open when clicked):
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-normal">Optional</span>
                     </label>
                     <input
-                      type="text"
-                      value={formData.image}
+                      type="url"
+                      value={formData.imageLink || ""}
                       onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, image: e.target.value }))
+                        setFormData((prev) => ({ ...prev, imageLink: e.target.value }))
                       }
-                      placeholder="https://images.unsplash.com/..."
+                      placeholder="https://repairsaathi.in/home-appliance-repair-services-patna/ (or any link)"
                       className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-emerald-500 placeholder-slate-400"
                     />
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      Jab user live website par is cover image par click karega to yeh link new tab me open hoga.
+                    </p>
                   </div>
                 </div>
 

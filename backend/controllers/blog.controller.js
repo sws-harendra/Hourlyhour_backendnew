@@ -154,6 +154,7 @@ exports.createBlog = async (req, res) => {
       tags,
       readTime,
       image,
+      imageLink,
       excerpt,
       content,
       metaTitle,
@@ -196,6 +197,7 @@ exports.createBlog = async (req, res) => {
       tags: Array.isArray(tags) ? tags : tags ? [tags] : [],
       readTime: calculatedTime,
       image: cleanImage,
+      imageLink: imageLink ? imageLink.trim() : null,
       excerpt: excerpt ? excerpt.trim() : null,
       content: cleanContent,
       metaTitle: metaTitle ? metaTitle.trim() : title.trim(),
@@ -236,6 +238,7 @@ exports.updateBlog = async (req, res) => {
       tags,
       readTime,
       image,
+      imageLink,
       excerpt,
       content,
       metaTitle,
@@ -263,6 +266,7 @@ exports.updateBlog = async (req, res) => {
     if (category !== undefined) blog.category = category.trim();
     if (tags !== undefined) blog.tags = Array.isArray(tags) ? tags : [tags];
     if (image !== undefined) blog.image = sanitizeImageUrl(image);
+    if (imageLink !== undefined) blog.imageLink = imageLink ? imageLink.trim() : null;
     if (excerpt !== undefined) blog.excerpt = excerpt ? excerpt.trim() : null;
     if (content !== undefined) {
       const cleanContent = sanitizeHtmlContent(content);
