@@ -1,4 +1,4 @@
-﻿// models/blog.model.js
+// models/blog.model.js
 module.exports = (sequelize, DataTypes) => {
   const Blog = sequelize.define(
     "Blog",
