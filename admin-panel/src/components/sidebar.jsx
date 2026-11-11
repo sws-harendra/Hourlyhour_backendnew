@@ -28,6 +28,7 @@ import {
   Inbox,
   Layers,
   BookOpen,
+  Receipt,
 } from "lucide-react";
 
 const menuItems = [
@@ -60,6 +61,7 @@ const menuItems = [
     icon: Hammer,
     children: [
       { name: "Service List", path: "/service" },
+      { name: "Rate Cards", path: "/rate-cards" },
       { name: "Service Area", path: "/service-area" },
       { name: "Warranty Claims", path: "/warranty/claims" },
     ],
@@ -108,6 +110,7 @@ export default function Sidebar() {
     Reviews: MessageSquare,
     Category: Grid3X3,
     "Service List": List,
+    "Rate Cards": Receipt,
     "Service Area": MapPin,
     "Warranty Claims": ShieldCheck,
     "All Bookings": CalendarCheck,

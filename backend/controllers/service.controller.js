@@ -94,6 +94,40 @@ const addService = async (req, res) => {
       await ServiceRelation.bulkCreate(relations);
     }
 
+    // 🔁 Service rate sync (ensure this service is in ServiceRate as well as any sub-rates)
+    let parsedRates = [];
+    if (req.body.rates) {
+      try {
+        parsedRates = Array.isArray(req.body.rates)
+          ? req.body.rates
+          : JSON.parse(req.body.rates);
+      } catch (e) {
+        parsedRates = [];
+      }
+    }
+
+    const validCustomRates = parsedRates
+      .filter((r) => r && r.title && String(r.title).trim() !== "")
+      .map((r) => ({
+        serviceId: service.id,
+        title: String(r.title).trim(),
+        price: parseFloat(r.price) || 0,
+        warranty: r.warranty ? String(r.warranty).trim() : null,
+        status: "active",
+      }));
+
+    if (validCustomRates.length > 0) {
+      await ServiceRate.bulkCreate(validCustomRates);
+    } else {
+      await ServiceRate.create({
+        serviceId: service.id,
+        title: service.title,
+        price: service.price || 0,
+        warranty: service.warranty || null,
+        status: "active",
+      });
+    }
+
     return res.status(201).json({ message: "Service created", service });
   } catch (err) {
     return res.status(500).json({ error: err.message });
@@ -193,6 +227,33 @@ const updateService = async (req, res) => {
       }
     }
 
+    // 🔁 Update service rates if provided
+    if (req.body.rates) {
+      let parsedRates = [];
+      try {
+        parsedRates = Array.isArray(req.body.rates)
+          ? req.body.rates
+          : JSON.parse(req.body.rates);
+      } catch (e) {
+        parsedRates = [];
+      }
+
+      const validCustomRates = parsedRates
+        .filter((r) => r && r.title && String(r.title).trim() !== "")
+        .map((r) => ({
+          serviceId: service.id,
+          title: String(r.title).trim(),
+          price: parseFloat(r.price) || 0,
+          warranty: r.warranty ? String(r.warranty).trim() : null,
+          status: "active",
+        }));
+
+      if (validCustomRates.length > 0) {
+        await ServiceRate.destroy({ where: { serviceId: service.id } });
+        await ServiceRate.bulkCreate(validCustomRates);
+      }
+    }
+
     return res.status(200).json({
       message: "Service updated successfully",
       service,
@@ -287,6 +348,8 @@ const getAllServices = async (req, res) => {
       search = "",
       sortBy = "createdAt",
       order = "DESC",
+      rateCard = "",
+      categoryId = "",
     } = req.query;
 
     // Convert numeric params
@@ -302,7 +365,16 @@ const getAllServices = async (req, res) => {
         { title: { [Op.like]: `%${search}%` } },
         { shortDescription: { [Op.like]: `%${search}%` } },
         { fullDescription: { [Op.like]: `%${search}%` } },
+        { rateListHeading: { [Op.like]: `%${search}%` } },
       ];
+    }
+
+    if (rateCard) {
+      where.rateListHeading = rateCard;
+    }
+
+    if (categoryId) {
+      where.categoryId = categoryId;
     }
 
     // Validate sorting
@@ -1586,6 +1658,214 @@ const bulkDeleteRatesByIds = async (req, res) => {
   }
 };
 
+/**
+ * 🏷️ GET ALL RATE CARDS OVERVIEW (Grouped by Category)
+ */
+const getRateCardsOverview = async (req, res) => {
+  try {
+    const categories = await Category.findAll({
+      order: [["id", "ASC"]],
+      include: [
+        {
+          model: Service,
+          as: "services",
+          attributes: ["id", "title", "price", "rateListHeading"],
+          include: [
+            {
+              model: ServiceRate,
+              as: "rates",
+              attributes: ["id", "title", "price", "warranty", "status"],
+            },
+          ],
+        },
+      ],
+    });
+
+    const data = categories.map((cat) => {
+      const services = cat.services || [];
+      const primaryWithRates =
+        services.find(
+          (s) => (s.rates && s.rates.length > 0) || s.rateListHeading
+        ) ||
+        services[0] ||
+        null;
+
+      return {
+        categoryId: cat.id,
+        categoryName: cat.name,
+        categoryImage: cat.image,
+        categoryIcon: cat.icon,
+        servicesCount: services.length,
+        rateListHeading: primaryWithRates?.rateListHeading || "",
+        primaryServiceId: primaryWithRates?.id || null,
+        rates: primaryWithRates?.rates || [],
+        services: services.map((s) => ({ id: s.id, title: s.title })),
+      };
+    });
+
+    return res.json({
+      success: true,
+      data,
+    });
+  } catch (error) {
+    console.error("Get Rate Cards Overview Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to load rate cards",
+    });
+  }
+};
+
+/**
+ * 🏷️ SAVE RATE CARD BY CATEGORY
+ * Creates or updates rate card heading and rate list items for all services in category
+ */
+const saveCategoryRateCard = async (req, res) => {
+  const transaction = await Service.sequelize.transaction();
+  try {
+    const { categoryId, rateListHeading, rates } = req.body;
+
+    if (!categoryId) {
+      await transaction.rollback();
+      return res.status(400).json({
+        success: false,
+        message: "Category ID is required",
+      });
+    }
+
+    const category = await Category.findByPk(categoryId);
+    if (!category) {
+      await transaction.rollback();
+      return res.status(404).json({
+        success: false,
+        message: "Category not found",
+      });
+    }
+
+    let services = await Service.findAll({
+      where: { categoryId },
+      transaction,
+    });
+
+    // If no service exists for this category yet, create a default primary service
+    if (services.length === 0) {
+      const createdService = await Service.create(
+        {
+          categoryId,
+          title: `${category.name} Service`,
+          shortDescription: `Professional ${category.name} service & repair`,
+          price: 0,
+          rateListHeading: rateListHeading || `${category.name} Rate Card`,
+          status: "active",
+        },
+        { transaction }
+      );
+      services = [createdService];
+    } else {
+      // Update heading on all services in this category
+      await Service.update(
+        { rateListHeading: rateListHeading || "" },
+        { where: { categoryId }, transaction }
+      );
+    }
+
+    let parsedRates = [];
+    if (rates) {
+      try {
+        parsedRates = Array.isArray(rates) ? rates : JSON.parse(rates);
+      } catch (e) {
+        parsedRates = [];
+      }
+    }
+
+    const validRates = parsedRates
+      .filter((r) => r && r.title && String(r.title).trim() !== "")
+      .map((r) => ({
+        title: String(r.title).trim(),
+        price: parseFloat(r.price) || 0,
+        warranty: r.warranty ? String(r.warranty).trim() : null,
+        status: r.status || "active",
+      }));
+
+    // Update rates for each service in the category
+    for (const srv of services) {
+      await ServiceRate.destroy({
+        where: { serviceId: srv.id },
+        transaction,
+      });
+
+      if (validRates.length > 0) {
+        const ratesToInsert = validRates.map((r) => ({
+          serviceId: srv.id,
+          title: r.title,
+          price: r.price,
+          warranty: r.warranty,
+          status: r.status,
+        }));
+        await ServiceRate.bulkCreate(ratesToInsert, { transaction });
+      }
+    }
+
+    await transaction.commit();
+
+    return res.json({
+      success: true,
+      message: `Rate Card successfully saved and applied to ${services.length} services`,
+      servicesCount: services.length,
+      ratesCount: validRates.length,
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error("Save Category Rate Card Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to save rate card",
+    });
+  }
+};
+
+/**
+ * 🏷️ DELETE/RESET RATE CARD BY CATEGORY
+ */
+const deleteCategoryRateCard = async (req, res) => {
+  const transaction = await Service.sequelize.transaction();
+  try {
+    const { categoryId } = req.params;
+
+    const services = await Service.findAll({
+      where: { categoryId },
+      attributes: ["id"],
+      transaction,
+    });
+
+    const serviceIds = services.map((s) => s.id);
+    if (serviceIds.length > 0) {
+      await ServiceRate.destroy({
+        where: { serviceId: serviceIds },
+        transaction,
+      });
+
+      await Service.update(
+        { rateListHeading: null },
+        { where: { categoryId }, transaction }
+      );
+    }
+
+    await transaction.commit();
+    return res.json({
+      success: true,
+      message: "Rate Card reset successfully",
+    });
+  } catch (error) {
+    await transaction.rollback();
+    console.error("Delete Category Rate Card Error:", error);
+    return res.status(500).json({
+      success: false,
+      message: error.message || "Failed to reset rate card",
+    });
+  }
+};
+
 // controllers/service.controller.js
 
 const getRelatedServices = async (req, res) => {
@@ -1697,4 +1977,9 @@ module.exports = {
   bulkUpdateRate,
   bulkDeleteRate,
   bulkDeleteRatesByIds,
+
+  // RATE CARDS OVERVIEW & CATEGORY MANAGEMENT
+  getRateCardsOverview,
+  saveCategoryRateCard,
+  deleteCategoryRateCard,
 };

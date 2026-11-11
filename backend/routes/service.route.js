@@ -89,6 +89,17 @@ router.put("/rate-list/:id", adminAuthenticated, service.updateRate);
 
 router.delete("/rate-list/:id", adminAuthenticated, service.deleteRate);
 router.get("/rate-list/service/:serviceId", service.getRatesByService);
+
+// Rate Cards Overview & Category Rate Card
+router.get("/rate-cards/overview", service.getRateCardsOverview);
+router.post(
+  "/rate-cards/save-by-category",
+  service.saveCategoryRateCard
+);
+router.delete(
+  "/rate-cards/category/:categoryId",
+  service.deleteCategoryRateCard
+);
 // router.get("/rate-list/service/:serviceId", service.getRatesByService);
 // router.get("/rate-list/service/:serviceId", service.getRatesByService);
 // GROUP BOOKINGS

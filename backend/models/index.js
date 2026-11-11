@@ -70,6 +70,23 @@ Object.keys(db).forEach((modelName) => {
   }
 })();
 
+// Auto-ensure index on service_rates.serviceId for Rate Card associations
+(async () => {
+  try {
+    const [indexes] = await sequelize.query(
+      "SHOW INDEX FROM `service_rates` WHERE Column_name = 'serviceId'"
+    );
+    if (!indexes || indexes.length === 0) {
+      await sequelize.query(
+        "ALTER TABLE `service_rates` ADD INDEX `service_rates_serviceId_idx` (`serviceId`)"
+      );
+      console.log("Auto-migrated: Added index on service_rates.serviceId.");
+    }
+  } catch (_) {
+    // Ignore if DB connection not ready yet or table doesn't exist
+  }
+})();
+
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;
 

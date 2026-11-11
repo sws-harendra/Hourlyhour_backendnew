@@ -3,6 +3,7 @@ import Home from "./pages/home/home";
 import Layout from "./layout";
 import Category from "./pages/category/category";
 import Service from "./pages/service/service";
+import RateCardsPage from "./pages/service/rateCardsPage";
 import Users from "./pages/user/users/page";
 import ServiceProviders from "./pages/user/serviceproviders/page";
 import AllBooking from "./pages/booking/allbooking";
@@ -49,8 +50,10 @@ function App() {
           <Route path="/" element={<Home />} />
           <Route path="/web" element={<WebOverviewPage />} />
           <Route path="/web/requests" element={<WebRequestsPage />} />
-          <Route path="/web/blogs" element={<WebBlogsPage />} />          <Route path="/category" element={<Category />} />
+          <Route path="/web/blogs" element={<WebBlogsPage />} />
+          <Route path="/category" element={<Category />} />
           <Route path="/service" element={<Service />} />
+          <Route path="/rate-cards" element={<RateCardsPage />} />
           <Route path="/testimonial" element={<TestimonialPage />} />
           <Route path="/services/:id/rates" element={<ServiceRates />} />
           <Route path="/services/:id/warranties" element={<WarrantyList />} />

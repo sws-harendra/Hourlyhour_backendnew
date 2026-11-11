@@ -65,4 +65,15 @@ export const ServiceService = {
   bulkDeleteRatesByIds: async (ids) => {
     return await api.post("/service/rate-list/bulk-delete-selected", { ids });
   },
+
+  // RATE CARDS OVERVIEW & CATEGORY MANAGEMENT
+  getRateCardsOverview: async () => {
+    return await api.get("/service/rate-cards/overview");
+  },
+  saveCategoryRateCard: async (data) => {
+    return await api.post("/service/rate-cards/save-by-category", data);
+  },
+  deleteCategoryRateCard: async (categoryId) => {
+    return await api.delete(`/service/rate-cards/category/${categoryId}`);
+  },
 };
