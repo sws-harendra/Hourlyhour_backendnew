@@ -40,6 +40,7 @@ const menuItems = [
       { name: "Web Overview", path: "/web" },
       { name: "Requests from Web", path: "/web/requests" },
       { name: "Blog", path: "/web/blogs" },
+      { name: "SEO Location Pages", path: "/web/seo-pages" },
     ],
   },
   {

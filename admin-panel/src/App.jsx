@@ -29,6 +29,7 @@ import Notifications from "./pages/notifications/Notifications";
 import WebOverviewPage from "./pages/web/webOverview";
 import WebRequestsPage from "./pages/web/webRequests";
 import WebBlogsPage from "./pages/web/webBlogs";
+import SeoLocationPagesList from "./pages/web/seoPages/SeoLocationPagesList";
 import { Toaster } from "react-hot-toast";
 
 function App() {
@@ -51,6 +52,7 @@ function App() {
           <Route path="/web" element={<WebOverviewPage />} />
           <Route path="/web/requests" element={<WebRequestsPage />} />
           <Route path="/web/blogs" element={<WebBlogsPage />} />
+          <Route path="/web/seo-pages" element={<SeoLocationPagesList />} />
           <Route path="/category" element={<Category />} />
           <Route path="/service" element={<Service />} />
           <Route path="/rate-cards" element={<RateCardsPage />} />

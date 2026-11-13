@@ -87,6 +87,18 @@ Object.keys(db).forEach((modelName) => {
   }
 })();
 
+// Auto-sync seo_location_pages table
+(async () => {
+  try {
+    if (db.SeoLocationPage) {
+      await db.SeoLocationPage.sync({ alter: false });
+      console.log("Auto-migrated: Ensured 'seo_location_pages' table exists.");
+    }
+  } catch (err) {
+    console.error("Error auto-syncing seo_location_pages table:", err.message);
+  }
+})();
+
 db.sequelize = sequelize;
 db.Sequelize = Sequelize;
 

@@ -79,7 +79,7 @@ export default function WebOverviewPage() {
       </div>
 
       {/* Main Section Navigation Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         {/* Card 1: Requests from Web */}
         <Link
           to="/web/requests"
@@ -108,7 +108,61 @@ export default function WebOverviewPage() {
           </div>
         </Link>
 
-        
+        {/* Card 2: Blog Management */}
+        <Link
+          to="/web/blogs"
+          className="group relative rounded-3xl bg-slate-900/90 border border-slate-800 hover:border-emerald-500/50 p-6 transition-all duration-300 hover:-translate-y-1 shadow-xl flex flex-col justify-between"
+        >
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-emerald-600 to-teal-600 text-white flex items-center justify-center shadow-lg shadow-emerald-500/20 group-hover:scale-110 transition-transform">
+                <BookOpen className="w-7 h-7" />
+              </div>
+              <span className="px-3 py-1 rounded-full text-xs font-bold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                SEO Ready
+              </span>
+            </div>
+            <h2 className="text-xl font-bold text-white group-hover:text-emerald-400 transition">
+              Blog Articles
+            </h2>
+            <p className="text-sm text-slate-400 mt-1.5 leading-relaxed">
+              Create, publish, and optimize rich blog content to boost domain authority and organic Google traffic for Repair Saathi.
+            </p>
+          </div>
+
+          <div className="mt-6 pt-4 border-t border-slate-800 flex items-center justify-between text-sm font-semibold text-emerald-400 group-hover:text-emerald-300">
+            <span>Manage Blogs</span>
+            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+          </div>
+        </Link>
+
+        {/* Card 3: SEO Location Pages */}
+        <Link
+          to="/web/seo-pages"
+          className="group relative rounded-3xl bg-slate-900/90 border border-slate-800 hover:border-purple-500/50 p-6 transition-all duration-300 hover:-translate-y-1 shadow-xl flex flex-col justify-between"
+        >
+          <div>
+            <div className="flex items-center justify-between mb-4">
+              <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-purple-600 to-indigo-600 text-white flex items-center justify-center shadow-lg shadow-purple-500/20 group-hover:scale-110 transition-transform">
+                <Sparkles className="w-7 h-7" />
+              </div>
+              <span className="px-3 py-1 rounded-full text-xs font-bold bg-purple-500/10 text-purple-400 border border-purple-500/20">
+                Gemini AI
+              </span>
+            </div>
+            <h2 className="text-xl font-bold text-white group-hover:text-purple-400 transition">
+              SEO Location Pages
+            </h2>
+            <p className="text-sm text-slate-400 mt-1.5 leading-relaxed">
+              Generate localized high-ranking landing pages with live SEO score gauge, custom templates, and Anti-AI humanized content.
+            </p>
+          </div>
+
+          <div className="mt-6 pt-4 border-t border-slate-800 flex items-center justify-between text-sm font-semibold text-purple-400 group-hover:text-purple-300">
+            <span>Build Location Pages</span>
+            <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
+          </div>
+        </Link>
       </div>
 
       {/* Recent Web Requests Preview */}
