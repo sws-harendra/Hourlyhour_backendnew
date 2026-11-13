@@ -1,168 +1,45 @@
 import React, { useEffect, useState, useRef, useMemo } from "react";
-import {
-  BookOpen,
-  Plus,
-  Search,
-  Filter,
-  Eye,
-  Edit3,
-  Trash2,
-  ExternalLink,
-  Copy,
-  Check,
-  Upload,
-  Image as ImageIcon,
-  Clock,
-  Calendar,
-  User,
-  Tag,
-  Sparkles,
-  RefreshCw,
-  X,
-  ChevronDown,
-  Globe,
-  SlidersHorizontal,
-  Bold,
-  Italic,
-  Underline,
-  Strikethrough,
-  List,
-  ListOrdered,
-  Quote,
-  AlignLeft,
-  AlignCenter,
-  AlignRight,
-  AlignJustify,
-  Link2,
-  Table,
-  Minus,
-  RotateCcw,
-  RotateCw,
-  Code2,
-  AlertTriangle,
-  Lightbulb,
-  Eraser,
-  Wand2,
-  CheckCircle2,
-  Share2,
-  FileText,
-  Star,
-  Layers,
-  ArrowUpDown,
-  MoreVertical,
-  Highlighter,
-  Subscript,
-  Superscript,
-  Indent,
-  Outdent,
-  Maximize2,
-  Sliders,
-  Palette,
-  Type,
-  Move,
-  ArrowUp,
-  ArrowDown,
-  ChevronsUp,
-  ChevronsDown,
-} from "lucide-react";
+import { BookOpen, Plus, RefreshCw, ExternalLink } from "lucide-react";
 import BlogService from "../../services/blog.service";
 import Delete from "../../components/Delete";
 import toast from "react-hot-toast";
 
-// Predefined categories matching website
-const CATEGORIES = [
-  "AC Service",
-  "Refrigerator",
-  "Washing Machine",
-  "Geyser Service",
-  "Microwave",
-  "Water Purifier",
-  "Maintenance Tips",
-  "Repair Cost Guides",
-  "Troubleshooting",
-];
+// Helpers & Constants
+import {
+  CATEGORIES,
+  DEFAULT_BLOG_TEMPLATE,
+  normalizeImageUrl,
+  sanitizeContentImages,
+  generateSlug,
+  generateImageHTML,
+} from "./blogs/blogHelpers";
 
-const SUGGESTED_TAGS = [
-  "Patna",
-  "Danapur",
-  "Doorstep Repair",
-  "AC Gas Refill",
-  "Fridge Cooling Fix",
-  "PCB Repair",
-  "Seasonal Care",
-  "DIY Tips",
-  "Cost Guide",
-  "Warranty",
-];
-
-// Base URL for uploads derived directly from environment (VITE_SERVER_URL / VITE_BACKEND_URL / VITE_IMAGE_URL)
-const getUploadBaseUrl = () => {
-  const envUrl =
-    import.meta.env.VITE_BACKEND_URL ||
-    import.meta.env.VITE_IMAGE_URL ||
-    import.meta.env.VITE_SERVER_URL ||
-    "";
-
-  if (!envUrl) return "";
-  let clean = envUrl.trim().replace(/\/+$/, "");
-  // If envUrl is like "https://.../api", strip trailing "/api" to get the root server host
-  clean = clean.replace(/\/api\/?$/i, "");
-  return clean;
-};
-
-// Ensure image URLs use the backend upload URL configured in .env
-const normalizeImageUrl = (rawUrl) => {
-  if (!rawUrl || typeof rawUrl !== "string") return "";
-  if (rawUrl.startsWith("data:") || rawUrl.startsWith("blob:")) return rawUrl;
-
-  const url = rawUrl.trim();
-  const baseFromEnv = getUploadBaseUrl();
-
-  // If already absolute with http/https
-  if (url.startsWith("http://") || url.startsWith("https://")) {
-    // If it contains localhost:8008 or 127.0.0.1:8008, and an env URL is available, swap it
-    if (baseFromEnv && (url.includes("localhost:8008") || url.includes("127.0.0.1:8008"))) {
-      const match = url.match(/(?:\/api)?\/uploads\/[^\s"'>]+/);
-      if (match) {
-        return `${baseFromEnv}${match[0]}`;
-      }
-    }
-    return url;
-  }
-
-  // If it's a relative path starting with /uploads or /api/uploads
-  if (url.startsWith("/uploads/") || url.startsWith("/api/uploads/")) {
-    return baseFromEnv ? `${baseFromEnv}${url}` : url;
-  }
-
-  // If it's just a raw filename (e.g. flaxo-123.png)
-  if (!url.includes("/")) {
-    return baseFromEnv ? `${baseFromEnv}/uploads/${url}` : `/uploads/${url}`;
-  }
-
-  return url;
-};
-
-// Sanitize <img> tags in HTML to use the backend upload URL from .env
-const sanitizeContentImages = (html) => {
-  if (!html || typeof html !== "string") return html;
-  const baseFromEnv = getUploadBaseUrl();
-
-  if (!baseFromEnv) return html;
-
-  return html.replace(
-    /src=["'](?:https?:\/\/(?:localhost|127\.0\.0\.1):8008)?(?:\/api)?\/uploads\/([^"'\s>]+)["']/gi,
-    (match, filename) => `src="${baseFromEnv}/uploads/${filename}"`
-  );
-};
+// Subcomponents
+import BlogStatsCards from "./blogs/BlogStatsCards";
+import BlogFilterBar from "./blogs/BlogFilterBar";
+import BlogTable from "./blogs/BlogTable";
+import BlogBulkActionsBar from "./blogs/BlogBulkActionsBar";
+import BlogEditorModal from "./blogs/BlogEditorModal";
+import BlogLinkModal from "./blogs/BlogLinkModal";
+import BlogImageModal from "./blogs/BlogImageModal";
 
 export default function WebBlogsPage() {
   const [blogs, setBlogs] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  // Filters, Sorting & Pagination State
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [viewMode, setViewMode] = useState("table"); // 'table' | 'grid'
+  const [sortBy, setSortBy] = useState("createdAt");
+  const [sortOrder, setSortOrder] = useState("DESC");
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+
+  // Multi-Select & Bulk Actions State
+  const [selectedIds, setSelectedIds] = useState([]);
+  const [bulkLoading, setBulkLoading] = useState(false);
+  const [bulkDeleteModalOpen, setBulkDeleteModalOpen] = useState(false);
 
   // Editor Modal State
   const [isEditorOpen, setIsEditorOpen] = useState(false);
@@ -206,7 +83,6 @@ export default function WebBlogsPage() {
   });
 
   const savedRangeRef = useRef(null);
-  const inContentFileInputRef = useRef(null);
   const quickUploadInputRef = useRef(null);
   const editorRef = useRef(null);
   const editorWrapperRef = useRef(null);
@@ -274,7 +150,20 @@ export default function WebBlogsPage() {
     fetchBlogs();
   }, []);
 
-  // Filtered blogs
+  // Reset page when search or filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, categoryFilter, statusFilter, sortBy, sortOrder, pageSize]);
+
+  // Clean selected IDs that no longer exist
+  useEffect(() => {
+    if (selectedIds.length > 0 && blogs.length > 0) {
+      const existingIds = new Set(blogs.map((b) => b.id));
+      setSelectedIds((prev) => prev.filter((id) => existingIds.has(id)));
+    }
+  }, [blogs]);
+
+  // Filtered & Sorted Blogs
   const filteredBlogs = useMemo(() => {
     return blogs.filter((b) => {
       const matchSearch =
@@ -291,28 +180,131 @@ export default function WebBlogsPage() {
     });
   }, [blogs, search, categoryFilter, statusFilter]);
 
+  // Sorted Blogs
+  const sortedBlogs = useMemo(() => {
+    const list = [...filteredBlogs];
+    list.sort((a, b) => {
+      let comparison = 0;
+      if (sortBy === "title") {
+        comparison = (a.title || "").localeCompare(b.title || "");
+      } else if (sortBy === "views") {
+        comparison = (a.views || 0) - (b.views || 0);
+      } else if (sortBy === "id") {
+        comparison = (a.id || 0) - (b.id || 0);
+      } else {
+        // Default: createdAt
+        const dateA = new Date(a.createdAt || a.publishedAt || 0).getTime();
+        const dateB = new Date(b.createdAt || b.publishedAt || 0).getTime();
+        comparison = dateA - dateB;
+      }
+      return sortOrder === "DESC" ? -comparison : comparison;
+    });
+    return list;
+  }, [filteredBlogs, sortBy, sortOrder]);
+
+  // Paginated Blogs
+  const totalPages = Math.ceil(sortedBlogs.length / pageSize) || 1;
+  const paginatedBlogs = useMemo(() => {
+    const startIndex = (currentPage - 1) * pageSize;
+    return sortedBlogs.slice(startIndex, startIndex + pageSize);
+  }, [sortedBlogs, currentPage, pageSize]);
+
   // Status statistics
   const totalCount = blogs.length;
   const publishedCount = blogs.filter((b) => b.status === "published").length;
   const draftCount = blogs.filter((b) => b.status === "draft").length;
   const totalViews = blogs.reduce((acc, curr) => acc + (curr.views || 0), 0);
 
-  // Generate URL slug from title or text
-  const generateSlug = (text) => {
-    if (!text) return "";
-    return text
-      .toString()
-      .toLowerCase()
-      .trim()
-      .replace(/[^a-z0-9\s-]/g, "")
-      .replace(/[\s_-]+/g, "-")
-      .replace(/^-+|-+$/g, "");
+  // Selection Handlers
+  const handleToggleSelectRow = (id) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleToggleSelectPage = () => {
+    const pageIds = paginatedBlogs.map((b) => b.id);
+    const allSelected = pageIds.length > 0 && pageIds.every((id) => selectedIds.includes(id));
+
+    if (allSelected) {
+      // Deselect all on current page
+      setSelectedIds((prev) => prev.filter((id) => !pageIds.includes(id)));
+    } else {
+      // Select all on current page
+      setSelectedIds((prev) => Array.from(new Set([...prev, ...pageIds])));
+    }
+  };
+
+  const handleSelectAllFiltered = () => {
+    setSelectedIds(filteredBlogs.map((b) => b.id));
+    toast.success(`Selected all ${filteredBlogs.length} articles!`);
+  };
+
+  const handleClearSelection = () => {
+    setSelectedIds([]);
+  };
+
+  // Bulk Actions Handlers
+  const handleBulkPublish = async () => {
+    if (selectedIds.length === 0) return;
+    const toastId = toast.loading(`Publishing ${selectedIds.length} articles...`);
+    try {
+      setBulkLoading(true);
+      await Promise.all(
+        selectedIds.map((id) => BlogService.update(id, { status: "published" }))
+      );
+      toast.success(`${selectedIds.length} articles published live!`, { id: toastId });
+      setSelectedIds([]);
+      fetchBlogs();
+    } catch (err) {
+      console.error("Bulk publish error:", err);
+      toast.error("Failed to publish selected articles", { id: toastId });
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const handleBulkDraft = async () => {
+    if (selectedIds.length === 0) return;
+    const toastId = toast.loading(`Moving ${selectedIds.length} articles to draft...`);
+    try {
+      setBulkLoading(true);
+      await Promise.all(
+        selectedIds.map((id) => BlogService.update(id, { status: "draft" }))
+      );
+      toast.success(`${selectedIds.length} articles moved to drafts!`, { id: toastId });
+      setSelectedIds([]);
+      fetchBlogs();
+    } catch (err) {
+      console.error("Bulk draft error:", err);
+      toast.error("Failed to update status for selected articles", { id: toastId });
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
+  const handleBulkDeleteConfirm = async () => {
+    if (selectedIds.length === 0) return;
+    const count = selectedIds.length;
+    const toastId = toast.loading(`Deleting ${count} articles...`);
+    try {
+      setBulkLoading(true);
+      await Promise.all(selectedIds.map((id) => BlogService.remove(id)));
+      toast.success(`${count} articles deleted successfully!`, { id: toastId });
+      setSelectedIds([]);
+      setBulkDeleteModalOpen(false);
+      fetchBlogs();
+    } catch (err) {
+      console.error("Bulk delete error:", err);
+      toast.error("Failed to delete selected articles", { id: toastId });
+    } finally {
+      setBulkLoading(false);
+    }
   };
 
   const handleTitleChange = (e) => {
     const val = e.target.value;
     setFormData((prev) => {
-      // Auto update slug only if user hasn't typed their own custom slug
       const shouldAutoSlug = !isSlugManual;
       return {
         ...prev,
@@ -330,7 +322,6 @@ export default function WebBlogsPage() {
 
   const handleSlugInputChange = (e) => {
     setIsSlugManual(true);
-    // Allow typing lowercase letters, numbers, hyphens, and underscores freely
     const raw = e.target.value;
     const sanitized = raw
       .toLowerCase()
@@ -389,49 +380,7 @@ export default function WebBlogsPage() {
       image: "",
       imageLink: "",
       excerpt: "",
-      content: `<h2>1. Common Problem Signs</h2>
-<p>Most home appliances exhibit subtle signs before breaking down completely. Recognizing these early can save you significant repair costs.</p>
-<ul>
-  <li>Unusual buzzing, rattling, or grinding noises during operation.</li>
-  <li>Sudden increase in electricity consumption without extra usage.</li>
-  <li>Inefficient heating or cooling cycles.</li>
-</ul>
-
-<div class="tip-callout" style="background: rgba(16, 185, 129, 0.1); border-left: 4px solid #10b981; padding: 14px 18px; border-radius: 8px; margin: 18px 0;">
-  <strong>💡 Expert Pro Tip:</strong> Never ignore electrical sparks or burning smells. Disconnect the main socket immediately and book a verified technician.
-</div>
-
-<h2>2. Step-by-Step Troubleshooting Guide</h2>
-<p>Follow these safe diagnostic measures before calling an engineer:</p>
-<ol>
-  <li>Inspect the power supply socket and circuit breaker.</li>
-  <li>Clean exterior dust filters and ventilation grills.</li>
-  <li>Check for water supply or hose blockages.</li>
-</ol>
-
-<h2>3. Estimated Repair Costs in Patna</h2>
-<p>Standard benchmark rates by certified technicians:</p>
-<table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
-  <thead>
-    <tr style="background: #1e293b; color: #f8fafc; text-align: left;">
-      <th style="padding: 10px; border: 1px solid #334155;">Service Type</th>
-      <th style="padding: 10px; border: 1px solid #334155;">Average Time</th>
-      <th style="padding: 10px; border: 1px solid #334155;">Warranty Included</th>
-    </tr>
-  </thead>
-  <tbody>
-    <tr>
-      <td style="padding: 10px; border: 1px solid #334155;">Basic Inspection &amp; Tuning</td>
-      <td style="padding: 10px; border: 1px solid #334155;">30 - 45 mins</td>
-      <td style="padding: 10px; border: 1px solid #334155;">30 Days</td>
-    </tr>
-    <tr>
-      <td style="padding: 10px; border: 1px solid #334155;">Major Part Replacement</td>
-      <td style="padding: 10px; border: 1px solid #334155;">1 - 2 hours</td>
-      <td style="padding: 10px; border: 1px solid #334155;">90 Days Part Guarantee</td>
-    </tr>
-  </tbody>
-</table>`,
+      content: DEFAULT_BLOG_TEMPLATE,
       metaTitle: "",
       metaDescription: "",
       metaKeywords: "patna appliance repair, doorstep repair patna, technician",
@@ -552,7 +501,7 @@ export default function WebBlogsPage() {
     }
   };
 
-  // Rich Text Commands (Word-like ribbon formatting)
+  // Rich Text Commands
   const execCmd = (command, value = null) => {
     if (activeTab !== "editor") setActiveTab("editor");
     if (editorRef.current) editorRef.current.focus();
@@ -564,7 +513,7 @@ export default function WebBlogsPage() {
     }
   };
 
-  // Word-like Font Family Selector
+  // Font Family Selector
   const applyFontFamily = (family) => {
     if (activeTab !== "editor") setActiveTab("editor");
     if (editorRef.current) editorRef.current.focus();
@@ -582,7 +531,7 @@ export default function WebBlogsPage() {
     }
   };
 
-  // Word-like Font Size Selector (supports custom manual entry & presets)
+  // Font Size Selector
   const applyFontSize = (size) => {
     if (!size) return;
     let cleanVal = String(size).trim();
@@ -632,14 +581,12 @@ export default function WebBlogsPage() {
     }
   };
 
-  // Increase or decrease font size by delta (like MS Word Grow/Shrink)
   const stepFontSize = (delta) => {
     const current = parseInt(customFontSize, 10) || 16;
     const newSize = Math.max(6, Math.min(144, current + delta));
     applyFontSize(newSize);
   };
 
-  // Word-like Font Color Picker
   const applyTextColor = (color) => {
     if (activeTab !== "editor") setActiveTab("editor");
     if (editorRef.current) editorRef.current.focus();
@@ -650,7 +597,6 @@ export default function WebBlogsPage() {
     handleEditorInput();
   };
 
-  // Word-like Text Highlighter
   const applyHighlightColor = (color) => {
     if (activeTab !== "editor") setActiveTab("editor");
     if (editorRef.current) editorRef.current.focus();
@@ -667,64 +613,12 @@ export default function WebBlogsPage() {
     handleEditorInput();
   };
 
-  // Generate HTML for in-content image
-  const generateImageHTML = (config) => {
-    const { url, alt, caption, align, width, angle, radius, shadow } = config;
-    const finalUrl = normalizeImageUrl(url);
-
-    let floatStyle = "none";
-    let marginStyle = "20px auto";
-    let displayStyle = "block";
-    let clearStyle = "both";
-    let maxWidth = `${width}%`;
-
-    if (align === "left") {
-      floatStyle = "left";
-      marginStyle = "10px 24px 16px 0";
-      clearStyle = "none";
-      maxWidth = `${Math.min(width, 50)}%`;
-    } else if (align === "right") {
-      floatStyle = "right";
-      marginStyle = "10px 0 16px 24px";
-      clearStyle = "none";
-      maxWidth = `${Math.min(width, 50)}%`;
-    } else if (align === "full") {
-      floatStyle = "none";
-      marginStyle = "24px 0";
-      clearStyle = "both";
-      maxWidth = "100%";
-    } else {
-      floatStyle = "none";
-      marginStyle = "20px auto";
-      clearStyle = "both";
-      maxWidth = `${width}%`;
-    }
-
-    let shadowCss = "none";
-    if (shadow === "soft") shadowCss = "0 4px 15px rgba(0,0,0,0.15)";
-    else if (shadow === "medium") shadowCss = "0 10px 25px -5px rgba(0,0,0,0.3)";
-    else if (shadow === "hard") shadowCss = "0 20px 35px -5px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.1)";
-
-    const figcaptionHTML = caption && caption.trim()
-      ? `<figcaption style="font-size: 13px; color: #64748b; margin-top: 8px; text-align: center; font-style: italic;">${caption.trim()}</figcaption>`
-      : "";
-
-    return `<figure class="blog-img-box" draggable="false" data-align="${align}" data-width="${width}" data-angle="${angle}" data-radius="${radius}" data-shadow="${shadow}" style="display: ${displayStyle}; float: ${floatStyle}; margin: ${marginStyle}; max-width: ${maxWidth}; width: ${maxWidth}; text-align: center; clear: ${clearStyle}; cursor: pointer; user-select: none;">
-  <div style="display: inline-block; width: 100%; text-align: center;">
-    <img src="${finalUrl}" draggable="false" alt="${alt || ""}" onerror="if(!this.dataset.retried){this.dataset.retried='1';if(this.src.includes('/api/uploads/')){this.src=this.src.replace('/api/uploads/','/uploads/');}else if(this.src.includes('/uploads/')){this.src=this.src.replace('/uploads/','/api/uploads/');}}" data-angle="${angle}" data-align="${align}" data-width="${width}" data-radius="${radius}" data-shadow="${shadow}" style="width: 100%; height: auto; transform: rotate(${angle}deg); border-radius: ${radius}px; box-shadow: ${shadowCss}; display: block; margin: 0 auto; transition: transform 0.2s;" />
-  </div>
-  ${figcaptionHTML}
-</figure><p><br></p>`;
-  };
-
   // Bulletproof DOM Insertion for Images at Current Cursor
   const insertImageAtCursor = (config) => {
     if (!editorRef.current || !config?.url) return false;
 
-    // 1. Grab saved range snapshot BEFORE touching focus to avoid browser jumping caret to bottom
     let targetRange = savedRangeRef.current ? savedRangeRef.current.cloneRange() : null;
 
-    // If no saved range, check active window selection inside editor
     if (!targetRange) {
       const sel = window.getSelection();
       if (sel && sel.rangeCount > 0 && editorRef.current.contains(sel.getRangeAt(0).commonAncestorContainer)) {
@@ -737,19 +631,16 @@ export default function WebBlogsPage() {
 
     let inserted = false;
 
-    // 2. Insert exactly at the restored cursor position
     if (targetRange && editorRef.current.contains(targetRange.commonAncestorContainer)) {
       try {
         const sel = window.getSelection();
         sel.removeAllRanges();
         sel.addRange(targetRange);
 
-        // Native insertHTML is most precise for WYSIWYG caret insertion
         if (document.queryCommandSupported && document.queryCommandSupported("insertHTML")) {
           inserted = document.execCommand("insertHTML", false, html);
         }
 
-        // DOM Range insertion fallback
         if (!inserted) {
           targetRange.deleteContents();
           const tempDiv = document.createElement("div");
@@ -777,7 +668,6 @@ export default function WebBlogsPage() {
       }
     }
 
-    // 3. Fallback: if cursor was lost, insert at beginning or end cleanly
     if (!inserted) {
       const tempDiv = document.createElement("div");
       tempDiv.innerHTML = html.trim();
@@ -793,7 +683,6 @@ export default function WebBlogsPage() {
     return true;
   };
 
-  // Open modal to insert new image
   const handleOpenInsertImage = () => {
     saveCurrentSelection();
     setImageModalMode("insert");
@@ -811,7 +700,6 @@ export default function WebBlogsPage() {
     setImageModalOpen(true);
   };
 
-  // Insert image from modal at current cursor selection
   const handleInsertImage = () => {
     if (!imageConfig.url) {
       toast.error("Please upload an image or provide an image URL");
@@ -823,7 +711,6 @@ export default function WebBlogsPage() {
     toast.success("Image added to blog article!");
   };
 
-  // Quick Direct Toolbar Image Upload
   const handleQuickImageUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -879,7 +766,6 @@ export default function WebBlogsPage() {
     }
   };
 
-  // Save modal changes to selected image
   const handleSaveImageChanges = () => {
     if (selectedImgEl) {
       updateSelectedImageAttributes(imageConfig);
@@ -888,7 +774,6 @@ export default function WebBlogsPage() {
     setImageModalOpen(false);
   };
 
-  // Update existing image attributes dynamically
   const updateSelectedImageAttributes = (newAttrs) => {
     if (!selectedImgEl) return;
     const merged = { ...imageConfig, ...newAttrs };
@@ -970,7 +855,6 @@ export default function WebBlogsPage() {
     setTimeout(() => updateOverlayRect(), 20);
   };
 
-  // Dynamic position updater for interactive image handles & overlay
   const updateOverlayRect = () => {
     if (!selectedImgEl || !editorWrapperRef.current) {
       setOverlayRect(null);
@@ -987,7 +871,6 @@ export default function WebBlogsPage() {
     });
   };
 
-  // Re-pin overlay position on scroll or window resize
   useEffect(() => {
     if (selectedImgEl) {
       updateOverlayRect();
@@ -1005,7 +888,6 @@ export default function WebBlogsPage() {
     }
   }, [selectedImgEl]);
 
-  // Real-time Mouse Drag-to-Resize Handler
   const handleResizeMouseDown = (e, handle) => {
     e.preventDefault();
     e.stopPropagation();
@@ -1028,7 +910,6 @@ export default function WebBlogsPage() {
         deltaX = -deltaX;
       }
 
-      // If centered, dragging expands from both sides symmetrically
       const multiplier = align === "center" ? 2 : 1;
       let targetWidthPx = startWidth + deltaX * multiplier;
 
@@ -1061,7 +942,6 @@ export default function WebBlogsPage() {
     window.addEventListener("mouseup", onMouseUp);
   };
 
-  // 1-Click Move Up, Down, Top, or Bottom
   const handleMoveSelectedImage = (direction) => {
     if (!selectedImgEl || !editorRef.current) return;
     const figure = selectedImgEl.closest("figure.blog-img-box");
@@ -1121,7 +1001,6 @@ export default function WebBlogsPage() {
     }
   };
 
-  // Universal Smooth Mouse Drag-to-Move Handler
   const handleStartMoveDrag = (e, figureEl = null) => {
     if (e.button !== 0) return;
     e.preventDefault();
@@ -1134,7 +1013,6 @@ export default function WebBlogsPage() {
     const startY = e.clientY;
     let hasMoved = false;
 
-    // Helper to find target block under cursor
     const getTargetUnderCursor = (clientX, clientY) => {
       const wrapperRect = editorWrapperRef.current.getBoundingClientRect();
       const allChildren = Array.from(editorRef.current.children).filter(
@@ -1145,7 +1023,6 @@ export default function WebBlogsPage() {
         return { target: null, position: "append", top: 10, left: 10, width: editorRef.current.clientWidth - 20 };
       }
 
-      // Check top bound (top of article)
       const firstRect = allChildren[0].getBoundingClientRect();
       if (clientY <= firstRect.top + 15) {
         return {
@@ -1157,7 +1034,6 @@ export default function WebBlogsPage() {
         };
       }
 
-      // Check bottom bound (bottom of article)
       const lastRect = allChildren[allChildren.length - 1].getBoundingClientRect();
       if (clientY >= lastRect.bottom - 15) {
         return {
@@ -1169,7 +1045,6 @@ export default function WebBlogsPage() {
         };
       }
 
-      // High-precision caret lookup
       if (document.caretRangeFromPoint) {
         const range = document.caretRangeFromPoint(clientX, clientY);
         if (range && editorRef.current.contains(range.commonAncestorContainer)) {
@@ -1192,7 +1067,6 @@ export default function WebBlogsPage() {
         }
       }
 
-      // Distance fallback
       let closest = allChildren[0];
       let minDist = Infinity;
       let pos = "after";
@@ -1244,7 +1118,7 @@ export default function WebBlogsPage() {
       }
     };
 
-    const onMouseUp = (upEvent) => {
+    const onMouseUp = () => {
       window.removeEventListener("mousemove", onMouseMove);
       window.removeEventListener("mouseup", onMouseUp);
 
@@ -1282,7 +1156,6 @@ export default function WebBlogsPage() {
     window.addEventListener("mouseup", onMouseUp);
   };
 
-  // Handle clicking inside the editor canvas
   const handleEditorClick = (e) => {
     const target = e.target;
     if (target && target.tagName === "IMG") {
@@ -1357,7 +1230,6 @@ export default function WebBlogsPage() {
     }
   };
 
-  // Double click image to open modal directly
   const handleEditorDoubleClick = (e) => {
     if (e.target && e.target.tagName === "IMG") {
       setImageModalMode("edit");
@@ -1365,7 +1237,6 @@ export default function WebBlogsPage() {
     }
   };
 
-  // Pressing delete or backspace when an image is selected
   const handleEditorKeyDown = (e) => {
     if (selectedImgEl && (e.key === "Delete" || e.key === "Backspace")) {
       e.preventDefault();
@@ -1373,7 +1244,6 @@ export default function WebBlogsPage() {
     }
   };
 
-  // Delete selected image
   const handleDeleteSelectedImage = () => {
     if (!selectedImgEl) return;
     const figure = selectedImgEl.closest("figure.blog-img-box");
@@ -1389,7 +1259,6 @@ export default function WebBlogsPage() {
     toast.success("Image removed from article");
   };
 
-  // Upload image in modal
   const handleModalImageUpload = async (file) => {
     if (!file) return;
     if (!file.type.startsWith("image/")) {
@@ -1432,7 +1301,6 @@ export default function WebBlogsPage() {
     }
   };
 
-  // Handle direct paste inside editor (supports screenshot pasting from clipboard)
   const handleEditorPaste = async (e) => {
     const items = e.clipboardData?.items;
     if (!items) return;
@@ -1485,7 +1353,6 @@ export default function WebBlogsPage() {
     }
   };
 
-  // Handle start of dragging figure inside editor
   const handleEditorDragStart = (e) => {
     const target = e.target;
     const figure = target.closest ? target.closest("figure.blog-img-box") : null;
@@ -1499,7 +1366,6 @@ export default function WebBlogsPage() {
     }
   };
 
-  // Clean up on drag end
   const handleEditorDragEnd = () => {
     if (draggedFigureRef.current) {
       draggedFigureRef.current.style.opacity = "1";
@@ -1510,14 +1376,12 @@ export default function WebBlogsPage() {
     setTimeout(() => updateOverlayRect(), 50);
   };
 
-  // Remove drop guide when pointer leaves editor
   const handleEditorDragLeave = (e) => {
     if (!editorRef.current?.contains(e.relatedTarget)) {
       setDropIndicator(null);
     }
   };
 
-  // Calculate live drop position indicator while dragging
   const handleEditorDragOver = (e) => {
     e.preventDefault();
 
@@ -1569,13 +1433,11 @@ export default function WebBlogsPage() {
     }
   };
 
-  // Handle direct drag-and-drop of image files from desktop onto the writing canvas
   const handleEditorDrop = async (e) => {
     const files = e.dataTransfer?.files;
     if (files && files.length > 0 && files[0].type.startsWith("image/")) {
       e.preventDefault();
 
-      // Lock cursor right at the drop coordinates
       if (document.caretRangeFromPoint) {
         const dropRange = document.caretRangeFromPoint(e.clientX, e.clientY);
         if (dropRange) savedRangeRef.current = dropRange.cloneRange();
@@ -1626,7 +1488,6 @@ export default function WebBlogsPage() {
       return;
     }
 
-    // Reposition existing figure moved with mouse
     if (draggedFigureRef.current && dropTargetBlockRef.current) {
       e.preventDefault();
       e.stopPropagation();
@@ -1667,7 +1528,6 @@ export default function WebBlogsPage() {
     setDropIndicator(null);
   };
 
-  // Insert Custom Callout Box
   const insertCallout = (type = "tip") => {
     if (type === "tip") {
       const html = `<div class="tip-callout" style="background: rgba(16, 185, 129, 0.1); border-left: 4px solid #10b981; padding: 14px 18px; border-radius: 8px; margin: 18px 0; color: inherit;">
@@ -1682,7 +1542,6 @@ export default function WebBlogsPage() {
     }
   };
 
-  // Insert Table
   const insertTable = () => {
     const html = `<table style="width: 100%; border-collapse: collapse; margin: 16px 0;">
       <thead>
@@ -1708,7 +1567,6 @@ export default function WebBlogsPage() {
     execCmd("insertHTML", html);
   };
 
-  // Insert Link Modal Handler
   const handleInsertLink = () => {
     if (!linkUrl) return;
     const finalUrl = linkUrl.startsWith("http") ? linkUrl : `https://${linkUrl}`;
@@ -1723,7 +1581,6 @@ export default function WebBlogsPage() {
     setLinkText("");
   };
 
-  // Image Upload handler (for featured cover image)
   const handleImageUpload = async (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -1762,7 +1619,6 @@ export default function WebBlogsPage() {
     }
   };
 
-  // Tag chip add
   const handleAddTag = (e) => {
     if (e.key === "Enter" || e.key === ",") {
       e.preventDefault();
@@ -1787,7 +1643,6 @@ export default function WebBlogsPage() {
     }
   };
 
-  // Submit Save or Update
   const handleSubmit = async (targetStatus = null) => {
     if (!formData.title.trim()) {
       toast.error("Blog title is required");
@@ -1804,7 +1659,6 @@ export default function WebBlogsPage() {
       return;
     }
 
-    // Clean any temporary editor selection styling on images
     if (editorRef.current) {
       editorRef.current.querySelectorAll("img").forEach((img) => {
         img.style.outline = "";
@@ -1815,7 +1669,6 @@ export default function WebBlogsPage() {
 
     const latestContent = editorRef.current ? editorRef.current.innerHTML : formData.content;
 
-    // Default image if empty
     const finalImage =
       formData.image ||
       "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=1200&q=80";
@@ -1847,7 +1700,6 @@ export default function WebBlogsPage() {
     }
   };
 
-  // Toggle publish status quick switch
   const handleToggleStatus = async (blog) => {
     try {
       await BlogService.toggleStatus(blog.id);
@@ -1862,7 +1714,6 @@ export default function WebBlogsPage() {
     }
   };
 
-  // Delete Blog
   const handleDeleteConfirm = async () => {
     if (!deleteId) return;
     try {
@@ -1878,7 +1729,6 @@ export default function WebBlogsPage() {
     }
   };
 
-  // Copy blog URL to clipboard
   const handleCopyUrl = (slug, id) => {
     const fullUrl = `https://repairsaathi.in/home-appliance-repair-blog/${slug}`;
     navigator.clipboard.writeText(fullUrl);
@@ -1914,7 +1764,7 @@ export default function WebBlogsPage() {
           <div className="flex items-center gap-3">
             <button
               onClick={fetchBlogs}
-              className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 transition"
+              className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
               title="Refresh Blogs"
             >
               <RefreshCw className={`w-4 h-4 ${loading ? "animate-spin text-emerald-400" : ""}`} />
@@ -1930,7 +1780,7 @@ export default function WebBlogsPage() {
             </a>
             <button
               onClick={handleOpenCreate}
-              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-400 text-white font-semibold text-sm shadow-lg shadow-emerald-500/20 flex items-center gap-2 transition transform hover:-translate-y-0.5"
+              className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 via-teal-600 to-emerald-500 hover:from-emerald-500 hover:to-teal-400 text-white font-semibold text-sm shadow-lg shadow-emerald-500/20 flex items-center gap-2 transition transform hover:-translate-y-0.5 cursor-pointer"
             >
               <Plus className="w-4 h-4" />
               <span>Write New Blog</span>
@@ -1939,2442 +1789,172 @@ export default function WebBlogsPage() {
         </div>
 
         {/* METRICS STATS CARDS */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <div className="bg-slate-900/60 backdrop-blur-sm border border-slate-800/80 rounded-2xl p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-slate-400 uppercase tracking-wider">Total Articles</p>
-              <h3 className="text-2xl font-bold text-white mt-1">{totalCount}</h3>
-              <p className="text-xs text-slate-500 mt-0.5">Created across categories</p>
-            </div>
-            <div className="w-12 h-12 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center text-blue-400">
-              <FileText className="w-6 h-6" />
-            </div>
-          </div>
-
-          <div className="bg-slate-900/60 backdrop-blur-sm border border-slate-800/80 rounded-2xl p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-emerald-400 uppercase tracking-wider">Published Live</p>
-              <h3 className="text-2xl font-bold text-white mt-1">{publishedCount}</h3>
-              <p className="text-xs text-emerald-500/80 mt-0.5 flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Active on repairsaathi.in
-              </p>
-            </div>
-            <div className="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400">
-              <CheckCircle2 className="w-6 h-6" />
-            </div>
-          </div>
-
-          <div className="bg-slate-900/60 backdrop-blur-sm border border-slate-800/80 rounded-2xl p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-amber-400 uppercase tracking-wider">Drafts &amp; Staging</p>
-              <h3 className="text-2xl font-bold text-white mt-1">{draftCount}</h3>
-              <p className="text-xs text-slate-500 mt-0.5">Unpublished guides</p>
-            </div>
-            <div className="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-400">
-              <Clock className="w-6 h-6" />
-            </div>
-          </div>
-
-          <div className="bg-slate-900/60 backdrop-blur-sm border border-slate-800/80 rounded-2xl p-4 flex items-center justify-between">
-            <div>
-              <p className="text-xs font-medium text-purple-400 uppercase tracking-wider">Total Readers</p>
-              <h3 className="text-2xl font-bold text-white mt-1">{totalViews.toLocaleString()}</h3>
-              <p className="text-xs text-slate-500 mt-0.5">Aggregated page views</p>
-            </div>
-            <div className="w-12 h-12 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
-              <Eye className="w-6 h-6" />
-            </div>
-          </div>
-        </div>
+        <BlogStatsCards
+          totalCount={totalCount}
+          publishedCount={publishedCount}
+          draftCount={draftCount}
+          totalViews={totalViews}
+        />
 
         {/* SEARCH, FILTER & ACTION BAR */}
-        <div className="bg-slate-900/60 backdrop-blur-sm border border-slate-800/80 rounded-2xl p-4 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4">
-          <div className="flex-1 flex flex-col sm:flex-row items-center gap-3">
-            <div className="relative w-full sm:w-80">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3.5 top-1/2 -translate-y-1/2" />
-              <input
-                type="text"
-                placeholder="Search by title, slug, tag, or excerpt..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2 bg-slate-950/80 border border-slate-800 rounded-xl text-sm text-slate-200 placeholder-slate-500 focus:outline-none focus:border-emerald-500/50 focus:ring-1 focus:ring-emerald-500/50"
-              />
-              {search && (
-                <button
-                  onClick={() => setSearch("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
-                >
-                  <X className="w-3.5 h-3.5" />
-                </button>
-              )}
-            </div>
+        <BlogFilterBar
+          search={search}
+          setSearch={setSearch}
+          categoryFilter={categoryFilter}
+          setCategoryFilter={setCategoryFilter}
+          statusFilter={statusFilter}
+          setStatusFilter={setStatusFilter}
+          sortBy={sortBy}
+          setSortBy={setSortBy}
+          sortOrder={sortOrder}
+          setSortOrder={setSortOrder}
+          pageSize={pageSize}
+          setPageSize={setPageSize}
+          filteredCount={filteredBlogs.length}
+          totalCount={blogs.length}
+        />
 
-            <div className="w-full sm:w-auto flex items-center gap-2">
-              <select
-                value={categoryFilter}
-                onChange={(e) => setCategoryFilter(e.target.value)}
-                className="w-full sm:w-auto px-3.5 py-2 bg-slate-950/80 border border-slate-800 rounded-xl text-sm text-slate-300 focus:outline-none focus:border-emerald-500/50"
-              >
-                <option value="all">All Categories</option>
-                {CATEGORIES.map((cat) => (
-                  <option key={cat} value={cat}>
-                    {cat}
-                  </option>
-                ))}
-              </select>
-
-              <div className="flex items-center bg-slate-950/80 border border-slate-800 rounded-xl p-1">
-                <button
-                  onClick={() => setStatusFilter("all")}
-                  className={`px-3 py-1 rounded-lg text-xs font-medium transition ${
-                    statusFilter === "all" ? "bg-slate-800 text-white" : "text-slate-400 hover:text-slate-200"
-                  }`}
-                >
-                  All
-                </button>
-                <button
-                  onClick={() => setStatusFilter("published")}
-                  className={`px-3 py-1 rounded-lg text-xs font-medium transition ${
-                    statusFilter === "published"
-                      ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                      : "text-slate-400 hover:text-slate-200"
-                  }`}
-                >
-                  Published
-                </button>
-                <button
-                  onClick={() => setStatusFilter("draft")}
-                  className={`px-3 py-1 rounded-lg text-xs font-medium transition ${
-                    statusFilter === "draft"
-                      ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
-                      : "text-slate-400 hover:text-slate-200"
-                  }`}
-                >
-                  Drafts
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div className="flex items-center justify-end gap-2 text-xs text-slate-400">
-            <span>Showing {filteredBlogs.length} of {blogs.length} articles</span>
-          </div>
-        </div>
-
-        {/* BLOGS LIST TABLE */}
-        <div className="bg-slate-900/60 backdrop-blur-sm border border-slate-800/80 rounded-2xl overflow-hidden shadow-xl">
-          {loading ? (
-            <div className="p-16 flex flex-col items-center justify-center text-slate-400">
-              <RefreshCw className="w-8 h-8 text-emerald-400 animate-spin mb-3" />
-              <p className="text-sm">Loading blog articles from database...</p>
-            </div>
-          ) : filteredBlogs.length === 0 ? (
-            <div className="p-16 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-slate-800/60 border border-slate-700/50 flex items-center justify-center mx-auto text-slate-400 mb-4">
-                <BookOpen className="w-8 h-8" />
-              </div>
-              <h3 className="text-lg font-semibold text-white">No Blog Articles Found</h3>
-              <p className="text-sm text-slate-400 max-w-md mx-auto mt-1 mb-6">
-                {search || categoryFilter !== "all" || statusFilter !== "all"
-                  ? "No blogs matched your search criteria. Try resetting the filters."
-                  : "You haven't published any repair guides yet. Create your first blog post to attract customers from Google search!"}
-              </p>
-              <button
-                onClick={handleOpenCreate}
-                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-medium text-sm inline-flex items-center gap-2 transition"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Write Your First Blog</span>
-              </button>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm text-slate-300">
-                <thead className="bg-slate-950/80 text-xs uppercase tracking-wider text-slate-400 border-b border-slate-800">
-                  <tr>
-                    <th className="py-3.5 px-4 font-semibold">Article &amp; URL Slug</th>
-                    <th className="py-3.5 px-4 font-semibold">Category</th>
-                    <th className="py-3.5 px-4 font-semibold">Author &amp; Read Time</th>
-                    <th className="py-3.5 px-4 font-semibold text-center">Views</th>
-                    <th className="py-3.5 px-4 font-semibold text-center">Status</th>
-                    <th className="py-3.5 px-4 font-semibold text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60">
-                  {filteredBlogs.map((blog) => (
-                    <tr
-                      key={blog.id}
-                      className="hover:bg-slate-800/40 transition group"
-                    >
-                      {/* Image & Title */}
-                      <td className="py-4 px-4 max-w-md">
-                        <div className="flex items-start gap-3">
-                          <div className="relative w-16 h-12 rounded-lg overflow-hidden bg-slate-800 border border-slate-700/60 shrink-0">
-                            {blog.image ? (
-                              <img
-                                src={normalizeImageUrl(blog.image)}
-                                alt={blog.title}
-                                className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                                onError={(e) => {
-                                  e.target.style.display = "none";
-                                }}
-                              />
-                            ) : (
-                              <div className="w-full h-full flex items-center justify-center text-slate-500">
-                                <ImageIcon className="w-5 h-5" />
-                              </div>
-                            )}
-                          </div>
-
-                          <div className="min-w-0">
-                            <div className="flex items-center gap-2">
-                              <h4 className="font-semibold text-white group-hover:text-emerald-400 transition truncate">
-                                {blog.title}
-                              </h4>
-                              {blog.isFeatured && (
-                                <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30">
-                                  <Star className="w-2.5 h-2.5 fill-amber-300" /> Featured
-                                </span>
-                              )}
-                            </div>
-                            <div className="flex items-center gap-2 mt-1">
-                              <span className="text-xs font-mono text-emerald-400/90 truncate max-w-[260px]">
-                                /{blog.slug}
-                              </span>
-                              <button
-                                onClick={() => handleCopyUrl(blog.slug, blog.id)}
-                                className="text-slate-500 hover:text-slate-300 transition"
-                                title="Copy URL"
-                              >
-                                {copiedId === blog.id ? (
-                                  <Check className="w-3.5 h-3.5 text-emerald-400" />
-                                ) : (
-                                  <Copy className="w-3.5 h-3.5" />
-                                )}
-                              </button>
-                            </div>
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Category */}
-                      <td className="py-4 px-4 whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-slate-800 text-slate-300 border border-slate-700/60">
-                          <Layers className="w-3 h-3 text-emerald-400" />
-                          {blog.category}
-                        </span>
-                      </td>
-
-                      {/* Author & Read Time */}
-                      <td className="py-4 px-4 whitespace-nowrap">
-                        <div className="text-xs text-slate-300 flex items-center gap-1.5">
-                          <User className="w-3.5 h-3.5 text-slate-500" />
-                          <span>{blog.author || "Tech Team"}</span>
-                        </div>
-                        <div className="text-xs text-slate-500 flex items-center gap-1.5 mt-1">
-                          <Clock className="w-3.5 h-3.5" />
-                          <span>{blog.readTime || "5 min read"}</span>
-                        </div>
-                      </td>
-
-                      {/* Views */}
-                      <td className="py-4 px-4 text-center whitespace-nowrap">
-                        <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800/80 text-xs font-semibold text-slate-300 border border-slate-700/50">
-                          <Eye className="w-3 h-3 text-purple-400" />
-                          {blog.views || 0}
-                        </span>
-                      </td>
-
-                      {/* Status Toggle */}
-                      <td className="py-4 px-4 text-center whitespace-nowrap">
-                        <button
-                          onClick={() => handleToggleStatus(blog)}
-                          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold transition border ${
-                            blog.status === "published"
-                              ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30 hover:bg-emerald-500/20"
-                              : "bg-amber-500/10 text-amber-400 border-amber-500/30 hover:bg-amber-500/20"
-                          }`}
-                          title="Click to toggle status"
-                        >
-                          <span
-                            className={`w-1.5 h-1.5 rounded-full ${
-                              blog.status === "published"
-                                ? "bg-emerald-400 animate-pulse"
-                                : "bg-amber-400"
-                            }`}
-                          />
-                          {blog.status === "published" ? "Published" : "Draft"}
-                        </button>
-                      </td>
-
-                      {/* Actions */}
-                      <td className="py-4 px-4 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-1.5">
-                          <a
-                            href={`https://repairsaathi.in/home-appliance-repair-blog/${blog.slug}`}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="p-2 rounded-lg bg-slate-800/60 hover:bg-slate-800 text-slate-400 hover:text-white transition"
-                            title="View on Live Website"
-                          >
-                            <ExternalLink className="w-4 h-4 text-emerald-400" />
-                          </a>
-                          <button
-                            onClick={() => handleOpenEdit(blog)}
-                            className="p-2 rounded-lg bg-slate-800/60 hover:bg-slate-800 text-slate-400 hover:text-white transition"
-                            title="Edit Blog"
-                          >
-                            <Edit3 className="w-4 h-4 text-blue-400" />
-                          </button>
-                          <button
-                            onClick={() => setDeleteId(blog.id)}
-                            className="p-2 rounded-lg bg-slate-800/60 hover:bg-red-500/10 text-slate-400 hover:text-red-400 transition"
-                            title="Delete Blog"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
+        {/* BLOGS LIST TABLE WITH SELECTION & PAGINATION */}
+        <BlogTable
+          loading={loading}
+          blogs={paginatedBlogs}
+          totalFilteredCount={filteredBlogs.length}
+          currentPage={currentPage}
+          totalPages={totalPages}
+          pageSize={pageSize}
+          onPageChange={(page) => setCurrentPage(page)}
+          search={search}
+          categoryFilter={categoryFilter}
+          statusFilter={statusFilter}
+          selectedIds={selectedIds}
+          onToggleSelectRow={handleToggleSelectRow}
+          onToggleSelectPage={handleToggleSelectPage}
+          onOpenCreate={handleOpenCreate}
+          onOpenEdit={handleOpenEdit}
+          onToggleStatus={handleToggleStatus}
+          onDeleteClick={(id) => setDeleteId(id)}
+          onCopyUrl={handleCopyUrl}
+          copiedId={copiedId}
+        />
       </div>
 
-      {/* =========================================================================
-          FULL-SCREEN PROFESSIONAL WORD-LIKE RICH BLOG EDITOR MODAL
-      ========================================================================= */}
-      {isEditorOpen && (
-        <div className="fixed inset-0 z-50 bg-slate-100 flex flex-col overflow-hidden animate-in fade-in duration-200">
-          {/* TOP BAR / RIBBON HEADER */}
-          <div className="bg-white border-b border-slate-200 px-4 py-3 flex items-center justify-between shrink-0 shadow-xs">
-            <div className="flex items-center gap-3">
-              <div className="p-2 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200">
-                <BookOpen className="w-5 h-5" />
-              </div>
-              <div>
-                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                  {editingBlog ? "Edit Blog Article" : "Create New Blog Article"}
-                  <span
-                    className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
-                      formData.status === "published"
-                        ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                        : "bg-amber-50 text-amber-700 border-amber-200"
-                    }`}
-                  >
-                    {formData.status.toUpperCase()}
-                  </span>
-                </h2>
-                <p className="text-xs text-slate-500">
-                  {stats.words} words • {stats.chars} chars • {stats.readTime}
-                </p>
-              </div>
-            </div>
-
-            {/* Mode Switchers & Actions */}
-            <div className="flex items-center gap-3">
-              {/* Tab Mode Toggle */}
-              <div className="hidden sm:flex items-center bg-slate-100 border border-slate-200 rounded-xl p-1 text-xs">
-                <button
-                  onClick={() => setActiveTab("editor")}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition flex items-center gap-1.5 ${
-                    activeTab === "editor"
-                      ? "bg-emerald-600 text-white shadow-xs"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
-                  }`}
-                >
-                  <Edit3 className="w-3.5 h-3.5" /> Word Editor
-                </button>
-                <button
-                  onClick={() => setActiveTab("html")}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition flex items-center gap-1.5 ${
-                    activeTab === "html"
-                      ? "bg-slate-800 text-white shadow-xs"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
-                  }`}
-                >
-                  <Code2 className="w-3.5 h-3.5" /> HTML Source
-                </button>
-                <button
-                  onClick={() => setActiveTab("preview")}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition flex items-center gap-1.5 ${
-                    activeTab === "preview"
-                      ? "bg-white text-emerald-600 font-semibold shadow-xs border border-slate-200"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-slate-200/60"
-                  }`}
-                >
-                  <Eye className="w-3.5 h-3.5" /> Live Web Preview
-                </button>
-              </div>
-
-              {/* Action Buttons */}
-              <button
-                type="button"
-                onClick={() => setIsEditorOpen(false)}
-                className="px-4 py-2 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-100 text-xs font-semibold transition"
-              >
-                Cancel
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSubmit("draft")}
-                disabled={saving}
-                className="px-4 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-800 border border-amber-200 text-xs font-semibold transition disabled:opacity-50"
-              >
-                Save as Draft
-              </button>
-              <button
-                type="button"
-                onClick={() => handleSubmit("published")}
-                disabled={saving}
-                className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white text-xs font-semibold shadow-md shadow-emerald-600/20 flex items-center gap-1.5 transition disabled:opacity-50"
-              >
-                {saving ? (
-                  <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                ) : (
-                  <CheckCircle2 className="w-3.5 h-3.5" />
-                )}
-                <span>{editingBlog ? "Update &amp; Publish" : "Publish to Website"}</span>
-              </button>
-            </div>
-          </div>
-
-          {/* MAIN SCROLLABLE EDITOR CONTAINER */}
-          <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-100">
-            <div className="max-w-7xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-6">
-              {/* LEFT 8 COLUMNS: MAIN WRITING AREA */}
-              <div className="lg:col-span-8 space-y-5">
-                {/* 1. ARTICLE TITLE */}
-                <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm space-y-3">
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-500">
-                    Blog Headline / Title <span className="text-emerald-500">*</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={formData.title}
-                    onChange={handleTitleChange}
-                    placeholder="e.g. 7 Warning Signs Your Refrigerator Needs Immediate Repair in Patna"
-                    className="w-full text-xl md:text-2xl font-bold bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-slate-900 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition"
-                  />
-
-                  {/* 2. URL SLUG BAR WITH LIVE WEBSITE LINK */}
-                  <div className="bg-slate-50 border border-slate-200 rounded-xl p-3 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 text-xs">
-                    <div className="flex items-center gap-1.5 overflow-hidden flex-1">
-                      <Globe className="w-4 h-4 text-emerald-600 shrink-0" />
-                      <span className="text-slate-500 shrink-0 font-mono">
-                        repairsaathi.in/home-appliance-repair-blog/
-                      </span>
-                      <input
-                        type="text"
-                        value={formData.slug}
-                        onChange={handleSlugInputChange}
-                        onBlur={handleSlugInputBlur}
-                        placeholder="my-blog-post-url-slug"
-                        className="bg-transparent font-mono text-emerald-700 font-semibold focus:outline-none border-b border-dashed border-emerald-500/50 px-1 flex-1 min-w-[120px]"
-                      />
-                    </div>
-                    <div className="flex items-center gap-2 self-end sm:self-auto shrink-0">
-                      <button
-                        type="button"
-                        onClick={handleAutoSlug}
-                        className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-xs flex items-center gap-1 transition"
-                        title="Auto Generate Slug from Title"
-                      >
-                        <Wand2 className="w-3 h-3 text-emerald-600" /> Auto-Slug
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          navigator.clipboard.writeText(
-                            `https://repairsaathi.in/home-appliance-repair-blog/${formData.slug}`
-                          );
-                          toast.success("URL copied!");
-                        }}
-                        className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-xs flex items-center gap-1 transition"
-                        title="Copy Full Live URL"
-                      >
-                        <Copy className="w-3 h-3" /> Copy
-                      </button>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 3. WORD-LIKE FORMATTING TOOLBAR RIBBON */}
-                {activeTab === "editor" && (
-                  <div className="bg-white border border-slate-200 rounded-2xl shadow-sm relative">
-                    {/* TOOLBAR (PROFESSIONAL WORD-LIKE RIBBON) */}
-                    <div className="bg-slate-50 border-b border-slate-200 p-2 rounded-t-2xl flex flex-wrap items-center gap-1.5 text-slate-700 sticky top-0 z-20 backdrop-blur-md">
-                      {/* Undo / Redo */}
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => execCmd("undo")}
-                        className="p-1.5 rounded-lg hover:bg-slate-200/70 text-slate-600 hover:text-slate-900 transition"
-                        title="Undo (Ctrl+Z)"
-                      >
-                        <RotateCcw className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => execCmd("redo")}
-                        className="p-1.5 rounded-lg hover:bg-slate-200/70 text-slate-600 hover:text-slate-900 transition"
-                        title="Redo (Ctrl+Y)"
-                      >
-                        <RotateCw className="w-4 h-4" />
-                      </button>
-
-                      <div className="w-[1px] h-5 bg-slate-200 mx-0.5" />
-
-                      {/* Headings & Text Styles */}
-                      <select
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          if (!val) return;
-                          if (val === "p") execCmd("formatBlock", "<p>");
-                          else execCmd("formatBlock", `<${val}>`);
-                          e.target.value = "";
-                        }}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        className="bg-white border border-slate-200 text-xs rounded-lg px-2.5 py-1 text-slate-700 focus:outline-none focus:border-emerald-500 cursor-pointer shadow-xs"
-                        title="Text Formatting / Headings"
-                      >
-                        <option value="">Text Style...</option>
-                        <option value="p">Paragraph (Normal)</option>
-                        <option value="h1">Heading 1 (Main Title)</option>
-                        <option value="h2">Heading 2 (Section)</option>
-                        <option value="h3">Heading 3 (Sub-section)</option>
-                        <option value="h4">Heading 4 (Minor)</option>
-                        <option value="blockquote">Quote Block</option>
-                        <option value="pre">Code Block</option>
-                      </select>
-
-                      {/* Font Family / Design Selector */}
-                      <select
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          if (val) applyFontFamily(val);
-                          e.target.value = "";
-                        }}
-                        onMouseDown={(e) => e.stopPropagation()}
-                        className="bg-white border border-slate-200 text-xs rounded-lg px-2.5 py-1 text-slate-700 focus:outline-none focus:border-emerald-500 cursor-pointer max-w-[130px] shadow-xs"
-                        title="Font Design (Family)"
-                      >
-                        <option value="">Font Style...</option>
-                        <option value="Inter, sans-serif" style={{ fontFamily: "Inter, sans-serif" }}>Inter (Clean Sans)</option>
-                        <option value="Roboto, sans-serif" style={{ fontFamily: "Roboto, sans-serif" }}>Roboto (Modern)</option>
-                        <option value="Poppins, sans-serif" style={{ fontFamily: "Poppins, sans-serif" }}>Poppins (Geometric)</option>
-                        <option value="Montserrat, sans-serif" style={{ fontFamily: "Montserrat, sans-serif" }}>Montserrat (Executive)</option>
-                        <option value="'Open Sans', sans-serif" style={{ fontFamily: "'Open Sans', sans-serif" }}>Open Sans (Neutral)</option>
-                        <option value="Georgia, serif" style={{ fontFamily: "Georgia, serif" }}>Georgia (Classic Serif)</option>
-                        <option value="Merriweather, serif" style={{ fontFamily: "Merriweather, serif" }}>Merriweather (Editorial)</option>
-                        <option value="'Playfair Display', serif" style={{ fontFamily: "'Playfair Display', serif" }}>Playfair Display (Luxury)</option>
-                        <option value="'Times New Roman', serif" style={{ fontFamily: "'Times New Roman', serif" }}>Times New Roman</option>
-                        <option value="'JetBrains Mono', monospace" style={{ fontFamily: "'JetBrains Mono', monospace" }}>JetBrains Mono (Code)</option>
-                        <option value="'Courier New', monospace" style={{ fontFamily: "'Courier New', monospace" }}>Courier New (Typewriter)</option>
-                        <option value="'Comic Sans MS', cursive" style={{ fontFamily: "'Comic Sans MS', cursive" }}>Comic Sans (Playful)</option>
-                        <option value="Impact, sans-serif" style={{ fontFamily: "Impact, sans-serif" }}>Impact (Headline)</option>
-                      </select>
-
-                      {/* MS Word-like Font Size (Manual Number Entry + Preset Dropdown + Grow/Shrink) */}
-                      <div className="flex items-center gap-1" title="Font Size (select text and type custom size)">
-                        <div className="flex items-center bg-white border border-slate-200 hover:border-slate-300 focus-within:border-emerald-500 rounded-lg shadow-xs overflow-hidden transition">
-                          <input
-                            type="text"
-                            inputMode="numeric"
-                            value={customFontSize}
-                            onChange={(e) => {
-                              const cleaned = e.target.value.replace(/[^0-9]/g, "");
-                              setCustomFontSize(cleaned);
-                            }}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") {
-                                e.preventDefault();
-                                if (customFontSize) applyFontSize(customFontSize);
-                              }
-                            }}
-                            onBlur={() => {
-                              if (customFontSize) applyFontSize(customFontSize);
-                            }}
-                            className="w-9 text-center text-xs font-semibold text-slate-800 bg-white py-1 px-1 focus:outline-none focus:bg-emerald-50/40"
-                            title="Type custom font size (e.g. 18, 22) & press Enter"
-                            placeholder="16"
-                          />
-                          <select
-                            value={customFontSize}
-                            onChange={(e) => {
-                              const val = e.target.value;
-                              if (val) applyFontSize(val);
-                            }}
-                            onMouseDown={(e) => e.stopPropagation()}
-                            className="bg-slate-50 hover:bg-slate-100 border-l border-slate-200 text-xs py-1 px-1 text-slate-600 focus:outline-none cursor-pointer"
-                            title="Choose font size preset"
-                          >
-                            <option value="" disabled hidden>
-                              ▾
-                            </option>
-                            {[8, 9, 10, 11, 12, 13, 14, 15, 16, 18, 20, 22, 24, 26, 28, 32, 36, 40, 44, 48, 56, 64, 72].map(
-                              (s) => (
-                                <option key={s} value={String(s)}>
-                                  {s}
-                                </option>
-                              )
-                            )}
-                          </select>
-                        </div>
-
-                        {/* MS Word Grow Font Button (A▲) */}
-                        <button
-                          type="button"
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            stepFontSize(2);
-                          }}
-                          className="p-1 px-1.5 rounded-lg hover:bg-slate-200/70 text-slate-700 hover:text-slate-900 transition flex items-center justify-center font-bold"
-                          title="Grow Font (Increase +2px)"
-                        >
-                          <span className="text-xs font-extrabold leading-none">A</span>
-                          <span className="text-[8px] -mt-1 font-black leading-none ml-0.5">▲</span>
-                        </button>
-
-                        {/* MS Word Shrink Font Button (A▼) */}
-                        <button
-                          type="button"
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            stepFontSize(-2);
-                          }}
-                          className="p-1 px-1.5 rounded-lg hover:bg-slate-200/70 text-slate-700 hover:text-slate-900 transition flex items-center justify-center font-bold"
-                          title="Shrink Font (Decrease -2px)"
-                        >
-                          <span className="text-[10px] font-bold leading-none">A</span>
-                          <span className="text-[8px] mt-1 font-black leading-none ml-0.5">▼</span>
-                        </button>
-                      </div>
-
-                      <div className="w-[1px] h-5 bg-slate-200 mx-0.5" />
-
-                      {/* Basic Typography Group */}
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => execCmd("bold")}
-                        className="p-1.5 rounded-lg hover:bg-slate-200/70 text-slate-700 hover:text-slate-900 transition font-bold"
-                        title="Bold (Ctrl+B)"
-                      >
-                        <Bold className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => execCmd("italic")}
-                        className="p-1.5 rounded-lg hover:bg-slate-200/70 text-slate-700 hover:text-slate-900 transition italic"
-                        title="Italic (Ctrl+I)"
-                      >
-                        <Italic className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => execCmd("underline")}
-                        className="p-1.5 rounded-lg hover:bg-slate-200/70 text-slate-700 hover:text-slate-900 transition underline"
-                        title="Underline (Ctrl+U)"
-                      >
-                        <Underline className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => execCmd("strikeThrough")}
-                        className="p-1.5 rounded-lg hover:bg-slate-200/70 text-slate-700 hover:text-slate-900 transition"
-                        title="Strikethrough"
-                      >
-                        <Strikethrough className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => execCmd("subscript")}
-                        className="p-1.5 rounded-lg hover:bg-slate-200/70 text-slate-700 hover:text-slate-900 transition"
-                        title="Subscript (X₂)"
-                      >
-                        <Subscript className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => execCmd("superscript")}
-                        className="p-1.5 rounded-lg hover:bg-slate-200/70 text-slate-700 hover:text-slate-900 transition"
-                        title="Superscript (X²)"
-                      >
-                        <Superscript className="w-4 h-4" />
-                      </button>
-
-                      <div className="w-[1px] h-5 bg-slate-200 mx-0.5" />
-
-                      {/* Word-like Text Color Picker */}
-                      <div className="relative color-picker-container">
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => {
-                            setShowColorPicker(!showColorPicker);
-                            setShowHighlightPicker(false);
-                          }}
-                          className="p-1.5 rounded-lg hover:bg-slate-200/70 text-slate-700 hover:text-slate-900 transition flex flex-col items-center justify-center relative"
-                          title="Font Text Color"
-                        >
-                          <span className="font-bold text-sm leading-none">A</span>
-                          <span
-                            className="w-3.5 h-1 rounded-sm mt-0.5 shadow-xs"
-                            style={{ backgroundColor: activeTextColor }}
-                          />
-                        </button>
-
-                        {showColorPicker && (
-                          <div
-                            onMouseDown={(e) => e.stopPropagation()}
-                            className="absolute top-full right-0 mt-2 z-50 bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xl w-64 space-y-3 animate-in fade-in zoom-in-95 duration-100"
-                          >
-                            <div className="flex items-center justify-between text-xs font-semibold text-slate-800 pb-1.5 border-b border-slate-200">
-                              <span>Font Text Color</span>
-                              <button
-                                type="button"
-                                onClick={() => setShowColorPicker(false)}
-                                className="text-slate-400 hover:text-slate-600 p-0.5 rounded"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-
-                            {/* Palette Swatches */}
-                            <div className="grid grid-cols-6 gap-1.5">
-                              {[
-                                "#0f172a", "#334155", "#64748b", "#94a3b8", "#cbd5e1", "#ffffff",
-                                "#10b981", "#059669", "#06b6d4", "#0284c7", "#3b82f6", "#1d4ed8",
-                                "#6366f1", "#8b5cf6", "#a855f7", "#ec4899", "#ef4444", "#dc2626",
-                                "#f97316", "#eab308", "#14b8a6", "#84cc16", "#78716c", "#475569",
-                              ].map((c) => (
-                                <button
-                                  key={c}
-                                  type="button"
-                                  onMouseDown={(e) => e.preventDefault()}
-                                  onClick={() => applyTextColor(c)}
-                                  className="w-7 h-7 rounded-lg border border-slate-200 hover:scale-110 transition flex items-center justify-center relative shadow-xs cursor-pointer"
-                                  style={{ backgroundColor: c }}
-                                  title={c}
-                                >
-                                  {activeTextColor === c && (
-                                    <Check className={`w-3.5 h-3.5 ${c === "#ffffff" || c === "#cbd5e1" || c === "#eab308" ? "text-slate-900" : "text-white"}`} />
-                                  )}
-                                </button>
-                              ))}
-                            </div>
-
-                            {/* Custom Color Input */}
-                            <div className="pt-2.5 border-t border-slate-200 flex items-center gap-2.5">
-                              <input
-                                type="color"
-                                value={activeTextColor}
-                                onChange={(e) => applyTextColor(e.target.value)}
-                                className="w-8 h-8 rounded-lg border border-slate-300 cursor-pointer bg-transparent p-0.5"
-                                title="Pick Custom Color"
-                              />
-                              <div className="flex-1 flex items-center justify-between">
-                                <span className="text-xs font-mono font-bold text-slate-800 uppercase">{activeTextColor}</span>
-                                <span className="text-[11px] text-slate-400">Hex Code</span>
-                              </div>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-
-                      {/* Word-like Text Highlighter */}
-                      <div className="relative highlight-picker-container">
-                        <button
-                          type="button"
-                          onMouseDown={(e) => e.preventDefault()}
-                          onClick={() => {
-                            setShowHighlightPicker(!showHighlightPicker);
-                            setShowColorPicker(false);
-                          }}
-                          className="p-1.5 rounded-lg hover:bg-slate-200/70 text-slate-700 hover:text-slate-900 transition flex flex-col items-center justify-center relative"
-                          title="Highlight Color"
-                        >
-                          <Highlighter className="w-3.5 h-3.5" />
-                          <span
-                            className="w-3.5 h-1 rounded-sm mt-0.5 shadow-xs"
-                            style={{ backgroundColor: activeHighlightColor }}
-                          />
-                        </button>
-
-                        {showHighlightPicker && (
-                          <div
-                            onMouseDown={(e) => e.stopPropagation()}
-                            className="absolute top-full right-0 mt-2 z-50 bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xl w-56 space-y-3 animate-in fade-in zoom-in-95 duration-100"
-                          >
-                            <div className="flex items-center justify-between text-xs font-semibold text-slate-800 pb-1.5 border-b border-slate-200">
-                              <span>Highlight Text</span>
-                              <button
-                                type="button"
-                                onClick={() => setShowHighlightPicker(false)}
-                                className="text-slate-400 hover:text-slate-600 p-0.5 rounded"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
-                            </div>
-
-                            {/* Swatches */}
-                            <div className="grid grid-cols-4 gap-1.5">
-                              {[
-                                { name: "Yellow", color: "#fef08a" },
-                                { name: "Green", color: "#bbf7d0" },
-                                { name: "Cyan", color: "#a5f3fc" },
-                                { name: "Pink", color: "#fbcfe8" },
-                                { name: "Orange", color: "#fed7aa" },
-                                { name: "Purple", color: "#e9d5ff" },
-                                { name: "Emerald", color: "#a7f3d0" },
-                              ].map((h) => (
-                                <button
-                                  key={h.color}
-                                  type="button"
-                                  onMouseDown={(e) => e.preventDefault()}
-                                  onClick={() => applyHighlightColor(h.color)}
-                                  className="h-7 rounded-lg border border-slate-200 hover:scale-105 transition flex items-center justify-center shadow-xs cursor-pointer"
-                                  style={{ backgroundColor: h.color }}
-                                  title={h.name}
-                                >
-                                  {activeHighlightColor === h.color && <Check className="w-3.5 h-3.5 text-slate-900" />}
-                                </button>
-                              ))}
-                            </div>
-
-                            {/* Clear Highlight button */}
-                            <button
-                              type="button"
-                              onMouseDown={(e) => e.preventDefault()}
-                              onClick={() => applyHighlightColor("transparent")}
-                              className="w-full py-1 text-xs text-slate-600 hover:text-slate-900 rounded border border-slate-200 hover:bg-slate-100 transition"
-                            >
-                              Remove Highlight
-                            </button>
-                          </div>
-                        )}
-                      </div>
-
-                      <div className="w-[1px] h-5 bg-slate-200 mx-0.5" />
-
-                      {/* Alignments */}
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => execCmd("justifyLeft")}
-                        className="p-1.5 rounded-lg hover:bg-slate-200/70 text-slate-600 hover:text-slate-900 transition"
-                        title="Align Left"
-                      >
-                        <AlignLeft className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => execCmd("justifyCenter")}
-                        className="p-1.5 rounded-lg hover:bg-slate-200/70 text-slate-600 hover:text-slate-900 transition"
-                        title="Align Center"
-                      >
-                        <AlignCenter className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => execCmd("justifyRight")}
-                        className="p-1.5 rounded-lg hover:bg-slate-200/70 text-slate-600 hover:text-slate-900 transition"
-                        title="Align Right"
-                      >
-                        <AlignRight className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => execCmd("justifyFull")}
-                        className="p-1.5 rounded-lg hover:bg-slate-200/70 text-slate-600 hover:text-slate-900 transition"
-                        title="Justify"
-                      >
-                        <AlignJustify className="w-4 h-4" />
-                      </button>
-
-                      <div className="w-[1px] h-5 bg-slate-200 mx-0.5" />
-
-                      {/* Lists & Indentation */}
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => execCmd("insertUnorderedList")}
-                        className="p-1.5 rounded-lg hover:bg-slate-200/70 text-slate-600 hover:text-slate-900 transition"
-                        title="Bullet List"
-                      >
-                        <List className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => execCmd("insertOrderedList")}
-                        className="p-1.5 rounded-lg hover:bg-slate-200/70 text-slate-600 hover:text-slate-900 transition"
-                        title="Numbered List"
-                      >
-                        <ListOrdered className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => execCmd("outdent")}
-                        className="p-1.5 rounded-lg hover:bg-slate-200/70 text-slate-600 hover:text-slate-900 transition"
-                        title="Decrease Indent"
-                      >
-                        <Outdent className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => execCmd("indent")}
-                        className="p-1.5 rounded-lg hover:bg-slate-200/70 text-slate-600 hover:text-slate-900 transition"
-                        title="Increase Indent"
-                      >
-                        <Indent className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => execCmd("formatBlock", "<blockquote>")}
-                        className="p-1.5 rounded-lg hover:bg-slate-200/70 text-slate-600 hover:text-slate-900 transition"
-                        title="Blockquote"
-                      >
-                        <Quote className="w-4 h-4" />
-                      </button>
-
-                      <div className="w-[1px] h-5 bg-slate-200 mx-0.5" />
-
-                      {/* In-Content Insert Objects */}
-                      {/* 🖼️ DIRECT QUICK UPLOAD BUTTON */}
-                      <button
-                        type="button"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          saveCurrentSelection();
-                        }}
-                        onClick={() => {
-                          saveCurrentSelection();
-                          quickUploadInputRef.current?.click();
-                        }}
-                        className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs flex items-center gap-1.5 transition font-semibold shadow-xs"
-                        title="Upload Image directly from computer and insert at cursor"
-                      >
-                        <Upload className="w-3.5 h-3.5 text-emerald-600" /> Upload Image
-                      </button>
-                      <input
-                        ref={quickUploadInputRef}
-                        type="file"
-                        accept="image/*"
-                        onClick={(e) => e.stopPropagation()}
-                        onChange={handleQuickImageUpload}
-                        className="hidden"
-                      />
-
-                      {/* 🖼️ ADVANCED IMAGE MODAL BUTTON (Angle / Styling) */}
-                      <button
-                        type="button"
-                        onMouseDown={(e) => {
-                          e.preventDefault();
-                          saveCurrentSelection();
-                        }}
-                        onClick={() => {
-                          saveCurrentSelection();
-                          handleOpenInsertImage();
-                        }}
-                        className="px-2.5 py-1 rounded-lg bg-cyan-50 hover:bg-cyan-100 text-cyan-700 border border-cyan-200 text-xs flex items-center gap-1.5 transition font-semibold shadow-xs"
-                        title="Insert Image (Upload or Web URL with full Angle, Shadow & Position control)"
-                      >
-                        <ImageIcon className="w-3.5 h-3.5" /> + Image (Angles)
-                      </button>
-
-                      {/* Special Blocks */}
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => insertCallout("tip")}
-                        className="px-2 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs flex items-center gap-1 transition font-medium shadow-xs"
-                        title="Insert Pro Tip Callout Box"
-                      >
-                        <Lightbulb className="w-3.5 h-3.5" /> + Pro Tip
-                      </button>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => insertCallout("warning")}
-                        className="px-2 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs flex items-center gap-1 transition font-medium shadow-xs"
-                        title="Insert Warning Box"
-                      >
-                        <AlertTriangle className="w-3.5 h-3.5" /> + Warning
-                      </button>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={insertTable}
-                        className="px-2 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 text-xs flex items-center gap-1 transition font-medium shadow-xs"
-                        title="Insert Pricing / Comparison Table"
-                      >
-                        <Table className="w-3.5 h-3.5" /> + Table
-                      </button>
-
-                      <div className="w-[1px] h-5 bg-slate-200 mx-0.5" />
-
-                      {/* Link & Clear */}
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => {
-                          saveCurrentSelection();
-                          setShowLinkModal(true);
-                        }}
-                        className="p-1.5 rounded-lg hover:bg-slate-200/70 text-slate-600 hover:text-slate-900 transition"
-                        title="Insert Web Link"
-                      >
-                        <Link2 className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => execCmd("insertHorizontalRule")}
-                        className="p-1.5 rounded-lg hover:bg-slate-200/70 text-slate-600 hover:text-slate-900 transition"
-                        title="Horizontal Divider"
-                      >
-                        <Minus className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onMouseDown={(e) => e.preventDefault()}
-                        onClick={() => execCmd("removeFormat")}
-                        className="p-1.5 rounded-lg hover:bg-slate-200/70 text-slate-600 hover:text-rose-600 transition"
-                        title="Clear Formatting"
-                      >
-                        <Eraser className="w-4 h-4" />
-                      </button>
-                    </div>
-
-                    {/* DYNAMIC IMAGE CONTROL DOCK (APPEARS WHEN AN IMAGE IS SELECTED IN CANVAS) */}
-                    {selectedImgEl && (
-                      <div className="image-control-dock bg-slate-50 border-b border-emerald-500/30 px-3 py-2 flex flex-wrap items-center justify-between gap-2.5 text-xs animate-in slide-in-from-top-1 duration-150 sticky top-[48px] z-10 backdrop-blur-md">
-                        <div className="flex items-center gap-2">
-                          <span className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold border border-emerald-200 text-[11px]">
-                            <ImageIcon className="w-3 h-3" /> Image Selected ({imageConfig.angle}° | {imageConfig.align.toUpperCase()} | {imageConfig.width}%)
-                          </span>
-                        </div>
-
-                        {/* Quick Placement / Alignment */}
-                        <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5 shadow-xs">
-                          <button
-                            type="button"
-                            onClick={() => updateSelectedImageAttributes({ align: "left" })}
-                            className={`px-2 py-1 rounded transition flex items-center gap-1 ${imageConfig.align === "left" ? "bg-emerald-600 text-white font-medium" : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"}`}
-                            title="Float Left (Text wraps along right)"
-                          >
-                            <AlignLeft className="w-3 h-3" /> Left
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => updateSelectedImageAttributes({ align: "center" })}
-                            className={`px-2 py-1 rounded transition flex items-center gap-1 ${imageConfig.align === "center" ? "bg-emerald-600 text-white font-medium" : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"}`}
-                            title="Center Block"
-                          >
-                            <AlignCenter className="w-3 h-3" /> Center
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => updateSelectedImageAttributes({ align: "right" })}
-                            className={`px-2 py-1 rounded transition flex items-center gap-1 ${imageConfig.align === "right" ? "bg-emerald-600 text-white font-medium" : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"}`}
-                            title="Float Right (Text wraps along left)"
-                          >
-                            <AlignRight className="w-3 h-3" /> Right
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => updateSelectedImageAttributes({ align: "full" })}
-                            className={`px-2 py-1 rounded transition flex items-center gap-1 ${imageConfig.align === "full" ? "bg-emerald-600 text-white font-medium" : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"}`}
-                            title="Full Width Stretch"
-                          >
-                            <Maximize2 className="w-3 h-3" /> Full
-                          </button>
-                        </div>
-
-                        {/* Quick Width Presets */}
-                        <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5 shadow-xs">
-                          {[25, 50, 75, 100].map((sz) => (
-                            <button
-                              key={sz}
-                              type="button"
-                              onClick={() => updateSelectedImageAttributes({ width: sz })}
-                              className={`px-2 py-0.5 rounded transition text-[11px] font-medium ${imageConfig.width === sz ? "bg-emerald-600 text-white" : "text-slate-600 hover:text-slate-900 hover:bg-slate-100"}`}
-                              title={`Width: ${sz}%`}
-                            >
-                              {sz}%
-                            </button>
-                          ))}
-                        </div>
-
-                        {/* Quick Rotate / Angle */}
-                        <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5 shadow-xs">
-                          <button
-                            type="button"
-                            onClick={() => updateSelectedImageAttributes({ angle: (imageConfig.angle - 15) % 360 })}
-                            className="p-1 rounded text-slate-500 hover:text-slate-800 transition"
-                            title="Rotate Left -15°"
-                          >
-                            <RotateCcw className="w-3 h-3" />
-                          </button>
-                          <span className="px-2 font-mono text-emerald-700 font-bold text-[11px]">{imageConfig.angle}°</span>
-                          <button
-                            type="button"
-                            onClick={() => updateSelectedImageAttributes({ angle: (imageConfig.angle + 15) % 360 })}
-                            className="p-1 rounded text-slate-500 hover:text-slate-800 transition"
-                            title="Rotate Right +15°"
-                          >
-                            <RotateCw className="w-3 h-3" />
-                          </button>
-                          {imageConfig.angle !== 0 && (
-                            <button
-                              type="button"
-                              onClick={() => updateSelectedImageAttributes({ angle: 0 })}
-                              className="px-1.5 py-0.5 text-[10px] text-slate-400 hover:text-slate-700 underline"
-                              title="Reset angle to 0°"
-                            >
-                              0°
-                            </button>
-                          )}
-                        </div>
-
-                        {/* Quick 1-Click Move Controls: Top, Up, Down, Bottom */}
-                        <div className="flex items-center bg-white border border-slate-200 rounded-lg p-0.5 shadow-xs">
-                          <button
-                            type="button"
-                            onClick={() => handleMoveSelectedImage("top")}
-                            className="px-2 py-1 rounded text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 transition flex items-center gap-1 font-medium text-xs"
-                            title="Move Image to Top of article"
-                          >
-                            <ChevronsUp className="w-3.5 h-3.5 text-emerald-600" /> Top
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleMoveSelectedImage("up")}
-                            className="px-2 py-1 rounded text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 transition flex items-center gap-1 font-medium text-xs border-l border-slate-200"
-                            title="Move Image Up (Above previous paragraph)"
-                          >
-                            <ArrowUp className="w-3.5 h-3.5 text-emerald-600" /> Up
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleMoveSelectedImage("down")}
-                            className="px-2 py-1 rounded text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 transition flex items-center gap-1 font-medium text-xs border-l border-slate-200"
-                            title="Move Image Down (Below next paragraph)"
-                          >
-                            <ArrowDown className="w-3.5 h-3.5 text-emerald-600" /> Down
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleMoveSelectedImage("bottom")}
-                            className="px-2 py-1 rounded text-slate-600 hover:text-emerald-700 hover:bg-emerald-50 transition flex items-center gap-1 font-medium text-xs border-l border-slate-200"
-                            title="Move Image to Bottom of article"
-                          >
-                            <ChevronsDown className="w-3.5 h-3.5 text-emerald-600" /> Bottom
-                          </button>
-                        </div>
-
-                        {/* Full Controls & Delete */}
-                        <div className="flex items-center gap-1.5">
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setImageModalMode("edit");
-                              setImageModalOpen(true);
-                            }}
-                            className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 font-medium flex items-center gap-1 transition text-xs shadow-xs"
-                            title="Open full controls: fine-tune angle slider, width, shadows, caption, replace image"
-                          >
-                            <Sliders className="w-3 h-3" /> Sliders &amp; Caption
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={handleDeleteSelectedImage}
-                            className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 transition"
-                            title="Delete this image"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-
-                          <button
-                            type="button"
-                            onClick={() => {
-                              if (selectedImgEl) {
-                                selectedImgEl.style.outline = "";
-                                selectedImgEl.style.outlineOffset = "";
-                              }
-                              setSelectedImgEl(null);
-                              setOverlayRect(null);
-                            }}
-                            className="p-1.5 rounded-lg hover:bg-slate-200 text-slate-400 hover:text-slate-700 transition"
-                            title="Close / Deselect"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* EDITABLE DOCUMENT CANVAS WRAPPER */}
-                    <div ref={editorWrapperRef} className="relative">
-                      {/* EDITABLE DOCUMENT CANVAS */}
-                      <div
-                        ref={editorRef}
-                        contentEditable
-                        onInput={handleEditorInput}
-                        onClick={handleEditorClick}
-                        onDoubleClick={handleEditorDoubleClick}
-                        onKeyDown={handleEditorKeyDown}
-                        onKeyUp={saveCurrentSelection}
-                        onMouseUp={saveCurrentSelection}
-                        onPaste={handleEditorPaste}
-                        onDragStart={handleEditorDragStart}
-                        onDragEnd={handleEditorDragEnd}
-                        onDragOver={handleEditorDragOver}
-                        onDragLeave={handleEditorDragLeave}
-                        onDrop={handleEditorDrop}
-                        className="min-h-[500px] p-8 md:p-10 bg-white text-slate-800 text-base leading-relaxed focus:outline-none focus:ring-0 font-sans selection:bg-emerald-100 overflow-y-auto"
-                        style={{ minHeight: "520px" }}
-                      />
-
-                      {/* VISUAL DROP INDICATOR LINE (SHOWS EXACT DROP SPOT WHEN MOVING IMAGE) */}
-                      {dropIndicator && (
-                        <div
-                          className="pointer-events-none absolute z-30 transition-all duration-75"
-                          style={{
-                            top: `${dropIndicator.top}px`,
-                            left: `${dropIndicator.left}px`,
-                            width: `${dropIndicator.width}px`,
-                            height: "3px",
-                            backgroundColor: "#10b981",
-                            borderRadius: "9999px",
-                            boxShadow: "0 0 10px #10b981, 0 0 20px rgba(16, 185, 129, 0.4)",
-                          }}
-                        >
-                          <div className="absolute -left-1.5 -top-1 w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-md ring-2 ring-white" />
-                          <div className="absolute -right-1.5 -top-1 w-2.5 h-2.5 rounded-full bg-emerald-500 shadow-md ring-2 ring-white" />
-                        </div>
-                      )}
-
-                      {/* FLOATING CURSOR BADGE WHILE DRAGGING IMAGE WITH MOUSE */}
-                      {isDraggingImage && (
-                        <div
-                          className="fixed z-50 pointer-events-none transform -translate-x-1/2 -translate-y-1/2 bg-slate-900/95 text-white px-3.5 py-1.5 rounded-full shadow-2xl border border-emerald-500/60 flex items-center gap-2 text-xs font-semibold backdrop-blur-md animate-in fade-in zoom-in-95 duration-75 select-none"
-                          style={{ left: `${dragCursorPos.x}px`, top: `${dragCursorPos.y}px` }}
-                        >
-                          <div className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
-                          <Move className="w-3.5 h-3.5 text-emerald-400" />
-                          <span>Moving Image • Release anywhere to drop</span>
-                        </div>
-                      )}
-
-                      {/* FLOATING INTERACTIVE RESIZE & MOVE OVERLAY (OUTSIDE CONTENTEDITABLE DOM) */}
-                      {selectedImgEl && overlayRect && (
-                        <div
-                          className="image-resize-overlay absolute z-20 pointer-events-none transition-none"
-                          style={{
-                            top: `${overlayRect.top}px`,
-                            left: `${overlayRect.left}px`,
-                            width: `${overlayRect.width}px`,
-                            height: `${overlayRect.height}px`,
-                          }}
-                        >
-                          {/* Outer Border Frame (Click and drag to move freely!) */}
-                          <div
-                            onMouseDown={(e) => handleStartMoveDrag(e)}
-                            className="absolute inset-0 border-2 border-emerald-500 rounded-lg pointer-events-auto cursor-grab active:cursor-grabbing shadow-xs bg-emerald-500/5 hover:bg-emerald-500/15 transition-colors"
-                            title="Click and drag with mouse to freely move this image anywhere in the article"
-                          />
-
-                          {/* Top Floating Control Toolbar Bar */}
-                          <div
-                            className="absolute -top-10 left-1/2 -translate-x-1/2 pointer-events-auto bg-slate-900/95 backdrop-blur-md text-white px-2.5 py-1 rounded-full shadow-xl border border-slate-700/80 flex items-center gap-2 text-[11px] whitespace-nowrap select-none animate-in fade-in zoom-in-95 duration-100"
-                            onMouseDown={(e) => e.stopPropagation()}
-                          >
-                            {/* Drag to Move handle */}
-                            <div
-                              onMouseDown={(e) => handleStartMoveDrag(e)}
-                              className="px-2.5 py-0.5 rounded-full bg-emerald-600 hover:bg-emerald-500 text-white font-medium flex items-center gap-1 cursor-grab active:cursor-grabbing transition"
-                              title="Click and drag with mouse to freely move this image anywhere"
-                            >
-                              <Move className="w-3 h-3" />
-                              <span>Drag to Move</span>
-                            </div>
-
-                            {/* 1-Click Move Top */}
-                            <button
-                              type="button"
-                              onClick={() => handleMoveSelectedImage("top")}
-                              className="p-1 hover:bg-slate-800 rounded text-slate-300 hover:text-emerald-400 transition flex items-center gap-0.5"
-                              title="Move to top of article"
-                            >
-                              <ChevronsUp className="w-3 h-3 text-emerald-400" />
-                              <span className="hidden sm:inline text-[10px]">Top</span>
-                            </button>
-
-                            {/* 1-Click Move Up */}
-                            <button
-                              type="button"
-                              onClick={() => handleMoveSelectedImage("up")}
-                              className="p-1 hover:bg-slate-800 rounded text-slate-300 hover:text-white transition flex items-center gap-0.5"
-                              title="Move above previous paragraph"
-                            >
-                              <ArrowUp className="w-3 h-3 text-emerald-400" />
-                              <span className="hidden sm:inline text-[10px]">Up</span>
-                            </button>
-
-                            {/* 1-Click Move Down */}
-                            <button
-                              type="button"
-                              onClick={() => handleMoveSelectedImage("down")}
-                              className="p-1 hover:bg-slate-800 rounded text-slate-300 hover:text-white transition flex items-center gap-0.5"
-                              title="Move below next paragraph"
-                            >
-                              <ArrowDown className="w-3 h-3 text-emerald-400" />
-                              <span className="hidden sm:inline text-[10px]">Down</span>
-                            </button>
-
-                            {/* 1-Click Move Bottom */}
-                            <button
-                              type="button"
-                              onClick={() => handleMoveSelectedImage("bottom")}
-                              className="p-1 hover:bg-slate-800 rounded text-slate-300 hover:text-emerald-400 transition flex items-center gap-0.5"
-                              title="Move to bottom of article"
-                            >
-                              <ChevronsDown className="w-3 h-3 text-emerald-400" />
-                              <span className="hidden sm:inline text-[10px]">Bottom</span>
-                            </button>
-
-                            <div className="w-[1px] h-3.5 bg-slate-700" />
-
-                            {/* Live Size Badge */}
-                            <span className="font-mono text-emerald-400 font-bold px-1">
-                              {imageConfig.width}% • {Math.round(overlayRect.width)}px
-                            </span>
-
-                            <div className="w-[1px] h-3.5 bg-slate-700" />
-
-                            {/* Deselect / Close */}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (selectedImgEl) {
-                                  selectedImgEl.style.outline = "";
-                                  selectedImgEl.style.outlineOffset = "";
-                                }
-                                setSelectedImgEl(null);
-                                setOverlayRect(null);
-                              }}
-                              className="p-0.5 hover:bg-slate-800 text-slate-400 hover:text-white rounded-full transition"
-                              title="Close"
-                            >
-                              <X className="w-3.5 h-3.5" />
-                            </button>
-                          </div>
-
-                          {/* 8 Resize Handles (NW, N, NE, E, SE, S, SW, W) */}
-                          {/* Corner NW */}
-                          <div
-                            onMouseDown={(e) => handleResizeMouseDown(e, "nw")}
-                            className="absolute -top-1.5 -left-1.5 w-3.5 h-3.5 bg-white border-2 border-emerald-600 rounded-xs shadow-md pointer-events-auto cursor-nw-resize hover:bg-emerald-500 hover:scale-125 transition-transform"
-                            title="Drag with mouse to resize (Top-Left)"
-                          />
-                          {/* Top Center N */}
-                          <div
-                            onMouseDown={(e) => handleResizeMouseDown(e, "n")}
-                            className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3.5 h-3.5 bg-white border-2 border-emerald-600 rounded-xs shadow-md pointer-events-auto cursor-n-resize hover:bg-emerald-500 hover:scale-125 transition-transform"
-                            title="Drag with mouse to resize"
-                          />
-                          {/* Corner NE */}
-                          <div
-                            onMouseDown={(e) => handleResizeMouseDown(e, "ne")}
-                            className="absolute -top-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-emerald-600 rounded-xs shadow-md pointer-events-auto cursor-ne-resize hover:bg-emerald-500 hover:scale-125 transition-transform"
-                            title="Drag with mouse to resize (Top-Right)"
-                          />
-                          {/* Middle Right E */}
-                          <div
-                            onMouseDown={(e) => handleResizeMouseDown(e, "e")}
-                            className="absolute top-1/2 -right-1.5 -translate-y-1/2 w-3.5 h-3.5 bg-white border-2 border-emerald-600 rounded-xs shadow-md pointer-events-auto cursor-e-resize hover:bg-emerald-500 hover:scale-125 transition-transform"
-                            title="Drag with mouse to resize width (Right Edge)"
-                          />
-                          {/* Corner SE */}
-                          <div
-                            onMouseDown={(e) => handleResizeMouseDown(e, "se")}
-                            className="absolute -bottom-1.5 -right-1.5 w-3.5 h-3.5 bg-white border-2 border-emerald-600 rounded-xs shadow-md pointer-events-auto cursor-se-resize hover:bg-emerald-500 hover:scale-125 transition-transform"
-                            title="Drag with mouse to resize (Bottom-Right)"
-                          />
-                          {/* Bottom Center S */}
-                          <div
-                            onMouseDown={(e) => handleResizeMouseDown(e, "s")}
-                            className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3.5 h-3.5 bg-white border-2 border-emerald-600 rounded-xs shadow-md pointer-events-auto cursor-s-resize hover:bg-emerald-500 hover:scale-125 transition-transform"
-                            title="Drag with mouse to resize"
-                          />
-                          {/* Corner SW */}
-                          <div
-                            onMouseDown={(e) => handleResizeMouseDown(e, "sw")}
-                            className="absolute -bottom-1.5 -left-1.5 w-3.5 h-3.5 bg-white border-2 border-emerald-600 rounded-xs shadow-md pointer-events-auto cursor-sw-resize hover:bg-emerald-500 hover:scale-125 transition-transform"
-                            title="Drag with mouse to resize (Bottom-Left)"
-                          />
-                          {/* Middle Left W */}
-                          <div
-                            onMouseDown={(e) => handleResizeMouseDown(e, "w")}
-                            className="absolute top-1/2 -left-1.5 -translate-y-1/2 w-3.5 h-3.5 bg-white border-2 border-emerald-600 rounded-xs shadow-md pointer-events-auto cursor-w-resize hover:bg-emerald-500 hover:scale-125 transition-transform"
-                            title="Drag with mouse to resize width (Left Edge)"
-                          />
-
-                          {/* Live Tooltip while resizing */}
-                          {isResizing && (
-                            <div className="absolute -bottom-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white font-mono text-[11px] font-bold px-2.5 py-0.5 rounded-md shadow-lg pointer-events-none border border-slate-700 whitespace-nowrap">
-                              ↔ Resizing: {imageConfig.width}% ({Math.round(overlayRect.width)}px)
-                            </div>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    {/* EDITOR FOOTER STATUS BAR */}
-                    <div className="bg-slate-50 px-4 py-2 border-t border-slate-200 rounded-b-2xl flex items-center justify-between text-xs text-slate-500">
-                      <div className="flex items-center gap-4">
-                        <span>Words: <strong className="text-slate-800">{stats.words}</strong></span>
-                        <span>Characters: <strong className="text-slate-800">{stats.chars}</strong></span>
-                        <span>Estimated Read: <strong className="text-emerald-700">{stats.readTime}</strong></span>
-                      </div>
-                      <div className="text-slate-400">
-                        Rich HTML WYSIWYG Mode
-                      </div>
-                    </div>
-                  </div>
-                )}
-
-                {/* RAW HTML MODE */}
-                {activeTab === "html" && (
-                  <div className="bg-white border border-slate-200 rounded-2xl p-4 shadow-sm">
-                    <div className="flex items-center justify-between pb-3 border-b border-slate-200 text-xs text-slate-500">
-                      <span className="font-mono text-emerald-600 font-semibold">&lt;HTML Source Editor /&gt;</span>
-                      <span>Edit raw HTML tags directly for custom structures</span>
-                    </div>
-                    <textarea
-                      value={formData.content}
-                      onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, content: e.target.value }))
-                      }
-                      rows={22}
-                      className="w-full mt-3 bg-slate-900 text-emerald-300 font-mono text-sm p-4 rounded-xl border border-slate-700 focus:outline-none focus:border-emerald-500 leading-relaxed shadow-inner"
-                    />
-                  </div>
-                )}
-
-                {/* LIVE WEB PREVIEW TAB */}
-                {activeTab === "preview" && (
-                  <div className="bg-white text-slate-900 rounded-2xl p-6 md:p-10 shadow-sm border border-slate-200 space-y-6">
-                    <div className="border-b border-slate-200 pb-4 flex items-center justify-between text-xs text-slate-500">
-                      <span className="font-semibold text-emerald-600 flex items-center gap-1.5">
-                        <CheckCircle2 className="w-4 h-4" /> Website Visitor Live Preview
-                      </span>
-                      <span>Category: {formData.category} • {formData.readTime}</span>
-                    </div>
-
-                    <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 leading-tight">
-                      {formData.title || "Untitled Blog Post"}
-                    </h1>
-
-                    <div className="flex items-center gap-3 text-sm text-slate-600">
-                      <div className="w-9 h-9 rounded-full bg-emerald-100 text-emerald-700 flex items-center justify-center font-bold">
-                        RS
-                      </div>
-                      <div>
-                        <p className="font-semibold text-slate-900">{formData.author}</p>
-                        <p className="text-xs text-slate-500">Published on {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })} • Repair Saathi Patna</p>
-                      </div>
-                    </div>
-
-                    {formData.image && (
-                      <div className="rounded-xl overflow-hidden shadow-md max-h-[420px]">
-                        <img
-                          src={normalizeImageUrl(formData.image)}
-                          alt={formData.title}
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                    )}
-
-                    {formData.excerpt && (
-                      <p className="text-lg italic text-slate-600 border-l-4 border-emerald-500 pl-4 py-1">
-                        {formData.excerpt}
-                      </p>
-                    )}
-
-                    <div
-                      className="prose prose-slate max-w-none text-base leading-relaxed"
-                      dangerouslySetInnerHTML={{ __html: formData.content }}
-                    />
-                  </div>
-                )}
-
-                {/* 4. SHORT EXCERPT / SUMMARY */}
-                <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm space-y-2">
-                  <div className="flex items-center justify-between">
-                    <label className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                      Short Excerpt / Summary
-                    </label>
-                    <span className="text-xs text-slate-400">
-                      {formData.excerpt?.length || 0}/250 characters
-                    </span>
-                  </div>
-                  <textarea
-                    rows={3}
-                    value={formData.excerpt}
-                    onChange={(e) =>
-                      setFormData((prev) => ({ ...prev, excerpt: e.target.value }))
-                    }
-                    placeholder="Brief 2-3 sentence overview displayed on blog cards, search listings, and social shares..."
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 text-sm text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 transition"
-                  />
-                </div>
-              </div>
-
-              {/* RIGHT 4 COLUMNS: SETTINGS, SEO & MEDIA */}
-              <div className="lg:col-span-4 space-y-5">
-                {/* 1. PUBLISHING STATUS BOX */}
-                <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm space-y-4">
-                  <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                    <SlidersHorizontal className="w-4 h-4 text-emerald-600" />
-                    Publishing Controls
-                  </h3>
-
-                  <div className="space-y-3">
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">
-                        Article Status
-                      </label>
-                      <select
-                        value={formData.status}
-                        onChange={(e) =>
-                          setFormData((prev) => ({ ...prev, status: e.target.value }))
-                        }
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-800 focus:outline-none focus:bg-white focus:border-emerald-500"
-                      >
-                        <option value="published">🟢 Published (Live on Website)</option>
-                        <option value="draft">🟡 Draft (Hidden from Website)</option>
-                      </select>
-                    </div>
-
-                    <div className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200">
-                      <div>
-                        <p className="text-xs font-semibold text-slate-800">Featured Guide</p>
-                        <p className="text-[11px] text-slate-500">Pin to top of blog list</p>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={formData.isFeatured}
-                        onChange={(e) =>
-                          setFormData((prev) => ({
-                            ...prev,
-                            isFeatured: e.target.checked,
-                          }))
-                        }
-                        className="w-4 h-4 accent-emerald-600 cursor-pointer"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">
-                        Author Byline
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.author}
-                        onChange={(e) =>
-                          setFormData((prev) => ({ ...prev, author: e.target.value }))
-                        }
-                        placeholder="Repair Saathi Technical Team"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-800 focus:outline-none focus:bg-white focus:border-emerald-500 placeholder-slate-400"
-                      />
-                    </div>
-
-                    <div>
-                      <label className="block text-xs font-semibold text-slate-600 mb-1">
-                        Estimated Read Time
-                      </label>
-                      <input
-                        type="text"
-                        value={formData.readTime}
-                        onChange={(e) =>
-                          setFormData((prev) => ({ ...prev, readTime: e.target.value }))
-                        }
-                        placeholder="5 min read"
-                        className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-800 focus:outline-none focus:bg-white focus:border-emerald-500 placeholder-slate-400"
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                {/* 2. CATEGORY & TAGS */}
-                <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm space-y-4">
-                  <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                    <Layers className="w-4 h-4 text-emerald-600" />
-                    Category &amp; Tags
-                  </h3>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">
-                      Appliance Category
-                    </label>
-                    <select
-                      value={formData.category}
-                      onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, category: e.target.value }))
-                      }
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-sm text-slate-800 focus:outline-none focus:bg-white focus:border-emerald-500"
-                    >
-                      {CATEGORIES.map((cat) => (
-                        <option key={cat} value={cat}>
-                          {cat}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">
-                      Tags (Press Enter or comma to add)
-                    </label>
-                    <div className="flex flex-wrap gap-1.5 mb-2">
-                      {formData.tags.map((tag) => (
-                        <span
-                          key={tag}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200"
-                        >
-                          #{tag}
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveTag(tag)}
-                            className="text-emerald-600 hover:text-emerald-800"
-                          >
-                            <X className="w-3 h-3" />
-                          </button>
-                        </span>
-                      ))}
-                    </div>
-                    <input
-                      type="text"
-                      value={tagInput}
-                      onChange={(e) => setTagInput(e.target.value)}
-                      onKeyDown={handleAddTag}
-                      placeholder="Type tag and press Enter..."
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-emerald-500 placeholder-slate-400"
-                    />
-
-                    {/* Tag Suggestions */}
-                    <div className="mt-2.5">
-                      <p className="text-[11px] text-slate-500 mb-1">Suggestions:</p>
-                      <div className="flex flex-wrap gap-1">
-                        {SUGGESTED_TAGS.filter((t) => !formData.tags.includes(t))
-                          .slice(0, 5)
-                          .map((sug) => (
-                            <button
-                              key={sug}
-                              type="button"
-                              onClick={() => handleAddSuggestedTag(sug)}
-                              className="text-[10px] px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 border border-slate-200 transition"
-                            >
-                              +{sug}
-                            </button>
-                          ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* 3. FEATURED IMAGE (FILE UPLOAD + OPTIONAL CLICK LINK) */}
-                <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm space-y-3">
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                      <ImageIcon className="w-4 h-4 text-emerald-600" />
-                      Cover / Featured Image
-                    </h3>
-                  </div>
-
-                  {/* Always keep file input in DOM so Replace button and Drag-drop always work */}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onClick={(e) => e.stopPropagation()}
-                    onChange={handleImageUpload}
-                    className="hidden"
-                  />
-
-                  {formData.image ? (
-                    <div className="space-y-2">
-                      <div className="relative rounded-xl overflow-hidden border border-slate-200 group bg-slate-50">
-                        <img
-                          src={normalizeImageUrl(formData.image)}
-                          alt="Cover Preview"
-                          className="w-full h-44 object-cover"
-                        />
-                        <div className="absolute inset-0 bg-slate-900/60 opacity-0 group-hover:opacity-100 flex items-center justify-center gap-2 transition duration-200">
-                          <button
-                            type="button"
-                            onClick={() => fileInputRef.current?.click()}
-                            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold flex items-center gap-1 shadow cursor-pointer"
-                          >
-                            <Upload className="w-3.5 h-3.5" /> Replace
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setFormData((prev) => ({ ...prev, image: "" }));
-                            }}
-                            className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-semibold flex items-center gap-1 shadow cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" /> Remove
-                          </button>
-                        </div>
-                      </div>
-
-                      {formData.imageLink && (
-                        <div className="flex items-center gap-1.5 text-[11px] text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg px-2.5 py-1">
-                          <Link2 className="w-3 h-3 text-emerald-600 shrink-0" />
-                          <span className="font-medium truncate">Opens on click: {formData.imageLink}</span>
-                        </div>
-                      )}
-                    </div>
-                  ) : (
-                    <div
-                      onClick={() => fileInputRef.current?.click()}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const file = e.dataTransfer?.files?.[0];
-                        if (file) handleImageUpload({ target: { files: [file], value: "" } });
-                      }}
-                      className="border-2 border-dashed border-slate-300 hover:border-emerald-500 rounded-xl p-6 text-center cursor-pointer transition bg-slate-50/70 group"
-                    >
-                      {uploadingImage ? (
-                        <div className="flex flex-col items-center">
-                          <RefreshCw className="w-6 h-6 text-emerald-600 animate-spin mb-2" />
-                          <p className="text-xs text-slate-500">Uploading image to server...</p>
-                        </div>
-                      ) : (
-                        <div className="flex flex-col items-center">
-                          <Upload className="w-6 h-6 text-slate-400 group-hover:text-emerald-600 mb-2 transition" />
-                          <p className="text-xs font-semibold text-slate-700 group-hover:text-emerald-700">Click to upload cover photo</p>
-                          <p className="text-[11px] text-slate-400 mt-1">PNG, JPG, or WEBP up to 5MB</p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  <div>
-                    <label className="block text-[11px] font-semibold text-slate-700 mb-1 flex items-center justify-between">
-                      <span className="flex items-center gap-1.5">
-                        <Link2 className="w-3.5 h-3.5 text-emerald-600" />
-                        Cover Image Click Link (URL to open when clicked):
-                      </span>
-                      <span className="text-[10px] text-slate-400 font-normal">Optional</span>
-                    </label>
-                    <input
-                      type="url"
-                      value={formData.imageLink || ""}
-                      onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, imageLink: e.target.value }))
-                      }
-                      placeholder="https://repairsaathi.in/home-appliance-repair-services-patna/ (or any link)"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-1.5 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-emerald-500 placeholder-slate-400"
-                    />
-                    <p className="text-[10px] text-slate-400 mt-1">
-                      Jab user live website par is cover image par click karega to yeh link new tab me open hoga.
-                    </p>
-                  </div>
-                </div>
-
-                {/* 4. SEO & GOOGLE SERP PREVIEW */}
-                <div className="bg-white border border-slate-200/90 rounded-2xl p-5 shadow-sm space-y-4">
-                  <h3 className="text-sm font-bold text-slate-800 uppercase tracking-wider flex items-center gap-2">
-                    <Sparkles className="w-4 h-4 text-emerald-600" />
-                    Google SEO &amp; SERP Snippet
-                  </h3>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs font-semibold text-slate-600">
-                        Meta Title
-                      </label>
-                      <span className="text-[11px] text-slate-400">
-                        {formData.metaTitle?.length || 0}/60
-                      </span>
-                    </div>
-                    <input
-                      type="text"
-                      value={formData.metaTitle}
-                      onChange={(e) =>
-                        setFormData((prev) => ({ ...prev, metaTitle: e.target.value }))
-                      }
-                      placeholder={formData.title ? `${formData.title} | Repair Saathi` : "SEO Page Title"}
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-emerald-500 placeholder-slate-400"
-                    />
-                  </div>
-
-                  <div>
-                    <div className="flex items-center justify-between mb-1">
-                      <label className="text-xs font-semibold text-slate-600">
-                        Meta Description
-                      </label>
-                      <span className="text-[11px] text-slate-400">
-                        {formData.metaDescription?.length || 0}/160
-                      </span>
-                    </div>
-                    <textarea
-                      rows={2}
-                      value={formData.metaDescription}
-                      onChange={(e) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          metaDescription: e.target.value,
-                        }))
-                      }
-                      placeholder="Short meta summary for Google search snippet results..."
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-emerald-500 placeholder-slate-400"
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-600 mb-1">
-                      Meta Keywords
-                    </label>
-                    <input
-                      type="text"
-                      value={formData.metaKeywords}
-                      onChange={(e) =>
-                        setFormData((prev) => ({
-                          ...prev,
-                          metaKeywords: e.target.value,
-                        }))
-                      }
-                      placeholder="patna ac repair, technician, geyser service"
-                      className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-emerald-500 placeholder-slate-400"
-                    />
-                  </div>
-
-                  {/* GOOGLE SERP PREVIEW BOX */}
-                  <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-200 space-y-1">
-                    <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
-                      <div className="w-3.5 h-3.5 rounded-full bg-emerald-600 flex items-center justify-center text-[8px] text-white font-bold">
-                        R
-                      </div>
-                      <span className="font-sans">repairsaathi.in › home-appliance-repair-blog › {formData.slug || "article-slug"}</span>
-                    </div>
-                    <p className="text-sm font-medium text-blue-700 hover:underline cursor-pointer line-clamp-1">
-                      {formData.metaTitle || formData.title || "Blog Title on Google Search"}
-                    </p>
-                    <p className="text-xs text-slate-600 line-clamp-2 leading-relaxed">
-                      {formData.metaDescription ||
-                        formData.excerpt ||
-                        "Expert home appliance repair and maintenance guide written by certified Repair Saathi technicians in Patna."}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* FLOATING BULK ACTIONS BAR (When 1 or more items are selected) */}
+      <BlogBulkActionsBar
+        selectedIds={selectedIds}
+        totalFilteredCount={filteredBlogs.length}
+        onSelectAllFiltered={handleSelectAllFiltered}
+        onClearSelection={handleClearSelection}
+        onBulkPublish={handleBulkPublish}
+        onBulkDraft={handleBulkDraft}
+        onBulkDelete={() => setBulkDeleteModalOpen(true)}
+        bulkLoading={bulkLoading}
+      />
+
+      {/* FULL-SCREEN PROFESSIONAL WORD-LIKE RICH BLOG EDITOR MODAL */}
+      <BlogEditorModal
+        isOpen={isEditorOpen}
+        onClose={() => setIsEditorOpen(false)}
+        editingBlog={editingBlog}
+        formData={formData}
+        setFormData={setFormData}
+        stats={stats}
+        saving={saving}
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        onSubmit={handleSubmit}
+        handleTitleChange={handleTitleChange}
+        handleSlugInputChange={handleSlugInputChange}
+        handleSlugInputBlur={handleSlugInputBlur}
+        handleAutoSlug={handleAutoSlug}
+        execCmd={execCmd}
+        applyFontFamily={applyFontFamily}
+        applyFontSize={applyFontSize}
+        stepFontSize={stepFontSize}
+        customFontSize={customFontSize}
+        setCustomFontSize={setCustomFontSize}
+        showColorPicker={showColorPicker}
+        setShowColorPicker={setShowColorPicker}
+        activeTextColor={activeTextColor}
+        applyTextColor={applyTextColor}
+        showHighlightPicker={showHighlightPicker}
+        setShowHighlightPicker={setShowHighlightPicker}
+        activeHighlightColor={activeHighlightColor}
+        applyHighlightColor={applyHighlightColor}
+        quickUploadInputRef={quickUploadInputRef}
+        handleQuickImageUpload={handleQuickImageUpload}
+        saveCurrentSelection={saveCurrentSelection}
+        handleOpenInsertImage={handleOpenInsertImage}
+        insertCallout={insertCallout}
+        insertTable={insertTable}
+        setShowLinkModal={setShowLinkModal}
+        selectedImgEl={selectedImgEl}
+        setSelectedImgEl={setSelectedImgEl}
+        imageConfig={imageConfig}
+        updateSelectedImageAttributes={updateSelectedImageAttributes}
+        handleMoveSelectedImage={handleMoveSelectedImage}
+        setImageModalMode={setImageModalMode}
+        setImageModalOpen={setImageModalOpen}
+        handleDeleteSelectedImage={handleDeleteSelectedImage}
+        setOverlayRect={setOverlayRect}
+        editorRef={editorRef}
+        editorWrapperRef={editorWrapperRef}
+        handleEditorInput={handleEditorInput}
+        handleEditorClick={handleEditorClick}
+        handleEditorDoubleClick={handleEditorDoubleClick}
+        handleEditorKeyDown={handleEditorKeyDown}
+        handleEditorPaste={handleEditorPaste}
+        handleEditorDragStart={handleEditorDragStart}
+        handleEditorDragEnd={handleEditorDragEnd}
+        handleEditorDragOver={handleEditorDragOver}
+        handleEditorDragLeave={handleEditorDragLeave}
+        handleEditorDrop={handleEditorDrop}
+        dropIndicator={dropIndicator}
+        isDraggingImage={isDraggingImage}
+        dragCursorPos={dragCursorPos}
+        overlayRect={overlayRect}
+        isResizing={isResizing}
+        handleStartMoveDrag={handleStartMoveDrag}
+        handleResizeMouseDown={handleResizeMouseDown}
+        tagInput={tagInput}
+        setTagInput={setTagInput}
+        handleAddTag={handleAddTag}
+        handleRemoveTag={handleRemoveTag}
+        handleAddSuggestedTag={handleAddSuggestedTag}
+        uploadingImage={uploadingImage}
+        fileInputRef={fileInputRef}
+        handleImageUpload={handleImageUpload}
+      />
 
       {/* INSERT LINK MODAL POPUP */}
-      {showLinkModal && (
-        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 w-full max-w-md shadow-2xl space-y-4">
-            <div className="flex items-center justify-between pb-2 border-b border-slate-200">
-              <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                <Link2 className="w-4 h-4 text-emerald-600" /> Insert Web Link
-              </h3>
-              <button
-                onClick={() => setShowLinkModal(false)}
-                className="text-slate-400 hover:text-slate-600"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">
-                Link Text (Optional if text is selected)
-              </label>
-              <input
-                type="text"
-                value={linkText}
-                onChange={(e) => setLinkText(e.target.value)}
-                placeholder="e.g. Book AC Repair in Patna"
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-emerald-500 placeholder-slate-400"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1">
-                URL Destination <span className="text-emerald-600">*</span>
-              </label>
-              <input
-                type="text"
-                value={linkUrl}
-                onChange={(e) => setLinkUrl(e.target.value)}
-                placeholder="https://repairsaathi.in/..."
-                className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-emerald-500 placeholder-slate-400"
-              />
-            </div>
-
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                onClick={() => setShowLinkModal(false)}
-                className="px-4 py-2 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-100 transition"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleInsertLink}
-                disabled={!linkUrl}
-                className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-semibold transition disabled:opacity-50"
-              >
-                Insert Link
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <BlogLinkModal
+        isOpen={showLinkModal}
+        onClose={() => setShowLinkModal(false)}
+        linkUrl={linkUrl}
+        setLinkUrl={setLinkUrl}
+        linkText={linkText}
+        setLinkText={setLinkText}
+        onInsert={handleInsertLink}
+      />
 
       {/* INSERT / CUSTOMIZE IN-CONTENT IMAGE MODAL */}
-      {imageModalOpen && (
-        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-          <div className="bg-white border border-slate-200 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden my-auto image-modal-container animate-in fade-in zoom-in-95 duration-150 flex flex-col max-h-[92vh]">
-            {/* Modal Header */}
-            <div className="bg-slate-50 px-5 py-4 border-b border-slate-200 flex items-center justify-between shrink-0">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-cyan-50 text-cyan-600 border border-cyan-200">
-                  <ImageIcon className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                    {imageModalMode === "insert" ? "Insert Image into Blog" : "Adjust Image Angles & Styling"}
-                    <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-700 border border-cyan-200 font-bold">
-                      {imageConfig.angle}° • {imageConfig.align.toUpperCase()}
-                    </span>
-                  </h3>
-                  <p className="text-xs text-slate-500">
-                    Adjust exact position, angle/rotation, size, and styling
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setImageModalOpen(false)}
-                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-200/60 transition"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+      <BlogImageModal
+        isOpen={imageModalOpen}
+        onClose={() => setImageModalOpen(false)}
+        imageModalMode={imageModalMode}
+        imageTab={imageTab}
+        setImageTab={setImageTab}
+        imageConfig={imageConfig}
+        setImageConfig={setImageConfig}
+        imageUploading={imageUploading}
+        selectedImgEl={selectedImgEl}
+        onModalImageUpload={handleModalImageUpload}
+        updateSelectedImageAttributes={updateSelectedImageAttributes}
+        onInsertImage={handleInsertImage}
+        onSaveImageChanges={handleSaveImageChanges}
+        onDeleteSelectedImage={handleDeleteSelectedImage}
+      />
 
-            {/* Modal Body (Scrollable) */}
-            <div className="p-5 overflow-y-auto space-y-5 flex-1 bg-white">
-              {/* SOURCE TABS */}
-              <div className="flex items-center bg-slate-100 border border-slate-200 rounded-xl p-1 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setImageTab("upload")}
-                  className={`flex-1 py-1.5 rounded-lg font-medium transition flex items-center justify-center gap-1.5 ${
-                    imageTab === "upload"
-                      ? "bg-white text-slate-800 shadow-xs font-semibold"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  <Upload className="w-3.5 h-3.5" /> Upload from Computer
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setImageTab("url")}
-                  className={`flex-1 py-1.5 rounded-lg font-medium transition flex items-center justify-center gap-1.5 ${
-                    imageTab === "url"
-                      ? "bg-white text-slate-800 shadow-xs font-semibold"
-                      : "text-slate-600 hover:text-slate-900"
-                  }`}
-                >
-                  <Globe className="w-3.5 h-3.5" /> Image Web Link (URL)
-                </button>
-              </div>
-
-              {/* TAB 1: UPLOAD BOX */}
-              {imageTab === "upload" && (
-                <div
-                  onClick={() => inContentFileInputRef.current?.click()}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const file = e.dataTransfer?.files?.[0];
-                    if (file) handleModalImageUpload(file);
-                  }}
-                  className="border-2 border-dashed border-slate-300 hover:border-cyan-500 bg-slate-50/70 rounded-xl p-5 text-center cursor-pointer transition group"
-                >
-                  <input
-                    ref={inContentFileInputRef}
-                    type="file"
-                    accept="image/*"
-                    onClick={(e) => e.stopPropagation()}
-                    onChange={(e) => {
-                      const file = e.target.files?.[0];
-                      if (file) handleModalImageUpload(file);
-                      e.target.value = "";
-                    }}
-                    className="hidden"
-                  />
-                  {imageUploading ? (
-                    <div className="py-3 flex flex-col items-center justify-center gap-2">
-                      <RefreshCw className="w-6 h-6 animate-spin text-cyan-600" />
-                      <span className="text-xs text-slate-700 font-medium">Uploading image to server...</span>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center gap-2 text-slate-500 group-hover:text-slate-700">
-                      <div className="p-2.5 rounded-full bg-white group-hover:bg-cyan-50 text-slate-500 group-hover:text-cyan-600 shadow-xs border border-slate-200 transition">
-                        <Upload className="w-5 h-5" />
-                      </div>
-                      <p className="text-xs font-medium text-slate-700 group-hover:text-cyan-700">
-                        Click or drag &amp; drop to upload image (PNG, JPG, WEBP)
-                      </p>
-                      <span className="text-[11px] text-slate-400">
-                        {imageConfig.url ? "File selected: Click to replace" : "High-resolution photos supported"}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {/* TAB 2: URL INPUT */}
-              {imageTab === "url" && (
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">
-                    Image Direct URL
-                  </label>
-                  <input
-                    type="text"
-                    value={imageConfig.url}
-                    onChange={(e) => {
-                      const next = { ...imageConfig, url: e.target.value };
-                      setImageConfig(next);
-                      if (imageModalMode === "edit" && selectedImgEl) {
-                        updateSelectedImageAttributes({ url: e.target.value });
-                      }
-                    }}
-                    placeholder="https://images.unsplash.com/... or https://..."
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2 text-xs text-slate-800 placeholder-slate-400 focus:outline-none focus:bg-white focus:border-cyan-500"
-                  />
-                </div>
-              )}
-
-              {/* LIVE TRANSFORMATION PREVIEW CANVAS */}
-              {imageConfig.url && (
-                <div className="bg-slate-50 rounded-2xl border border-slate-200 p-5 flex flex-col items-center justify-center relative overflow-hidden">
-                  <div className="w-full flex items-center justify-between pb-3 mb-2 border-b border-slate-200 text-[11px] text-slate-500">
-                    <span className="flex items-center gap-1.5 font-semibold text-cyan-600">
-                      <Eye className="w-3.5 h-3.5" /> Live Transformation Preview
-                    </span>
-                    <span className="font-mono text-slate-500">
-                      Rotation: {imageConfig.angle}° | Width: {imageConfig.width}%
-                    </span>
-                  </div>
-
-                  <div
-                    style={{
-                      maxWidth: `${imageConfig.width}%`,
-                      width: "100%",
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                    }}
-                    className="transition-all duration-150"
-                  >
-                    <div style={{ display: "inline-block", maxWidth: "100%" }}>
-                      <img
-                        src={normalizeImageUrl(imageConfig.url)}
-                        alt={imageConfig.alt || "Preview"}
-                        style={{
-                          transform: `rotate(${imageConfig.angle}deg)`,
-                          borderRadius: `${imageConfig.radius}px`,
-                          boxShadow:
-                            imageConfig.shadow === "soft"
-                              ? "0 4px 15px rgba(0,0,0,0.12)"
-                              : imageConfig.shadow === "medium"
-                              ? "0 10px 25px -5px rgba(0,0,0,0.2)"
-                              : imageConfig.shadow === "hard"
-                              ? "0 20px 35px -5px rgba(0,0,0,0.3)"
-                              : "none",
-                          maxHeight: "220px",
-                          objectFit: "contain",
-                        }}
-                        className="transition-transform duration-100 ease-out"
-                      />
-                    </div>
-
-                    {imageConfig.caption && (
-                      <p className="text-xs text-slate-600 italic text-center mt-3">
-                        {imageConfig.caption}
-                      </p>
-                    )}
-
-                    {imageModalMode === "insert" && (
-                      <button
-                        type="button"
-                        onClick={handleInsertImage}
-                        className="mt-3 w-full py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-semibold text-xs shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 transition cursor-pointer"
-                      >
-                        <Check className="w-4 h-4" /> Insert This Image into Blog Article Now
-                      </button>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {/* ANGLE / ROTATION ADJUSTMENT */}
-              <div className="space-y-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                    <RotateCw className="w-3.5 h-3.5 text-cyan-600" /> Image Angle &amp; Rotation
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-cyan-50 text-cyan-700 font-bold border border-cyan-200">
-                      {imageConfig.angle}°
-                    </span>
-                    {imageConfig.angle !== 0 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          const next = { ...imageConfig, angle: 0 };
-                          setImageConfig(next);
-                          if (imageModalMode === "edit" && selectedImgEl) updateSelectedImageAttributes({ angle: 0 });
-                        }}
-                        className="text-[11px] text-slate-400 hover:text-slate-700 underline"
-                      >
-                        Reset to 0°
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Slider */}
-                <input
-                  type="range"
-                  min="-180"
-                  max="180"
-                  step="1"
-                  value={imageConfig.angle}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value, 10);
-                    const next = { ...imageConfig, angle: val };
-                    setImageConfig(next);
-                    if (imageModalMode === "edit" && selectedImgEl) updateSelectedImageAttributes({ angle: val });
-                  }}
-                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-cyan-600"
-                />
-
-                {/* Angle Preset Pills */}
-                <div className="flex flex-wrap gap-1.5 pt-1">
-                  {[
-                    { label: "0° (Normal)", deg: 0 },
-                    { label: "-6° (Tilt Left)", deg: -6 },
-                    { label: "+6° (Tilt Right)", deg: 6 },
-                    { label: "90° (Quarter CW)", deg: 90 },
-                    { label: "180° (Invert)", deg: 180 },
-                    { label: "270° (Counter CW)", deg: 270 },
-                  ].map((preset) => (
-                    <button
-                      key={preset.deg}
-                      type="button"
-                      onClick={() => {
-                        const next = { ...imageConfig, angle: preset.deg };
-                        setImageConfig(next);
-                        if (imageModalMode === "edit" && selectedImgEl) updateSelectedImageAttributes({ angle: preset.deg });
-                      }}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-medium transition ${
-                        imageConfig.angle === preset.deg
-                          ? "bg-cyan-600 text-white shadow-xs"
-                          : "bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-xs"
-                      }`}
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* PLACEMENT & ALIGNMENT */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                  <SlidersHorizontal className="w-3.5 h-3.5 text-cyan-600" /> Placement &amp; Alignment
-                </label>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {[
-                    { id: "left", label: "Float Left", desc: "Text wraps along right", icon: AlignLeft },
-                    { id: "center", label: "Center Block", desc: "Standalone center block", icon: AlignCenter },
-                    { id: "right", label: "Float Right", desc: "Text wraps along left", icon: AlignRight },
-                    { id: "full", label: "Full Width", desc: "100% full stretch", icon: Maximize2 },
-                  ].map((pos) => {
-                    const Icon = pos.icon;
-                    const isSelected = imageConfig.align === pos.id;
-                    return (
-                      <button
-                        key={pos.id}
-                        type="button"
-                        onClick={() => {
-                          const next = { ...imageConfig, align: pos.id };
-                          setImageConfig(next);
-                          if (imageModalMode === "edit" && selectedImgEl) updateSelectedImageAttributes({ align: pos.id });
-                        }}
-                        className={`p-2.5 rounded-xl border text-left transition flex flex-col gap-1 ${
-                          isSelected
-                            ? "bg-cyan-50 border-cyan-500 text-cyan-800 shadow-xs"
-                            : "bg-slate-50 border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-white"
-                        }`}
-                      >
-                        <div className="flex items-center gap-1.5 font-semibold text-xs">
-                          <Icon className="w-3.5 h-3.5 shrink-0" />
-                          <span>{pos.label}</span>
-                        </div>
-                        <span className="text-[10px] text-slate-500 leading-tight">{pos.desc}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* SIZE & WIDTH SLIDER */}
-              <div className="space-y-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200">
-                <div className="flex items-center justify-between">
-                  <label className="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                    <Sliders className="w-3.5 h-3.5 text-cyan-600" /> Width &amp; Scaling
-                  </label>
-                  <span className="font-mono text-xs px-2.5 py-0.5 rounded-full bg-white text-cyan-700 font-bold border border-slate-200 shadow-xs">
-                    {imageConfig.width}%
-                  </span>
-                </div>
-
-                <input
-                  type="range"
-                  min="15"
-                  max="100"
-                  step="5"
-                  value={imageConfig.width}
-                  onChange={(e) => {
-                    const val = parseInt(e.target.value, 10);
-                    const next = { ...imageConfig, width: val };
-                    setImageConfig(next);
-                    if (imageModalMode === "edit" && selectedImgEl) updateSelectedImageAttributes({ width: val });
-                  }}
-                  className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-cyan-600"
-                />
-
-                <div className="flex items-center gap-2">
-                  {[
-                    { label: "25% (Small)", val: 25 },
-                    { label: "50% (Medium)", val: 50 },
-                    { label: "75% (Large)", val: 75 },
-                    { label: "100% (Full)", val: 100 },
-                  ].map((preset) => (
-                    <button
-                      key={preset.val}
-                      type="button"
-                      onClick={() => {
-                        const next = { ...imageConfig, width: preset.val };
-                        setImageConfig(next);
-                        if (imageModalMode === "edit" && selectedImgEl) updateSelectedImageAttributes({ width: preset.val });
-                      }}
-                      className={`flex-1 py-1 rounded-lg text-xs font-medium transition ${
-                        imageConfig.width === preset.val
-                          ? "bg-cyan-600 text-white shadow-xs"
-                          : "bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 shadow-xs"
-                      }`}
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* CORNERS & SHADOW */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {/* Corner Radius */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-600">
-                    Corner Style (Rounded)
-                  </label>
-                  <div className="flex gap-1.5">
-                    {[
-                      { label: "Square", val: 0 },
-                      { label: "Soft", val: 8 },
-                      { label: "Rounded", val: 16 },
-                      { label: "Large", val: 24 },
-                      { label: "Circle/Pill", val: 9999 },
-                    ].map((r) => (
-                      <button
-                        key={r.val}
-                        type="button"
-                        onClick={() => {
-                          const next = { ...imageConfig, radius: r.val };
-                          setImageConfig(next);
-                          if (imageModalMode === "edit" && selectedImgEl) updateSelectedImageAttributes({ radius: r.val });
-                        }}
-                        className={`flex-1 py-1 rounded-lg text-xs font-medium transition ${
-                          imageConfig.radius === r.val
-                            ? "bg-cyan-600 text-white shadow-xs"
-                            : "bg-slate-100 text-slate-700 border border-slate-200 hover:bg-white"
-                        }`}
-                      >
-                        {r.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {/* Shadow */}
-                <div className="space-y-1.5">
-                  <label className="text-xs font-semibold text-slate-600">
-                    Shadow &amp; Depth
-                  </label>
-                  <div className="flex gap-1.5">
-                    {[
-                      { label: "None", val: "none" },
-                      { label: "Soft", val: "soft" },
-                      { label: "3D Medium", val: "medium" },
-                      { label: "High Depth", val: "hard" },
-                    ].map((sh) => (
-                      <button
-                        key={sh.val}
-                        type="button"
-                        onClick={() => {
-                          const next = { ...imageConfig, shadow: sh.val };
-                          setImageConfig(next);
-                          if (imageModalMode === "edit" && selectedImgEl) updateSelectedImageAttributes({ shadow: sh.val });
-                        }}
-                        className={`flex-1 py-1 rounded-lg text-xs font-medium transition ${
-                          imageConfig.shadow === sh.val
-                            ? "bg-cyan-600 text-white shadow-xs"
-                            : "bg-slate-100 text-slate-700 border border-slate-200 hover:bg-white"
-                        }`}
-                      >
-                        {sh.label}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              </div>
-
-              {/* CAPTION & ALT */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">
-                    Image Caption (Displayed under image)
-                  </label>
-                  <input
-                    type="text"
-                    value={imageConfig.caption}
-                    onChange={(e) => {
-                      const next = { ...imageConfig, caption: e.target.value };
-                      setImageConfig(next);
-                      if (imageModalMode === "edit" && selectedImgEl) updateSelectedImageAttributes({ caption: e.target.value });
-                    }}
-                    placeholder="e.g. Technician troubleshooting AC system in Patna"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-cyan-500 placeholder-slate-400"
-                  />
-                </div>
-                <div>
-                  <label className="block text-xs font-semibold text-slate-600 mb-1">
-                    Alt Text (SEO &amp; Accessibility)
-                  </label>
-                  <input
-                    type="text"
-                    value={imageConfig.alt}
-                    onChange={(e) => {
-                      const next = { ...imageConfig, alt: e.target.value };
-                      setImageConfig(next);
-                      if (imageModalMode === "edit" && selectedImgEl) updateSelectedImageAttributes({ alt: e.target.value });
-                    }}
-                    placeholder="e.g. AC service repair Patna"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs text-slate-800 focus:outline-none focus:bg-white focus:border-cyan-500 placeholder-slate-400"
-                  />
-                </div>
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div className="bg-slate-50 px-5 py-3.5 border-t border-slate-200 flex items-center justify-between shrink-0">
-              {imageModalMode === "edit" ? (
-                <button
-                  type="button"
-                  onClick={handleDeleteSelectedImage}
-                  className="px-3.5 py-2 rounded-xl text-xs font-semibold text-rose-600 hover:bg-rose-50 border border-rose-200 transition flex items-center gap-1.5"
-                >
-                  <Trash2 className="w-3.5 h-3.5" /> Delete Image
-                </button>
-              ) : (
-                <div />
-              )}
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setImageModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-xs font-medium text-slate-600 hover:bg-slate-200/60 transition"
-                >
-                  Cancel
-                </button>
-
-                {imageModalMode === "insert" ? (
-                  <button
-                    type="button"
-                    onClick={handleInsertImage}
-                    disabled={!imageConfig.url}
-                    className="px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-600 to-teal-500 hover:from-cyan-500 hover:to-teal-400 text-white text-xs font-semibold shadow-md shadow-cyan-600/20 transition disabled:opacity-50 flex items-center gap-1.5"
-                  >
-                    <Check className="w-3.5 h-3.5" /> Insert into Article
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={handleSaveImageChanges}
-                    className="px-5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-500 hover:from-emerald-500 hover:to-teal-400 text-white text-xs font-semibold shadow-md shadow-emerald-600/20 transition flex items-center gap-1.5"
-                  >
-                    <Check className="w-3.5 h-3.5" /> Save Adjustments
-                  </button>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* DELETE CONFIRMATION MODAL */}
+      {/* SINGLE DELETE CONFIRMATION MODAL */}
       <Delete
         open={!!deleteId}
         onClose={() => setDeleteId(null)}
@@ -4382,6 +1962,16 @@ export default function WebBlogsPage() {
         loading={deleting}
         title="Delete Blog Article?"
         description="This will permanently delete this article and remove it from the public website."
+      />
+
+      {/* BULK DELETE CONFIRMATION MODAL */}
+      <Delete
+        open={bulkDeleteModalOpen}
+        onClose={() => setBulkDeleteModalOpen(false)}
+        onConfirm={handleBulkDeleteConfirm}
+        loading={bulkLoading}
+        title={`Delete ${selectedIds.length} Selected Articles?`}
+        description={`This will permanently delete ${selectedIds.length} selected articles from the database and remove them from the public website.`}
       />
     </div>
   );
