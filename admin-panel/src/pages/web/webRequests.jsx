@@ -76,6 +76,37 @@ function parseRequirementItem(item) {
   return { title: str, price: null };
 }
 
+// Helpers to format request received date & time
+function formatRequestDate(dateVal) {
+  if (!dateVal) return "";
+  try {
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return "";
+  }
+}
+
+function formatRequestTime(dateVal) {
+  if (!dateVal) return "";
+  try {
+    const d = new Date(dateVal);
+    if (isNaN(d.getTime())) return "";
+    return d.toLocaleTimeString("en-IN", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+    });
+  } catch {
+    return "";
+  }
+}
+
 export default function WebRequestsPage() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -507,17 +538,40 @@ export default function WebRequestsPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/60">
-                {requests.map((req) => (
-                  <tr
-                    key={req.id}
-                    className="hover:bg-slate-800/30 transition-colors group"
-                  >
-                    <td className="px-5 py-4 font-mono text-xs text-blue-400 font-semibold whitespace-nowrap">
-                      {req.id}
-                      <div className="text-[10px] text-slate-500 font-sans mt-0.5">
-                        {req.source || "Website"}
-                      </div>
-                    </td>
+                {requests.map((req) => {
+                  const reqDate = req.createdAt || req.created_at;
+                  const formattedDate = formatRequestDate(reqDate);
+                  const formattedTime = formatRequestTime(reqDate);
+
+                  return (
+                    <tr
+                      key={req.id}
+                      className="hover:bg-slate-800/30 transition-colors group"
+                    >
+                      <td className="px-5 py-4 whitespace-nowrap">
+                        <div className="font-mono text-xs text-blue-400 font-semibold tracking-wide">
+                          {req.id}
+                        </div>
+
+                        {formattedDate && (
+                          <div className="flex items-center gap-1.5 text-xs text-slate-300 font-sans mt-1">
+                            <Calendar className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+                            <span>{formattedDate}</span>
+                            {formattedTime && (
+                              <>
+                                <span className="text-slate-600">•</span>
+                                <span className="text-[11px] text-slate-400 font-normal">
+                                  {formattedTime}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        )}
+
+                        <div className="text-[10px] text-slate-500 font-sans mt-0.5">
+                          {req.source || "Website"}
+                        </div>
+                      </td>
 
                     <td className="px-5 py-4">
                       <div className="font-semibold text-white">
@@ -636,7 +690,8 @@ export default function WebRequestsPage() {
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -661,7 +716,8 @@ export default function WebRequestsPage() {
                   </div>
                   <p className="text-xs text-slate-400 mt-0.5">
                     Source: {selectedRequest.source || "Website Form"} • Submitted:{" "}
-                    {new Date(selectedRequest.createdAt).toLocaleString()}
+                    {formatRequestDate(selectedRequest.createdAt || selectedRequest.created_at)}
+                    {formatRequestTime(selectedRequest.createdAt || selectedRequest.created_at) ? ` at ${formatRequestTime(selectedRequest.createdAt || selectedRequest.created_at)}` : ""}
                   </p>
                 </div>
               </div>
