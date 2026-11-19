@@ -61,6 +61,13 @@ function sanitizeBlogRecord(blog) {
   if (data.content) {
     data.content = sanitizeHtmlContent(data.content);
   }
+  // Fallback sync between excerpt and metaDescription so frontend cards and SERP never appear empty
+  if ((!data.excerpt || String(data.excerpt).trim() === "") && data.metaDescription) {
+    data.excerpt = data.metaDescription;
+  }
+  if ((!data.metaDescription || String(data.metaDescription).trim() === "") && data.excerpt) {
+    data.metaDescription = data.excerpt;
+  }
   return data;
 }
 
@@ -189,6 +196,20 @@ exports.createBlog = async (req, res) => {
     const cleanImage = image ? sanitizeImageUrl(image) : null;
     const cleanContent = sanitizeHtmlContent(content);
 
+    const resolvedExcerpt =
+      excerpt && excerpt.trim()
+        ? excerpt.trim()
+        : metaDescription && metaDescription.trim()
+        ? metaDescription.trim()
+        : null;
+
+    const resolvedMetaDesc =
+      metaDescription && metaDescription.trim()
+        ? metaDescription.trim()
+        : excerpt && excerpt.trim()
+        ? excerpt.trim()
+        : null;
+
     const newBlog = await Blog.create({
       title: title.trim(),
       slug: finalSlug,
@@ -198,10 +219,10 @@ exports.createBlog = async (req, res) => {
       readTime: calculatedTime,
       image: cleanImage,
       imageLink: imageLink ? imageLink.trim() : null,
-      excerpt: excerpt ? excerpt.trim() : null,
+      excerpt: resolvedExcerpt,
       content: cleanContent,
       metaTitle: metaTitle ? metaTitle.trim() : title.trim(),
-      metaDescription: metaDescription ? metaDescription.trim() : (excerpt ? excerpt.trim() : null),
+      metaDescription: resolvedMetaDesc,
       metaKeywords: metaKeywords ? metaKeywords.trim() : null,
       status: status || "published",
       isFeatured: !!isFeatured,
@@ -267,7 +288,19 @@ exports.updateBlog = async (req, res) => {
     if (tags !== undefined) blog.tags = Array.isArray(tags) ? tags : [tags];
     if (image !== undefined) blog.image = sanitizeImageUrl(image);
     if (imageLink !== undefined) blog.imageLink = imageLink ? imageLink.trim() : null;
-    if (excerpt !== undefined) blog.excerpt = excerpt ? excerpt.trim() : null;
+
+    // Synchronize excerpt and metaDescription so neither is left empty
+    if (excerpt !== undefined || metaDescription !== undefined) {
+      const trimmedExcerpt = excerpt !== undefined && excerpt !== null ? String(excerpt).trim() : "";
+      const trimmedMetaDesc = metaDescription !== undefined && metaDescription !== null ? String(metaDescription).trim() : "";
+
+      const finalExcerpt = trimmedExcerpt || trimmedMetaDesc || blog.excerpt || blog.metaDescription || null;
+      const finalMetaDesc = trimmedMetaDesc || trimmedExcerpt || blog.metaDescription || blog.excerpt || null;
+
+      blog.excerpt = finalExcerpt;
+      blog.metaDescription = finalMetaDesc;
+    }
+
     if (content !== undefined) {
       const cleanContent = sanitizeHtmlContent(content);
       blog.content = cleanContent;
@@ -277,7 +310,6 @@ exports.updateBlog = async (req, res) => {
     }
 
     if (metaTitle !== undefined) blog.metaTitle = metaTitle;
-    if (metaDescription !== undefined) blog.metaDescription = metaDescription;
     if (metaKeywords !== undefined) blog.metaKeywords = metaKeywords;
     if (status !== undefined) blog.status = status;
     if (isFeatured !== undefined) blog.isFeatured = !!isFeatured;

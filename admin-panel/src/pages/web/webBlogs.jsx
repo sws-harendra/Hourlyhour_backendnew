@@ -404,10 +404,10 @@ export default function WebBlogsPage() {
       readTime: blog.readTime || "5 min read",
       image: normalizeImageUrl(blog.image || ""),
       imageLink: blog.imageLink || "",
-      excerpt: blog.excerpt || "",
+      excerpt: blog.excerpt || blog.metaDescription || "",
       content: sanitizeContentImages(blog.content || ""),
       metaTitle: blog.metaTitle || "",
-      metaDescription: blog.metaDescription || "",
+      metaDescription: blog.metaDescription || blog.excerpt || "",
       metaKeywords: blog.metaKeywords || "",
       status: blog.status || "published",
       isFeatured: !!blog.isFeatured,
@@ -1673,8 +1673,19 @@ export default function WebBlogsPage() {
       formData.image ||
       "https://images.unsplash.com/photo-1581092160607-ee22621dd758?auto=format&fit=crop&w=1200&q=80";
 
+    const resolvedExcerpt =
+      (formData.excerpt && formData.excerpt.trim()) ||
+      (formData.metaDescription && formData.metaDescription.trim()) ||
+      "";
+    const resolvedMetaDesc =
+      (formData.metaDescription && formData.metaDescription.trim()) ||
+      (formData.excerpt && formData.excerpt.trim()) ||
+      "";
+
     const payload = {
       ...formData,
+      excerpt: resolvedExcerpt,
+      metaDescription: resolvedMetaDesc,
       slug: cleanedSlug,
       content: sanitizeContentImages(latestContent),
       image: normalizeImageUrl(finalImage),
