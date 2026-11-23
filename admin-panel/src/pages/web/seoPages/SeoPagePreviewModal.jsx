@@ -105,8 +105,8 @@ export default function SeoPagePreviewModal({ isOpen, onClose, page }) {
                       alt={h1Heading || serviceName}
                       className="w-full h-52 object-cover"
                     />
-                    <div className="absolute bottom-2 left-2 px-2 py-0.5 rounded bg-black/70 text-[10px] text-white">
-                      Featured AI Image
+                    <div className="absolute bottom-2 left-2 px-2.5 py-1 rounded-md bg-black/75 backdrop-blur-xs text-[10px] text-white font-medium flex items-center gap-1">
+                      Featured Hero Image
                     </div>
                   </div>
                 </div>
@@ -147,6 +147,18 @@ export default function SeoPagePreviewModal({ isOpen, onClose, page }) {
                     <h3 className="text-base font-bold text-slate-800">
                       {sec.title}
                     </h3>
+                    {sec.image && (
+                      <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-900 max-h-48">
+                        <img
+                          src={sec.image}
+                          alt={sec.title}
+                          className="w-full h-40 object-cover"
+                          onError={(e) => {
+                            e.target.style.display = "none";
+                          }}
+                        />
+                      </div>
+                    )}
                     <div className="text-xs text-slate-600 leading-relaxed space-y-2">
                       {String(sec.content || "")
                         .split("\n\n")
@@ -187,6 +199,18 @@ export default function SeoPagePreviewModal({ isOpen, onClose, page }) {
                       <h3 className="text-base font-bold text-slate-800">
                         {sec.title}
                       </h3>
+                      {sec.image && (
+                        <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-900 max-h-48 my-2">
+                          <img
+                            src={sec.image}
+                            alt={sec.title}
+                            className="w-full h-36 object-cover"
+                            onError={(e) => {
+                              e.target.style.display = "none";
+                            }}
+                          />
+                        </div>
+                      )}
                       <p className="text-xs text-slate-600 leading-relaxed">
                         {sec.content}
                       </p>
@@ -225,6 +249,18 @@ export default function SeoPagePreviewModal({ isOpen, onClose, page }) {
                     <h3 className="text-base font-bold text-slate-900">
                       {sec.title}
                     </h3>
+                    {sec.image && (
+                      <div className="rounded-xl overflow-hidden border border-purple-200 bg-slate-900 max-h-48 my-2">
+                        <img
+                          src={sec.image}
+                          alt={sec.title}
+                          className="w-full h-36 object-cover"
+                          onError={(e) => {
+                            e.target.style.display = "none";
+                          }}
+                        />
+                      </div>
+                    )}
                     <div className="text-xs text-slate-600 leading-relaxed space-y-2">
                       {String(sec.content || "")
                         .split("\n\n")
@@ -271,6 +307,18 @@ export default function SeoPagePreviewModal({ isOpen, onClose, page }) {
                         <h3 className="text-lg font-bold text-slate-800">
                           {sec.title}
                         </h3>
+                        {sec.image && (
+                          <div className="rounded-xl overflow-hidden border border-slate-200 bg-slate-900 max-h-48 my-2">
+                            <img
+                              src={sec.image}
+                              alt={sec.title}
+                              className="w-full h-36 object-cover"
+                              onError={(e) => {
+                                e.target.style.display = "none";
+                              }}
+                            />
+                          </div>
+                        )}
                         <p className="text-xs text-slate-600 leading-relaxed">
                           {sec.content}
                         </p>

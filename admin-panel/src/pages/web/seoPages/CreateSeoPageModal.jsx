@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Sparkles,
   Wand2,
@@ -21,11 +21,13 @@ import {
   RefreshCw,
   Hash,
   Tag,
+  Upload,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import SeoLocationPageService from "../../../services/seoLocationPage.service";
 import { ServiceService } from "../../../services/services.service";
 import { ServiceAreaService } from "../../../services/serviceArea.service";
+import { CommonService } from "../../../services/common.service";
 import SeoScoreWidget from "./SeoScoreWidget";
 import QuickAddLocationModal from "./QuickAddLocationModal";
 import QuickAddServiceModal from "./QuickAddServiceModal";
@@ -53,6 +55,13 @@ export default function CreateSeoPageModal({
   const [generatingAi, setGeneratingAi] = useState(false);
   const [humanizing, setHumanizing] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [uploadingHeroImg, setUploadingHeroImg] = useState(false);
+  const [uploadingSectionImgIdx, setUploadingSectionImgIdx] = useState(null);
+  const [activeSectionUploadIdx, setActiveSectionUploadIdx] = useState(null);
+
+  // File upload refs
+  const heroFileInputRef = useRef(null);
+  const sectionFileInputRef = useRef(null);
 
   // Quick modals
   const [showAddLocation, setShowAddLocation] = useState(false);
@@ -222,6 +231,114 @@ export default function CreateSeoPageModal({
     const newImg = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1200&height=675&nologo=true`;
     updateField("ogImage", newImg);
     toast.success("Generated new AI image variation!");
+  };
+
+  const handleHeroImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select a valid image file (JPG, PNG, WebP, etc.)");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Image file size must be less than 10MB");
+      return;
+    }
+
+    setUploadingHeroImg(true);
+    const toastId = toast.loading("Uploading hero image to server...");
+
+    try {
+      const uploadData = new FormData();
+      uploadData.append("file", file);
+
+      const res = await CommonService.uploadfile(uploadData);
+      const uploadedUrl =
+        res.data?.url ||
+        res.data?.fileUrl ||
+        res.data?.data?.url ||
+        res.data?.path ||
+        res.data?.filename;
+
+      if (uploadedUrl) {
+        updateField("ogImage", uploadedUrl);
+        toast.success("Hero image uploaded successfully!", { id: toastId });
+      } else {
+        toast.error("Image upload failed: no URL returned", { id: toastId });
+      }
+    } catch (err) {
+      console.error("Hero image upload error:", err);
+      toast.error(
+        err.response?.data?.message || err.message || "Failed to upload image",
+        { id: toastId }
+      );
+    } finally {
+      setUploadingHeroImg(false);
+      if (e.target) e.target.value = "";
+    }
+  };
+
+  const handleSectionImageUpload = async (e) => {
+    const file = e.target.files?.[0];
+    const targetIdx = activeSectionUploadIdx;
+    if (!file || targetIdx === null || targetIdx === undefined) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select a valid image file (JPG, PNG, WebP, etc.)");
+      return;
+    }
+
+    if (file.size > 10 * 1024 * 1024) {
+      toast.error("Image file size must be less than 10MB");
+      return;
+    }
+
+    setUploadingSectionImgIdx(targetIdx);
+    const toastId = toast.loading(`Uploading image for Section #${targetIdx + 1}...`);
+
+    try {
+      const uploadData = new FormData();
+      uploadData.append("file", file);
+
+      const res = await CommonService.uploadfile(uploadData);
+      const uploadedUrl =
+        res.data?.url ||
+        res.data?.fileUrl ||
+        res.data?.data?.url ||
+        res.data?.path ||
+        res.data?.filename;
+
+      if (uploadedUrl) {
+        handleUpdateSection(targetIdx, "image", uploadedUrl);
+        toast.success(`Image uploaded for Section #${targetIdx + 1}!`, { id: toastId });
+      } else {
+        toast.error("Image upload failed: no URL returned", { id: toastId });
+      }
+    } catch (err) {
+      console.error("Section image upload error:", err);
+      toast.error(
+        err.response?.data?.message || err.message || "Failed to upload image",
+        { id: toastId }
+      );
+    } finally {
+      setUploadingSectionImgIdx(null);
+      setActiveSectionUploadIdx(null);
+      if (e.target) e.target.value = "";
+    }
+  };
+
+  const handleGenerateSectionImage = (index) => {
+    const sec = formData.contentSections?.[index] || {};
+    const s = formData.serviceName || "Appliance Repair";
+    const l = formData.locationName || "Patna";
+    const title = sec.title || `${s} in ${l}`;
+    const seed = Date.now() + index;
+    const prompt = `Close-up authentic professional technician performing ${s}, ${title}, clean workspace in ${l}, professional equipment high resolution 4k photography seed${seed}`;
+    const newImg = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=900&height=500&nologo=true`;
+    handleUpdateSection(index, "image", newImg);
+    toast.success(`Generated AI image for Section #${index + 1}!`);
   };
 
   // Handle Service dropdown change
@@ -426,6 +543,7 @@ export default function CreateSeoPageModal({
         {
           title: `Why Choose Us in ${prev.locationName || "Your Area"}`,
           badge: "HIGHLIGHT",
+          image: "",
           content: `Our technicians provide expert solutions across ${prev.locationName || "the city"} with same-day doorstep assistance.`,
           bulletPoints: [
             "Experienced & certified technicians",
@@ -846,53 +964,135 @@ export default function CreateSeoPageModal({
                     </button>
                   </div>
 
-                  {/* Featured Hero Image (AI-Generated or Custom) */}
+                  {/* Featured Hero Image (AI-Generated or Device Upload) */}
                   <div className="bg-white border border-slate-200/90 rounded-2xl p-4 space-y-3">
-                    <div className="flex items-center justify-between">
+                    {/* Hidden File Input for Device Upload */}
+                    <input
+                      ref={heroFileInputRef}
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleHeroImageUpload}
+                    />
+
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                       <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
                         <ImageIcon className="w-3.5 h-3.5 text-emerald-600" />
-                        <span>Featured Hero Image (Generated by AI)</span>
+                        <span>Featured Hero Image</span>
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 font-normal">
+                          AI Generated or Upload from Device
+                        </span>
                       </label>
-                      <button
-                        type="button"
-                        onClick={handleRegenerateImage}
-                        className="text-[11px] text-emerald-600 hover:text-emerald-800 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
-                      >
-                        <RefreshCw className="w-3 h-3" />
-                        <span>Regenerate Image</span>
-                      </button>
+
+                      <div className="flex items-center gap-2">
+                        {/* Upload Image Button */}
+                        <button
+                          type="button"
+                          onClick={() => heroFileInputRef.current?.click()}
+                          disabled={uploadingHeroImg}
+                          className="text-xs px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-semibold border border-emerald-200/80 flex items-center gap-1.5 cursor-pointer transition-colors disabled:opacity-50"
+                        >
+                          {uploadingHeroImg ? (
+                            <>
+                              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              <span>Uploading...</span>
+                            </>
+                          ) : (
+                            <>
+                              <Upload className="w-3.5 h-3.5" />
+                              <span>Upload Image</span>
+                            </>
+                          )}
+                        </button>
+
+                        {/* AI Regenerate Button */}
+                        <button
+                          type="button"
+                          onClick={handleRegenerateImage}
+                          className="text-xs px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold flex items-center gap-1.5 cursor-pointer transition-colors"
+                          title="Generate a new AI image using Pollinations AI"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5 text-slate-500" />
+                          <span>AI Regenerate</span>
+                        </button>
+                      </div>
                     </div>
 
                     {formData.ogImage ? (
-                      <div className="relative group rounded-xl overflow-hidden border border-slate-200 max-h-48 bg-slate-900 flex items-center justify-center">
+                      <div className="relative group rounded-xl overflow-hidden border border-slate-200 max-h-56 bg-slate-900 flex items-center justify-center">
                         <img
                           src={formData.ogImage}
                           alt="Hero Featured Preview"
-                          className="w-full h-44 object-cover"
+                          className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-102"
                           onError={(e) => {
                             e.target.style.display = "none";
                           }}
                         />
-                        <div className="absolute bottom-2 left-2 px-2.5 py-1 rounded-md bg-slate-900/80 backdrop-blur-xs text-white text-[11px] font-medium flex items-center gap-1.5">
-                          <Sparkles className="w-3 h-3 text-amber-400" />
-                          <span>Photorealistic AI Service Image</span>
+
+                        {/* Top-right quick actions overlay */}
+                        <div className="absolute top-2 right-2 flex items-center gap-1.5 opacity-90 group-hover:opacity-100 transition-opacity">
+                          <button
+                            type="button"
+                            onClick={() => heroFileInputRef.current?.click()}
+                            disabled={uploadingHeroImg}
+                            className="px-2.5 py-1 rounded-md bg-slate-900/85 hover:bg-slate-950 backdrop-blur-xs text-white text-[11px] font-medium flex items-center gap-1 cursor-pointer shadow-xs border border-white/20 transition-all"
+                          >
+                            <Upload className="w-3 h-3 text-emerald-400" />
+                            <span>Change Image</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updateField("ogImage", "")}
+                            className="p-1 rounded-md bg-slate-900/85 hover:bg-rose-600 backdrop-blur-xs text-white/80 hover:text-white transition-all cursor-pointer shadow-xs border border-white/20"
+                            title="Remove image"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+
+                        {/* Bottom-left badge */}
+                        <div className="absolute bottom-2 left-2 px-2.5 py-1 rounded-md bg-slate-900/85 backdrop-blur-xs text-white text-[11px] font-medium flex items-center gap-1.5 border border-white/10">
+                          {formData.ogImage.includes("pollinations.ai") ? (
+                            <>
+                              <Sparkles className="w-3 h-3 text-amber-400" />
+                              <span>Photorealistic AI Service Image</span>
+                            </>
+                          ) : (
+                            <>
+                              <CheckCircle className="w-3 h-3 text-emerald-400" />
+                              <span>Custom Uploaded Image</span>
+                            </>
+                          )}
                         </div>
                       </div>
                     ) : (
-                      <div className="p-4 rounded-xl border border-dashed border-slate-200 text-center bg-slate-50 text-xs text-slate-500">
-                        Click "Generate with Gemini AI" or click "Regenerate Image" to automatically create an AI image.
+                      <div
+                        onClick={() => heroFileInputRef.current?.click()}
+                        className="p-6 rounded-xl border-2 border-dashed border-slate-200 hover:border-emerald-400 hover:bg-emerald-50/40 text-center bg-slate-50 text-xs text-slate-500 cursor-pointer transition-all flex flex-col items-center justify-center gap-2 group"
+                      >
+                        <div className="w-10 h-10 rounded-full bg-white shadow-xs border border-slate-200 group-hover:border-emerald-300 flex items-center justify-center text-slate-500 group-hover:text-emerald-600 transition-colors">
+                          <Upload className="w-5 h-5" />
+                        </div>
+                        <div>
+                          <p className="font-semibold text-slate-700 group-hover:text-emerald-700">
+                            Click here to upload an image from your device
+                          </p>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            Supports PNG, JPG, WebP up to 10MB • Or click "AI Regenerate" above
+                          </p>
+                        </div>
                       </div>
                     )}
 
                     <div>
                       <label className="block text-[11px] font-semibold text-slate-500 mb-1">
-                        Image URL (auto-filled by AI, or paste your own)
+                        Image URL (auto-filled on upload or AI, or paste your own)
                       </label>
                       <input
                         type="text"
                         value={formData.ogImage || ""}
                         onChange={(e) => updateField("ogImage", e.target.value)}
-                        placeholder="https://image.pollinations.ai/prompt/... or /images/..."
+                        placeholder="https://image.pollinations.ai/prompt/... or /uploads/... or http://..."
                         className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-mono"
                       />
                     </div>
@@ -1023,6 +1223,15 @@ export default function CreateSeoPageModal({
               {/* TAB 2: CONTENT SECTIONS */}
               {activeTab === "content" && (
                 <div className="space-y-4 animate-in fade-in duration-150">
+                  {/* Hidden file input for Section Image Upload */}
+                  <input
+                    ref={sectionFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleSectionImageUpload}
+                  />
+
                   <div className="flex items-center justify-between">
                     <div>
                       <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
@@ -1151,6 +1360,93 @@ export default function CreateSeoPageModal({
                               }
                               placeholder="Feature 1&#10;Feature 2&#10;Feature 3"
                               className="w-full px-3 py-1.5 rounded-lg border border-slate-200 text-xs focus:ring-1 focus:ring-emerald-500 text-slate-700 font-mono text-[11px]"
+                            />
+                          </div>
+
+                          {/* Section Media Image */}
+                          <div className="bg-slate-50/80 rounded-xl p-3 border border-slate-200/80 space-y-2">
+                            <div className="flex items-center justify-between">
+                              <label className="text-[10px] font-bold text-slate-600 uppercase flex items-center gap-1.5">
+                                <ImageIcon className="w-3 h-3 text-emerald-600" />
+                                <span>Section Image (Optional)</span>
+                              </label>
+
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveSectionUploadIdx(idx);
+                                    sectionFileInputRef.current?.click();
+                                  }}
+                                  disabled={uploadingSectionImgIdx === idx}
+                                  className="text-[11px] px-2.5 py-1 rounded-lg bg-white hover:bg-emerald-50 text-emerald-700 font-medium border border-slate-200 hover:border-emerald-300 flex items-center gap-1 cursor-pointer transition-colors shadow-2xs disabled:opacity-50"
+                                >
+                                  {uploadingSectionImgIdx === idx ? (
+                                    <>
+                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                      <span>Uploading...</span>
+                                    </>
+                                  ) : (
+                                    <>
+                                      <Upload className="w-3 h-3" />
+                                      <span>Upload Image</span>
+                                    </>
+                                  )}
+                                </button>
+
+                                <button
+                                  type="button"
+                                  onClick={() => handleGenerateSectionImage(idx)}
+                                  className="text-[11px] px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-slate-700 font-medium border border-slate-200 flex items-center gap-1 cursor-pointer transition-colors shadow-2xs"
+                                  title="Generate an AI image for this section"
+                                >
+                                  <Sparkles className="w-3 h-3 text-amber-500" />
+                                  <span>AI Generate</span>
+                                </button>
+                              </div>
+                            </div>
+
+                            {sec.image ? (
+                              <div className="relative group rounded-xl overflow-hidden border border-slate-200 max-h-40 bg-slate-900 flex items-center justify-center">
+                                <img
+                                  src={sec.image}
+                                  alt={sec.title || `Section ${idx + 1}`}
+                                  className="w-full h-36 object-cover"
+                                  onError={(e) => {
+                                    e.target.style.display = "none";
+                                  }}
+                                />
+                                <div className="absolute top-2 right-2 flex items-center gap-1.5 opacity-90 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setActiveSectionUploadIdx(idx);
+                                      sectionFileInputRef.current?.click();
+                                    }}
+                                    disabled={uploadingSectionImgIdx === idx}
+                                    className="px-2.5 py-1 rounded-md bg-slate-900/85 hover:bg-slate-950 backdrop-blur-xs text-white text-[10px] font-medium flex items-center gap-1 cursor-pointer shadow-xs border border-white/20 transition-all"
+                                  >
+                                    <Upload className="w-2.5 h-2.5 text-emerald-400" />
+                                    <span>Change</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleUpdateSection(idx, "image", "")}
+                                    className="p-1 rounded-md bg-slate-900/85 hover:bg-rose-600 backdrop-blur-xs text-white/80 hover:text-white transition-all cursor-pointer shadow-xs border border-white/20"
+                                    title="Remove section image"
+                                  >
+                                    <X className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </div>
+                            ) : null}
+
+                            <input
+                              type="text"
+                              value={sec.image || ""}
+                              onChange={(e) => handleUpdateSection(idx, "image", e.target.value)}
+                              placeholder="Image URL (auto-filled on upload or AI, or paste your own)..."
+                              className="w-full px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs bg-white focus:outline-none focus:ring-1 focus:ring-emerald-500 font-mono text-slate-700 placeholder:text-slate-400"
                             />
                           </div>
                         </div>

@@ -69,11 +69,11 @@ module.exports = (sequelize, DataTypes) => {
         allowNull: true,
       },
       canonicalUrl: {
-        type: DataTypes.STRING,
+        type: DataTypes.TEXT,
         allowNull: true,
       },
       ogImage: {
-        type: DataTypes.STRING,
+        type: DataTypes.TEXT,
         allowNull: true,
       },
       seoScore: {

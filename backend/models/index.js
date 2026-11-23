@@ -87,12 +87,13 @@ Object.keys(db).forEach((modelName) => {
   }
 })();
 
-// Auto-sync seo_location_pages table
+// Auto-sync seo_location_pages table and ensure ogImage is TEXT
 (async () => {
   try {
     if (db.SeoLocationPage) {
       await db.SeoLocationPage.sync({ alter: false });
-      console.log("Auto-migrated: Ensured 'seo_location_pages' table exists.");
+      await sequelize.query("ALTER TABLE `seo_location_pages` MODIFY COLUMN `ogImage` TEXT NULL").catch(() => {});
+      console.log("Auto-migrated: Ensured 'seo_location_pages' table exists and ogImage is TEXT.");
     }
   } catch (err) {
     console.error("Error auto-syncing seo_location_pages table:", err.message);
