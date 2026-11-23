@@ -217,6 +217,7 @@ export const INITIAL_SEO_FORM = {
   locationName: "",
   template: "grid",
   focusKeyword: "",
+  keywords: [],
   status: "publish", // default Publish as in screenshot
   h1Heading: "",
   heroDescription: "",

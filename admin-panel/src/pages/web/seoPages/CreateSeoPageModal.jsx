@@ -17,6 +17,10 @@ import {
   MapPin,
   Hammer,
   Key,
+  Image as ImageIcon,
+  RefreshCw,
+  Hash,
+  Tag,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import SeoLocationPageService from "../../../services/seoLocationPage.service";
@@ -54,6 +58,8 @@ export default function CreateSeoPageModal({
   const [showAddLocation, setShowAddLocation] = useState(false);
   const [showAddService, setShowAddService] = useState(false);
   const [showAiSettings, setShowAiSettings] = useState(false);
+
+  const [keywordInput, setKeywordInput] = useState("");
 
   // Load services and locations on open
   useEffect(() => {
@@ -94,14 +100,22 @@ export default function CreateSeoPageModal({
     loadData();
 
     if (initialData) {
+      const parsedKeywords = Array.isArray(initialData.keywords)
+        ? initialData.keywords
+        : initialData.metaKeywords
+        ? initialData.metaKeywords.split(",").map((k) => k.trim()).filter(Boolean)
+        : [];
+
       setFormData({
         ...INITIAL_SEO_FORM,
         ...initialData,
+        keywords: parsedKeywords,
         status: initialData.status === "published" ? "publish" : "draft",
       });
     } else {
       setFormData(INITIAL_SEO_FORM);
     }
+    setKeywordInput("");
     setActiveTab("basic");
   }, [isOpen, initialData]);
 
@@ -132,6 +146,84 @@ export default function CreateSeoPageModal({
     });
   };
 
+  // Keyword Management Handlers
+  const handleAddKeyword = (kwToAdd) => {
+    const raw = (kwToAdd || keywordInput || "").trim();
+    if (!raw) return;
+
+    const parts = raw
+      .split(",")
+      .map((k) => k.replace(/^[#,\s]+|[#,\s]+$/g, "").trim())
+      .filter(Boolean);
+
+    if (parts.length === 0) return;
+
+    setFormData((prev) => {
+      const existing = Array.isArray(prev.keywords)
+        ? prev.keywords
+        : prev.metaKeywords
+        ? prev.metaKeywords.split(",").map((k) => k.trim()).filter(Boolean)
+        : [];
+      const merged = Array.from(new Set([...existing, ...parts]));
+      return {
+        ...prev,
+        keywords: merged,
+        focusKeyword: prev.focusKeyword || merged[0] || "",
+        metaKeywords: merged.join(", "),
+      };
+    });
+    setKeywordInput("");
+  };
+
+  const handleRemoveKeyword = (indexToRemove) => {
+    setFormData((prev) => {
+      const current = Array.isArray(prev.keywords) ? prev.keywords : [];
+      const updated = current.filter((_, idx) => idx !== indexToRemove);
+      return {
+        ...prev,
+        keywords: updated,
+        metaKeywords: updated.join(", "),
+        focusKeyword: updated[0] || prev.focusKeyword || "",
+      };
+    });
+  };
+
+  const handleSuggestKeywords = () => {
+    const s = formData.serviceName || "Appliance Repair";
+    const l = formData.locationName || "Patna";
+    const suggestions = [
+      `${s} in ${l}`,
+      `best ${s.toLowerCase()} in ${l}`,
+      `doorstep ${s.toLowerCase()} in ${l}`,
+      `verified ${s.toLowerCase()} technician`,
+      `affordable ${s.toLowerCase()} repair ${l}`,
+      `same day ${s.toLowerCase()} ${l}`,
+      `${s.toLowerCase()} service center in ${l}`,
+    ];
+
+    setFormData((prev) => {
+      const existing = Array.isArray(prev.keywords) ? prev.keywords : [];
+      const merged = Array.from(new Set([...existing, ...suggestions]));
+      return {
+        ...prev,
+        keywords: merged,
+        focusKeyword: prev.focusKeyword || merged[0] || "",
+        metaKeywords: merged.join(", "),
+      };
+    });
+    toast.success(`Added suggested keywords for ${s} in ${l}!`);
+  };
+
+  const handleRegenerateImage = () => {
+    const s = formData.serviceName || "home appliance";
+    const l = formData.locationName || "Bihar";
+    const seed = Date.now();
+    const prompt = `Professional certified technician inspecting and repairing ${s} home appliance in modern clean Indian living room in ${l}, specialized tools clean uniform 4k realistic photography seed${seed}`;
+    const newImg = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}?width=1200&height=675&nologo=true`;
+    updateField("ogImage", newImg);
+    toast.success("Generated new AI image variation!");
+  };
+
   // Handle Service dropdown change
   const handleServiceChange = (e) => {
     const val = e.target.value;
@@ -149,11 +241,25 @@ export default function CreateSeoPageModal({
           serviceId: selected.id,
           serviceName: sName,
         };
-        if (sName && lName && !prev.h1Heading) {
-          next.h1Heading = `Best ${sName} in ${lName} | Trusted & Fast`;
-          next.focusKeyword = `${sName} in ${lName}`;
-          next.metaTitle = `Best ${sName} in ${lName} - Repair Saathi`;
-          next.slug = generateSlug(`${sName}-in-${lName}`);
+        if (sName && lName) {
+          if (!prev.h1Heading) {
+            next.h1Heading = `Best ${sName} in ${lName} | Trusted & Fast`;
+            next.focusKeyword = `${sName} in ${lName}`;
+            next.metaTitle = `Best ${sName} in ${lName} - Repair Saathi`;
+            next.slug = generateSlug(`${sName}-in-${lName}`);
+          }
+          // Auto-seed keywords if none
+          if (!prev.keywords || prev.keywords.length === 0) {
+            const seededKws = [
+              `${sName} in ${lName}`,
+              `best ${sName.toLowerCase()} in ${lName}`,
+              `doorstep ${sName.toLowerCase()} ${lName}`,
+              `verified ${sName.toLowerCase()} technician`,
+              `affordable ${sName.toLowerCase()} repair ${lName}`,
+            ];
+            next.keywords = seededKws;
+            next.metaKeywords = seededKws.join(", ");
+          }
         }
         return next;
       });
@@ -177,11 +283,25 @@ export default function CreateSeoPageModal({
           locationId: selected.id,
           locationName: lName,
         };
-        if (sName && lName && !prev.h1Heading) {
-          next.h1Heading = `Best ${sName} in ${lName} | Trusted & Fast`;
-          next.focusKeyword = `${sName} in ${lName}`;
-          next.metaTitle = `Best ${sName} in ${lName} - Repair Saathi`;
-          next.slug = generateSlug(`${sName}-in-${lName}`);
+        if (sName && lName) {
+          if (!prev.h1Heading) {
+            next.h1Heading = `Best ${sName} in ${lName} | Trusted & Fast`;
+            next.focusKeyword = `${sName} in ${lName}`;
+            next.metaTitle = `Best ${sName} in ${lName} - Repair Saathi`;
+            next.slug = generateSlug(`${sName}-in-${lName}`);
+          }
+          // Auto-seed keywords if none
+          if (!prev.keywords || prev.keywords.length === 0) {
+            const seededKws = [
+              `${sName} in ${lName}`,
+              `best ${sName.toLowerCase()} in ${lName}`,
+              `doorstep ${sName.toLowerCase()} ${lName}`,
+              `verified ${sName.toLowerCase()} technician`,
+              `affordable ${sName.toLowerCase()} repair ${lName}`,
+            ];
+            next.keywords = seededKws;
+            next.metaKeywords = seededKws.join(", ");
+          }
         }
         return next;
       });
@@ -198,23 +318,30 @@ export default function CreateSeoPageModal({
     }
 
     setGeneratingAi(true);
-    const toastId = toast.loading("Gemini AI is writing your SEO page...");
+    const toastId = toast.loading("Gemini AI is writing your massive 1,200+ word SEO blog guide...");
 
     try {
       const res = await SeoLocationPageService.generateAiContent({
         serviceName: formData.serviceName,
         locationName: formData.locationName,
         focusKeyword: formData.focusKeyword,
+        keywords: formData.keywords || [],
         template: formData.template,
       });
 
       if (res.success && res.data) {
         const d = res.data;
+        const returnedKeywords = d.metaKeywords
+          ? d.metaKeywords.split(",").map((k) => k.trim()).filter(Boolean)
+          : (formData.keywords || []);
+
         setFormData((prev) => ({
           ...prev,
           h1Heading: d.h1Heading || prev.h1Heading,
           heroDescription: d.heroDescription || prev.heroDescription,
-          focusKeyword: d.focusKeyword || prev.focusKeyword,
+          focusKeyword: d.focusKeyword || prev.focusKeyword || returnedKeywords[0] || "",
+          keywords: returnedKeywords.length > 0 ? returnedKeywords : prev.keywords,
+          ogImage: d.ogImage || prev.ogImage,
           metaTitle: d.metaTitle || prev.metaTitle,
           metaDescription: d.metaDescription || prev.metaDescription,
           metaKeywords: d.metaKeywords || prev.metaKeywords,
@@ -228,7 +355,7 @@ export default function CreateSeoPageModal({
         }));
 
         toast.success(
-          res.message || "Page generated successfully with Gemini AI!",
+          res.message || "Massive 1,200+ word SEO blog guide generated with all keywords and image!",
           { id: toastId }
         );
       } else {
@@ -593,29 +720,110 @@ export default function CreateSeoPageModal({
                     </div>
                   </div>
 
+                  {/* Target Keywords Input for AI Generation & SEO */}
+                  <div className="bg-slate-50 border border-slate-200/90 rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <Hash className="w-3.5 h-3.5 text-indigo-600" />
+                        <span>Target Keywords for AI Generation</span>
+                        {Array.isArray(formData.keywords) && formData.keywords.length > 0 && (
+                          <span className="px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-100 text-indigo-700">
+                            {formData.keywords.length} added
+                          </span>
+                        )}
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleSuggestKeywords}
+                        className="text-[11px] text-indigo-600 hover:text-indigo-800 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <Sparkles className="w-3 h-3 text-amber-500" />
+                        <span>+ Auto-suggest keywords</span>
+                      </button>
+                    </div>
+
+                    <p className="text-[11px] text-slate-500 leading-snug">
+                      Apne jitne chahe utne custom keywords add karein (type karke Enter ya comma press karein). AI blog generate karte waqt in sabhi keywords ko headings, paragraphs aur content me daal dega!
+                    </p>
+
+                    {/* Keyword Tags List */}
+                    <div className="flex flex-wrap items-center gap-1.5 min-h-[36px] p-2 bg-white rounded-xl border border-slate-200/90 focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-100 transition-all">
+                      {Array.isArray(formData.keywords) && formData.keywords.length > 0 ? (
+                        formData.keywords.map((kw, idx) => (
+                          <span
+                            key={idx}
+                            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-indigo-50 border border-indigo-200/80 text-indigo-800 animate-fadeIn"
+                          >
+                            <Tag className="w-2.5 h-2.5 text-indigo-500" />
+                            <span>{kw}</span>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveKeyword(idx)}
+                              className="w-3.5 h-3.5 rounded-full hover:bg-indigo-200/60 text-indigo-600 flex items-center justify-center cursor-pointer transition-colors"
+                              title="Remove keyword"
+                            >
+                              <X className="w-2.5 h-2.5" />
+                            </button>
+                          </span>
+                        ))
+                      ) : (
+                        <span className="text-xs text-slate-400 italic">
+                          No keywords added yet. Type below or click auto-suggest.
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Add Keyword Input Field */}
+                    <div className="flex items-center gap-2">
+                      <div className="relative flex-1">
+                        <input
+                          type="text"
+                          value={keywordInput}
+                          onChange={(e) => setKeywordInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === ",") {
+                              e.preventDefault();
+                              handleAddKeyword();
+                            }
+                          }}
+                          placeholder="Type keyword and press Enter or comma (e.g. tv repair bihta, led screen replacement)..."
+                          className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs sm:text-sm bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all placeholder:text-slate-400"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleAddKeyword()}
+                        className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-900 text-white font-medium text-xs flex items-center gap-1.5 cursor-pointer shadow-xs shrink-0 transition-colors"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                        <span>Add</span>
+                      </button>
+                    </div>
+                  </div>
+
                   {/* Gemini AI Auto-Writer Banner */}
-                  <div className="bg-gradient-to-r from-indigo-50/80 via-purple-50/60 to-indigo-50/80 border border-indigo-100 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                  <div className="bg-gradient-to-r from-indigo-50/90 via-purple-50/70 to-indigo-50/90 border border-indigo-200/80 rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
                     <div className="flex items-start sm:items-center gap-3">
-                      <div className="w-9 h-9 rounded-xl bg-indigo-100/80 text-indigo-600 flex items-center justify-center shrink-0">
-                        <Sparkles className="w-4 h-4" />
+                      <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-600 to-purple-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+                        <Sparkles className="w-5 h-5" />
                       </div>
                       <div>
-                        <div className="text-xs sm:text-sm font-bold text-slate-800 flex items-center justify-between gap-2">
-                          <span className="flex items-center gap-1.5">
-                            <Sparkles className="w-3.5 h-3.5 text-amber-500" />
-                            Gemini AI Auto-Writer
+                        <div className="text-xs sm:text-sm font-bold text-slate-800 flex items-center gap-2">
+                          <span>Gemini AI Blog & Page Generator</span>
+                          <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-purple-100 text-purple-700">
+                            1,200+ Words
                           </span>
                           <button
                             type="button"
                             onClick={() => setShowAiSettings(true)}
-                            className="text-[11px] text-purple-600 hover:text-purple-800 font-semibold underline flex items-center gap-1 cursor-pointer ml-1.5"
+                            className="text-[11px] text-purple-600 hover:text-purple-800 font-semibold underline flex items-center gap-1 cursor-pointer ml-1"
                           >
                             <Key className="w-2.5 h-2.5" />
-                            <span>AI Key</span>
+                            <span>API Key</span>
                           </button>
                         </div>
                         <p className="text-[11px] sm:text-xs text-slate-500 mt-0.5 leading-snug">
-                          Select a Service and Location above, then click generate to auto-fill the whole page.
+                          Generates in-depth 1,200+ word blog content embedding all {formData.keywords?.length || 0} target keywords, plus photorealistic featured image!
                         </p>
                       </div>
                     </div>
@@ -624,18 +832,70 @@ export default function CreateSeoPageModal({
                       type="button"
                       onClick={handleGenerateAi}
                       disabled={generatingAi}
-                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-medium text-xs flex items-center justify-center gap-2 shadow-sm transition-all disabled:opacity-50 shrink-0 cursor-pointer"
+                      className="px-4 py-2.5 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white font-semibold text-xs flex items-center justify-center gap-2 shadow-sm transition-all disabled:opacity-50 shrink-0 cursor-pointer"
                     >
                       {generatingAi ? (
                         <>
-                          <Loader2 className="w-3.5 h-3.5 animate-spin" /> Generating...
+                          <Loader2 className="w-4 h-4 animate-spin" /> Writing In-Depth Blog...
                         </>
                       ) : (
                         <>
-                          <Sparkles className="w-3.5 h-3.5" /> Generate with Gemini AI
+                          <Sparkles className="w-4 h-4" /> Generate with Gemini AI
                         </>
                       )}
                     </button>
+                  </div>
+
+                  {/* Featured Hero Image (AI-Generated or Custom) */}
+                  <div className="bg-white border border-slate-200/90 rounded-2xl p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <label className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <ImageIcon className="w-3.5 h-3.5 text-emerald-600" />
+                        <span>Featured Hero Image (Generated by AI)</span>
+                      </label>
+                      <button
+                        type="button"
+                        onClick={handleRegenerateImage}
+                        className="text-[11px] text-emerald-600 hover:text-emerald-800 font-semibold hover:underline flex items-center gap-1 cursor-pointer"
+                      >
+                        <RefreshCw className="w-3 h-3" />
+                        <span>Regenerate Image</span>
+                      </button>
+                    </div>
+
+                    {formData.ogImage ? (
+                      <div className="relative group rounded-xl overflow-hidden border border-slate-200 max-h-48 bg-slate-900 flex items-center justify-center">
+                        <img
+                          src={formData.ogImage}
+                          alt="Hero Featured Preview"
+                          className="w-full h-44 object-cover"
+                          onError={(e) => {
+                            e.target.style.display = "none";
+                          }}
+                        />
+                        <div className="absolute bottom-2 left-2 px-2.5 py-1 rounded-md bg-slate-900/80 backdrop-blur-xs text-white text-[11px] font-medium flex items-center gap-1.5">
+                          <Sparkles className="w-3 h-3 text-amber-400" />
+                          <span>Photorealistic AI Service Image</span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-4 rounded-xl border border-dashed border-slate-200 text-center bg-slate-50 text-xs text-slate-500">
+                        Click "Generate with Gemini AI" or click "Regenerate Image" to automatically create an AI image.
+                      </div>
+                    )}
+
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-500 mb-1">
+                        Image URL (auto-filled by AI, or paste your own)
+                      </label>
+                      <input
+                        type="text"
+                        value={formData.ogImage || ""}
+                        onChange={(e) => updateField("ogImage", e.target.value)}
+                        placeholder="https://image.pollinations.ai/prompt/... or /images/..."
+                        className="w-full px-3 py-2 rounded-xl border border-slate-200 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/20 focus:border-emerald-500 font-mono"
+                      />
+                    </div>
                   </div>
 
                   {/* Page Template Selector */}
